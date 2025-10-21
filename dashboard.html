@@ -11,7 +11,7 @@
 </head>
 <body data-page="dashboard">
   <div class="app-shell">
-    <aside class="sidebar">
+    <aside class="sidebar" data-sidebar>
       <div class="sidebar-header">
         <div class="logo">E</div>
         <div class="brand">
@@ -51,12 +51,20 @@
         </div>
       </nav>
     </aside>
+    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
     <main class="main-content">
       <header class="topbar">
-        <form class="search-bar" role="search">
-          <span class="search-icon" aria-hidden="true">🔍</span>
-          <input type="search" id="search-input" placeholder="Search" aria-label="Pencarian produk">
-        </form>
+        <div class="topbar-left">
+          <button class="menu-toggle" type="button" aria-label="Buka navigasi" aria-expanded="false" data-sidebar-toggle>
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <form class="search-bar" role="search">
+            <span class="search-icon" aria-hidden="true">🔍</span>
+            <input type="search" id="search-input" placeholder="Search" aria-label="Pencarian produk">
+          </form>
+        </div>
         <div class="topbar-actions">
           <button class="icon-btn" type="button" aria-label="Notifikasi">🔔</button>
           <div class="avatar">AM</div>

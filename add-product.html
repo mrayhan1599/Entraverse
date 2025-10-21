@@ -11,7 +11,7 @@
 </head>
 <body data-page="add-product">
   <div class="app-shell">
-    <aside class="sidebar">
+    <aside class="sidebar" data-sidebar>
       <div class="sidebar-header">
         <div class="logo">E</div>
         <div class="brand">
@@ -36,9 +36,17 @@
         </div>
       </nav>
     </aside>
+    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
     <main class="main-content">
       <header class="topbar">
-        <a class="back-link" href="dashboard.html">← Kembali ke Produk</a>
+        <div class="topbar-left">
+          <button class="menu-toggle" type="button" aria-label="Buka navigasi" aria-expanded="false" data-sidebar-toggle>
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <a class="back-link" href="dashboard.html">← Kembali ke Produk</a>
+        </div>
         <div class="topbar-actions">
           <button class="icon-btn" type="button" aria-label="Notifikasi">🔔</button>
           <div class="avatar">AM</div>
