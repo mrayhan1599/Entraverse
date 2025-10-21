@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entraverse Admin - Produk</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body data-page="dashboard">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">E</div>
+        <div class="brand">
+          <span class="brand-title">Entraverse Supplier</span>
+          <span class="brand-subtitle">Admin</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <p class="nav-title">E-Commerce</p>
+          <a class="nav-link active" href="dashboard.html">
+            <span class="nav-icon" aria-hidden="true">📦</span>
+            Produk
+          </a>
+          <a class="nav-link" href="#">
+            <span class="nav-icon" aria-hidden="true">📂</span>
+            Kategori
+          </a>
+          <a class="nav-link" href="#">
+            <span class="nav-icon" aria-hidden="true">📊</span>
+            Laporan
+          </a>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Transaksi</p>
+          <a class="nav-link" href="#">
+            <span class="nav-icon" aria-hidden="true">💳</span>
+            Trade-In
+          </a>
+          <a class="nav-link" href="#">
+            <span class="nav-icon" aria-hidden="true">📃</span>
+            Invoice
+          </a>
+        </div>
+        <div class="nav-footer">
+          <button id="logout-btn" class="btn ghost-btn full-width">Keluar</button>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <header class="topbar">
+        <form class="search-bar" role="search">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input type="search" id="search-input" placeholder="Search" aria-label="Pencarian produk">
+        </form>
+        <div class="topbar-actions">
+          <button class="icon-btn" type="button" aria-label="Notifikasi">🔔</button>
+          <div class="avatar">AM</div>
+        </div>
+      </header>
+      <section class="content-header">
+        <div>
+          <h1>Produk</h1>
+          <p>Kelola katalog produk Anda, atur trade-in, dan sinkronisasi stok.</p>
+        </div>
+        <div class="header-actions">
+          <button id="sync-btn" class="btn ghost-btn">Sync ke Mubai Journal</button>
+          <a href="add-product.html" class="btn primary-btn">+ Tambah Produk</a>
+        </div>
+      </section>
+      <section class="card">
+        <header class="card-header">
+          <h2>Daftar Produk</h2>
+          <span id="product-count" class="count-pill">0 produk</span>
+        </header>
+        <div class="table-wrapper">
+          <table class="product-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Nama</th>
+                <th>Photo</th>
+                <th>Link</th>
+                <th>Trade-In</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="product-table-body">
+            </tbody>
+          </table>
+        </div>
+        <footer class="card-footer">
+          <span class="table-meta" id="table-meta">Menampilkan 0 produk</span>
+        </footer>
+      </section>
+    </main>
+  </div>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
