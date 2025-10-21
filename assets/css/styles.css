@@ -226,6 +226,25 @@ textarea {
   min-height: 100vh;
 }
 
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 22, 58, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 900;
+}
+
+body.sidebar-open {
+  overflow: hidden;
+}
+
+body.sidebar-open .sidebar-backdrop {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .sidebar {
   width: var(--sidebar-width);
   background: #10163a;
@@ -315,6 +334,13 @@ textarea {
   align-items: center;
 }
 
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
 .back-link {
   color: var(--color-primary);
   font-weight: 500;
@@ -328,6 +354,12 @@ textarea {
   padding: 12px 16px;
   border-radius: 999px;
   box-shadow: var(--shadow-sm);
+  width: 100%;
+  max-width: 420px;
+}
+
+.topbar-left .search-bar {
+  flex: 1;
 }
 
 .search-bar input {
@@ -335,7 +367,50 @@ textarea {
   outline: none;
   background: transparent;
   font: inherit;
-  width: 240px;
+  width: 100%;
+}
+
+.menu-toggle {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(68, 97, 242, 0.12);
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.menu-toggle:hover,
+.menu-toggle:focus-visible {
+  background: rgba(68, 97, 242, 0.2);
+  outline: none;
+}
+
+.menu-toggle span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.menu-toggle[aria-expanded="true"] span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.menu-toggle[aria-expanded="true"] span:nth-child(2) {
+  opacity: 0;
+}
+
+.menu-toggle[aria-expanded="true"] span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
 }
 
 .search-bar input::placeholder {
@@ -415,6 +490,10 @@ textarea {
 }
 
 .table-wrapper {
+  overflow-x: auto;
+}
+
+.variant-table-wrapper {
   overflow-x: auto;
 }
 
@@ -629,58 +708,51 @@ input:checked + .slider:before {
   :root {
     --sidebar-width: 240px;
   }
-
-  .search-bar input {
-    width: 180px;
-  }
 }
 
-@media (max-width: 920px) {
+@media (max-width: 960px) {
+  .menu-toggle {
+    display: inline-flex;
+  }
+
   .app-shell {
-    flex-direction: column;
+    position: relative;
   }
 
   .sidebar {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 20px;
-    gap: 16px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(var(--sidebar-width), 320px);
+    max-width: 85vw;
+    background: #10163a;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 1000;
+    overflow-y: auto;
+    box-shadow: var(--shadow-md);
   }
 
-  .sidebar-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .nav-section {
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .nav-title {
-    margin: 0;
+  body.sidebar-open .sidebar {
+    transform: translateX(0);
   }
 
   .main-content {
     padding: 24px 16px 64px;
   }
 
-  .search-bar {
-    width: 100%;
-  }
-
-  .search-bar input {
-    width: 100%;
-  }
-
   .topbar {
-    flex-direction: column;
-    align-items: stretch;
+    align-items: flex-start;
     gap: 16px;
+  }
+
+  .topbar-left {
+    width: 100%;
+  }
+
+  .topbar-actions {
+    align-self: flex-end;
   }
 
   .content-header {
@@ -690,22 +762,19 @@ input:checked + .slider:before {
   .form-footer {
     flex-direction: column-reverse;
     align-items: stretch;
+    gap: 12px;
+  }
+}
+
+@media (min-width: 961px) {
+  .sidebar-backdrop {
+    display: none;
   }
 }
 
 @media (max-width: 640px) {
   .auth-card {
     padding: 32px 24px;
-  }
-
-  .sidebar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .sidebar-nav {
-    width: 100%;
-    flex-direction: column;
   }
 
   .header-actions {
@@ -715,6 +784,12 @@ input:checked + .slider:before {
 
   .card {
     padding: 20px;
+  }
+
+  .topbar-actions {
+    align-self: stretch;
+    display: flex;
+    justify-content: flex-end;
   }
 
   .variant-table,

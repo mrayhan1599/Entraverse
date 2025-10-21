@@ -126,6 +126,69 @@ function formatCurrency(value) {
   }).format(value);
 }
 
+function setupSidebarToggle() {
+  const sidebar = document.querySelector('[data-sidebar]');
+  const backdrop = document.querySelector('[data-sidebar-backdrop]');
+  const toggleButtons = document.querySelectorAll('[data-sidebar-toggle]');
+
+  if (!sidebar || toggleButtons.length === 0) {
+    return;
+  }
+
+  const setExpanded = expanded => {
+    toggleButtons.forEach(button => button.setAttribute('aria-expanded', String(expanded)));
+  };
+
+  const closeSidebar = () => {
+    document.body.classList.remove('sidebar-open');
+    setExpanded(false);
+  };
+
+  const openSidebar = () => {
+    document.body.classList.add('sidebar-open');
+    setExpanded(true);
+  };
+
+  const toggleSidebar = () => {
+    if (document.body.classList.contains('sidebar-open')) {
+      closeSidebar();
+    } else {
+      openSidebar();
+    }
+  };
+
+  toggleButtons.forEach(button => {
+    button.addEventListener('click', toggleSidebar);
+  });
+
+  backdrop?.addEventListener('click', closeSidebar);
+
+  sidebar.addEventListener('click', event => {
+    if (event.target.closest('.nav-link')) {
+      closeSidebar();
+    }
+  });
+
+  window.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      closeSidebar();
+    }
+  });
+
+  const mediaQuery = window.matchMedia('(min-width: 961px)');
+  const handleMediaChange = event => {
+    if (event.matches) {
+      closeSidebar();
+    }
+  };
+
+  if (typeof mediaQuery.addEventListener === 'function') {
+    mediaQuery.addEventListener('change', handleMediaChange);
+  } else {
+    mediaQuery.addListener(handleMediaChange);
+  }
+}
+
 function handleRegister() {
   const form = document.getElementById('register-form');
   if (!form) return;
@@ -439,6 +502,7 @@ function initPage() {
     }
 
     if (['dashboard', 'add-product'].includes(page)) {
+      setupSidebarToggle();
       const user = ensureAuthenticatedPage();
       if (!user) return;
       document.querySelectorAll('.avatar').forEach(el => {
