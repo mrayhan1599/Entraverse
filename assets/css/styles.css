@@ -1415,14 +1415,23 @@ input:checked + .slider:before {
 
   .topbar-left .search-bar {
     max-width: none;
-    padding: 8px 12px;
-    gap: 8px;
-    border-radius: 12px;
+    padding: 6px 10px;
+    gap: 6px;
+    border-radius: 10px;
+  }
+
+  .topbar-left .search-bar input {
+    font-size: 14px;
+  }
+
+  .topbar-left .search-icon {
+    font-size: 14px;
   }
 
   .title-bar {
     align-items: center;
     gap: 8px;
+    flex-wrap: nowrap;
   }
 
   .title-bar h1 {
@@ -1435,6 +1444,7 @@ input:checked + .slider:before {
     flex: 0 0 auto;
     justify-content: flex-end;
     margin-left: auto;
+    gap: 8px;
   }
 
   .card {
