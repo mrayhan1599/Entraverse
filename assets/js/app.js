@@ -39,6 +39,281 @@ const DEFAULT_PRODUCTS = [
   }
 ];
 
+const THEME_STORAGE_KEY = 'entraverse_theme_mode';
+const THEME_MODES = ['day', 'night', 'dark'];
+const DEFAULT_THEME_MODE = 'night';
+const NIGHT_MODE_INTERVAL = 5 * 60 * 1000;
+const THEME_LABELS = {
+  day: 'Day Mode',
+  night: 'Night Mode (Auto)',
+  dark: 'Dark Mode'
+};
+const THEME_ICON_MARKUP = {
+  day: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.5v1.5m0 12v1.5m7.5-7.5h1.5m-18 0H3m13.364-6.364 1.06-1.06m-12.728 0-1.06-1.06m12.728 12.728 1.06 1.06m-12.728 0-1.06 1.06M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0z"/></svg>',
+  night: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>',
+  dark: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12.79A9 9 0 1 1 11.21 3a7.5 7.5 0 0 0 9.79 9.79z"/></svg>'
+};
+
+let themeControls = [];
+let nightModeIntervalId = null;
+let themeListenersAttached = false;
+
+function isValidThemeMode(mode) {
+  return THEME_MODES.includes(mode);
+}
+
+function isNightTime() {
+  const hour = new Date().getHours();
+  return hour >= 18 || hour < 6;
+}
+
+function resolveTheme(mode) {
+  if (mode === 'dark') return 'dark';
+  if (mode === 'day') return 'day';
+  return isNightTime() ? 'dark' : 'day';
+}
+
+function getStoredThemeMode() {
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY);
+  } catch (error) {
+    console.warn('Unable to read stored theme mode', error);
+    return null;
+  }
+}
+
+function persistThemeMode(mode) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, mode);
+  } catch (error) {
+    console.warn('Unable to persist theme mode', error);
+  }
+}
+
+function setColorScheme(resolved) {
+  document.documentElement.style.setProperty('color-scheme', resolved === 'dark' ? 'dark' : 'light');
+}
+
+function updateThemeControlsUI(mode) {
+  if (!themeControls.length) return;
+  const normalizedMode = isValidThemeMode(mode) ? mode : DEFAULT_THEME_MODE;
+  const resolved = resolveTheme(normalizedMode);
+
+  themeControls.forEach(control => {
+    const label = control.querySelector('[data-theme-label]');
+    if (label) {
+      label.textContent = THEME_LABELS[normalizedMode] ?? THEME_LABELS[DEFAULT_THEME_MODE];
+    }
+
+    const iconTarget = control.querySelector('[data-theme-icon]');
+    if (iconTarget) {
+      const markup = THEME_ICON_MARKUP[normalizedMode] ?? '';
+      iconTarget.innerHTML = markup;
+      iconTarget.dataset.iconMode = normalizedMode;
+      iconTarget.dataset.iconTheme = resolved;
+    }
+
+    control.querySelectorAll('[data-theme-option]').forEach(option => {
+      const isActive = option.dataset.themeOption === normalizedMode;
+      option.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      option.classList.toggle('is-active', isActive);
+    });
+  });
+}
+
+function refreshNightModeTheme() {
+  if (document.body.dataset.themeMode !== 'night') {
+    return;
+  }
+  const resolved = resolveTheme('night');
+  document.body.dataset.theme = resolved;
+  setColorScheme(resolved);
+  themeControls.forEach(control => {
+    const iconTarget = control.querySelector('[data-theme-icon]');
+    if (iconTarget) {
+      iconTarget.dataset.iconTheme = resolved;
+    }
+  });
+}
+
+function setThemeControlOpen(control, open) {
+  if (!control) return;
+  const trigger = control.querySelector('[data-theme-trigger]');
+  if (trigger) {
+    trigger.setAttribute('aria-expanded', String(open));
+  }
+  control.classList.toggle('open', open);
+  control.querySelectorAll('[data-theme-option]').forEach(option => {
+    option.tabIndex = open ? 0 : -1;
+  });
+}
+
+function closeThemeControls(except) {
+  themeControls.forEach(control => {
+    if (control !== except) {
+      setThemeControlOpen(control, false);
+    }
+  });
+}
+
+function handleThemeControlDocumentClick(event) {
+  if (!themeControls.length) return;
+  const control = event.target.closest('[data-theme-control]');
+  if (!control || !themeControls.includes(control)) {
+    closeThemeControls();
+  }
+}
+
+function handleThemeControlEscape(event) {
+  if (event.key === 'Escape') {
+    closeThemeControls();
+  }
+}
+
+function applyTheme(mode, { skipStorage } = {}) {
+  const normalizedMode = isValidThemeMode(mode) ? mode : DEFAULT_THEME_MODE;
+  const resolved = resolveTheme(normalizedMode);
+
+  document.body.dataset.themeMode = normalizedMode;
+  document.body.dataset.theme = resolved;
+  setColorScheme(resolved);
+
+  if (!skipStorage) {
+    persistThemeMode(normalizedMode);
+  }
+
+  updateThemeControlsUI(normalizedMode);
+
+  if (normalizedMode === 'night') {
+    refreshNightModeTheme();
+    if (!nightModeIntervalId) {
+      nightModeIntervalId = setInterval(refreshNightModeTheme, NIGHT_MODE_INTERVAL);
+    }
+  } else if (nightModeIntervalId) {
+    clearInterval(nightModeIntervalId);
+    nightModeIntervalId = null;
+  }
+
+  return resolved;
+}
+
+function initializeTheme() {
+  const storedMode = getStoredThemeMode();
+  const initialMode = isValidThemeMode(storedMode) ? storedMode : DEFAULT_THEME_MODE;
+  applyTheme(initialMode, { skipStorage: true });
+}
+
+function setupThemeControls() {
+  themeControls = Array.from(document.querySelectorAll('[data-theme-control]'));
+  if (!themeControls.length) {
+    return;
+  }
+
+  const currentMode = document.body.dataset.themeMode || DEFAULT_THEME_MODE;
+
+  themeControls.forEach(control => {
+    const trigger = control.querySelector('[data-theme-trigger]');
+    const options = Array.from(control.querySelectorAll('[data-theme-option]'));
+
+    if (trigger) {
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+
+    options.forEach(option => {
+      option.tabIndex = -1;
+      const icon = option.querySelector('[data-theme-option-icon]');
+      const optionMode = option.dataset.themeOption;
+      if (icon && optionMode && THEME_ICON_MARKUP[optionMode]) {
+        icon.innerHTML = THEME_ICON_MARKUP[optionMode];
+      }
+    });
+
+    const openMenu = () => {
+      closeThemeControls(control);
+      setThemeControlOpen(control, true);
+      options[0]?.focus();
+    };
+
+    trigger?.addEventListener('click', event => {
+      event.preventDefault();
+      const isOpen = control.classList.contains('open');
+      if (isOpen) {
+        setThemeControlOpen(control, false);
+      } else {
+        openMenu();
+      }
+    });
+
+    trigger?.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        const isOpen = control.classList.contains('open');
+        if (isOpen) {
+          setThemeControlOpen(control, false);
+        } else {
+          openMenu();
+        }
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        if (!control.classList.contains('open')) {
+          openMenu();
+        } else {
+          options[0]?.focus();
+        }
+      }
+    });
+
+    options.forEach((option, index) => {
+      const selectOption = () => {
+        applyTheme(option.dataset.themeOption);
+        closeThemeControls();
+        setThemeControlOpen(control, false);
+        trigger?.focus();
+      };
+
+      option.addEventListener('click', selectOption);
+
+      option.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectOption();
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setThemeControlOpen(control, false);
+          trigger?.focus();
+        }
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          options[(index + 1) % options.length]?.focus();
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          options[(index - 1 + options.length) % options.length]?.focus();
+        }
+      });
+    });
+  });
+
+  if (!themeListenersAttached) {
+    document.addEventListener('click', handleThemeControlDocumentClick);
+    document.addEventListener('keydown', handleThemeControlEscape);
+    window.addEventListener('focus', refreshNightModeTheme);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        refreshNightModeTheme();
+      }
+    });
+    themeListenersAttached = true;
+  }
+
+  updateThemeControlsUI(currentMode);
+  refreshNightModeTheme();
+}
+
+initializeTheme();
+
 const toast = createToast();
 
 function clone(value) {
@@ -776,6 +1051,7 @@ function initPage() {
   document.addEventListener('DOMContentLoaded', () => {
     const page = document.body.dataset.page;
     handleLogout();
+    setupThemeControls();
 
     if (page === 'login') {
       handleLogin();

@@ -46,6 +46,31 @@
             Invoice
           </a>
         </div>
+        <div class="sidebar-theme">
+          <div class="theme-switcher theme-switcher--sidebar" data-theme-control>
+            <button class="theme-switcher__button" type="button" aria-haspopup="listbox" aria-expanded="false" data-theme-trigger>
+              <span class="theme-switcher__icon" aria-hidden="true" data-theme-icon></span>
+              <span class="theme-switcher__label" data-theme-label>Night Mode</span>
+              <svg class="theme-switcher__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="m8.5 10 3.5 4 3.5-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </button>
+            <ul class="theme-switcher__menu" role="listbox" aria-label="Pilih mode tampilan">
+              <li class="theme-switcher__option" role="option" tabindex="-1" aria-selected="false" data-theme-option="day">
+                <span class="theme-switcher__option-icon" aria-hidden="true" data-theme-option-icon></span>
+                <span>Day Mode</span>
+              </li>
+              <li class="theme-switcher__option" role="option" tabindex="-1" aria-selected="false" data-theme-option="night">
+                <span class="theme-switcher__option-icon" aria-hidden="true" data-theme-option-icon></span>
+                <span>Night Mode</span>
+              </li>
+              <li class="theme-switcher__option" role="option" tabindex="-1" aria-selected="false" data-theme-option="dark">
+                <span class="theme-switcher__option-icon" aria-hidden="true" data-theme-option-icon></span>
+                <span>Dark Mode</span>
+              </li>
+            </ul>
+          </div>
+        </div>
         <div class="nav-footer">
           <button id="logout-btn" class="btn ghost-btn full-width">Keluar</button>
         </div>
@@ -75,6 +100,29 @@
           <div class="title-bar">
             <h1>Produk</h1>
             <div class="title-actions" role="toolbar" aria-label="Aksi produk">
+              <div class="theme-switcher theme-switcher--inline" data-theme-control>
+                <button class="theme-switcher__button" type="button" aria-haspopup="listbox" aria-expanded="false" data-theme-trigger>
+                  <span class="theme-switcher__icon" aria-hidden="true" data-theme-icon></span>
+                  <span class="theme-switcher__label" data-theme-label>Night Mode</span>
+                  <svg class="theme-switcher__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="m8.5 10 3.5 4 3.5-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                  </svg>
+                </button>
+                <ul class="theme-switcher__menu" role="listbox" aria-label="Pilih mode tampilan">
+                  <li class="theme-switcher__option" role="option" tabindex="-1" aria-selected="false" data-theme-option="day">
+                    <span class="theme-switcher__option-icon" aria-hidden="true" data-theme-option-icon></span>
+                    <span>Day Mode</span>
+                  </li>
+                  <li class="theme-switcher__option" role="option" tabindex="-1" aria-selected="false" data-theme-option="night">
+                    <span class="theme-switcher__option-icon" aria-hidden="true" data-theme-option-icon></span>
+                    <span>Night Mode</span>
+                  </li>
+                  <li class="theme-switcher__option" role="option" tabindex="-1" aria-selected="false" data-theme-option="dark">
+                    <span class="theme-switcher__option-icon" aria-hidden="true" data-theme-option-icon></span>
+                    <span>Dark Mode</span>
+                  </li>
+                </ul>
+              </div>
               <button id="sync-btn" class="action-icon" type="button" aria-label="Sync ke Mekari Jurnal" data-label-default="Sync ke Mekari Jurnal" data-label-loading="Menyinkronkan...">
                 <span class="visually-hidden" data-label>Sync ke Mekari Jurnal</span>
                 <span aria-hidden="true" class="logo-badge">MJ</span>
