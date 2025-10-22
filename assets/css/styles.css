@@ -870,6 +870,11 @@ a.action-icon {
   -webkit-overflow-scrolling: touch;
 }
 
+.variant-pricing-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .product-table {
   width: 100%;
   border-collapse: collapse;
@@ -1092,11 +1097,76 @@ input:checked + .slider:before {
   min-width: 440px;
 }
 
+.variant-pricing-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 960px;
+}
+
 .variant-table th,
 .variant-table td {
   padding: 12px;
   border-bottom: 1px solid var(--color-border);
   vertical-align: top;
+}
+
+.variant-pricing-table th,
+.variant-pricing-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.variant-pricing-table th {
+  font-weight: 600;
+  text-align: left;
+  color: var(--color-muted);
+}
+
+.variant-pricing-table td {
+  background: var(--color-surface);
+}
+
+.variant-pricing-table input,
+.variant-pricing-table select {
+  width: 100%;
+  min-width: 150px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.variant-pricing-table input:focus,
+.variant-pricing-table select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px var(--color-focus);
+  background: var(--color-surface);
+}
+
+.variant-pricing-table .variant-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.variant-pricing-table .icon-btn {
+  margin-inline: auto;
+}
+
+.variant-pricing-table .icon-btn.small {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+
+.variant-pricing-table .numeric-input {
+  min-width: 120px;
 }
 
 .variant-table th:last-child,
@@ -1255,6 +1325,15 @@ input:checked + .slider:before {
     align-items: stretch;
     gap: 12px;
   }
+
+  .variant-pricing-table {
+    min-width: 760px;
+  }
+
+  .variant-pricing-table input,
+  .variant-pricing-table select {
+    min-width: 140px;
+  }
 }
 
 @media (min-width: 961px) {
@@ -1294,6 +1373,7 @@ input:checked + .slider:before {
   }
 
   .variant-table,
+  .variant-pricing-table,
   .product-table {
     min-width: 520px;
   }

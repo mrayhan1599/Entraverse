@@ -16,8 +16,43 @@ const DEFAULT_PRODUCTS = [
     description: 'Headset VR canggih untuk pengalaman imersif dalam dunia virtual.',
     tradeIn: true,
     variants: [
-      { name: 'Memori Internal', options: ['128 GB', '256 GB'] },
-      { name: 'Warna', options: ['Putih'] }
+      { name: 'Warna', options: ['Green', 'Clear', 'Dusty Blue'] },
+      { name: 'Garansi', options: ['1 Tahun', 'Tanpa Garansi'] },
+      { name: 'Kapasitas', options: ['128 GB', '256 GB', '1 TB'] }
+    ],
+    variantPricing: [
+      {
+        id: crypto.randomUUID(),
+        variants: [
+          { name: 'Warna', value: 'Green' },
+          { name: 'Garansi', value: '1 Tahun' },
+          { name: 'Kapasitas', value: '128 GB' }
+        ],
+        supplierPrice: '9000000',
+        offlinePrice: '9555000',
+        entraversePrice: '9700000',
+        tokopediaPrice: '9750000',
+        skuSeller: 'MQ3S-GRN-128',
+        skuEntraverse: 'MQ3S-GRN-128-ENT',
+        stock: '25',
+        weight: '2000'
+      },
+      {
+        id: crypto.randomUUID(),
+        variants: [
+          { name: 'Warna', value: 'Dusty Blue' },
+          { name: 'Garansi', value: 'Tanpa Garansi' },
+          { name: 'Kapasitas', value: '256 GB' }
+        ],
+        supplierPrice: '9250000',
+        offlinePrice: '9799000',
+        entraversePrice: '9899000',
+        tokopediaPrice: '10000000',
+        skuSeller: 'MQ3S-DBL-256',
+        skuEntraverse: 'MQ3S-DBL-256-ENT',
+        stock: '18',
+        weight: '2050'
+      }
     ],
     createdAt: Date.now()
   },
@@ -32,8 +67,43 @@ const DEFAULT_PRODUCTS = [
     description: 'Versi penyimpanan besar untuk koleksi aplikasi VR favorit.',
     tradeIn: false,
     variants: [
-      { name: 'Memori Internal', options: ['256 GB'] },
-      { name: 'Warna', options: ['Hitam'] }
+      { name: 'Warna', options: ['Graphite', 'Pearl'] },
+      { name: 'Garansi', options: ['1 Tahun', '2 Tahun'] },
+      { name: 'Kapasitas', options: ['256 GB'] }
+    ],
+    variantPricing: [
+      {
+        id: crypto.randomUUID(),
+        variants: [
+          { name: 'Warna', value: 'Graphite' },
+          { name: 'Garansi', value: '1 Tahun' },
+          { name: 'Kapasitas', value: '256 GB' }
+        ],
+        supplierPrice: '9800000',
+        offlinePrice: '10350000',
+        entraversePrice: '10499000',
+        tokopediaPrice: '10699000',
+        skuSeller: 'MQ3S-GPH-256',
+        skuEntraverse: 'MQ3S-GPH-256-ENT',
+        stock: '12',
+        weight: '2100'
+      },
+      {
+        id: crypto.randomUUID(),
+        variants: [
+          { name: 'Warna', value: 'Pearl' },
+          { name: 'Garansi', value: '2 Tahun' },
+          { name: 'Kapasitas', value: '256 GB' }
+        ],
+        supplierPrice: '10250000',
+        offlinePrice: '10899000',
+        entraversePrice: '10999000',
+        tokopediaPrice: '11150000',
+        skuSeller: 'MQ3S-PRL-256',
+        skuEntraverse: 'MQ3S-PRL-256-ENT',
+        stock: '9',
+        weight: '2100'
+      }
     ],
     createdAt: Date.now()
   }
@@ -661,6 +731,7 @@ function renderProducts(filterText = '') {
       </td>
       <td>
         <div class="table-actions">
+          <button class="icon-btn small" type="button" data-action="edit" data-id="${product.id}" title="Edit">✏️</button>
           <button class="icon-btn small" type="button" data-action="view-variants" data-id="${product.id}" title="Lihat varian">👁️</button>
           <button class="icon-btn danger small" type="button" data-action="delete" data-id="${product.id}" title="Hapus">🗑️</button>
         </div>
@@ -693,6 +764,11 @@ function handleProductActions() {
     const products = getData(STORAGE_KEYS.products, []);
     const productIndex = products.findIndex(p => p.id === id);
     if (productIndex === -1) return;
+
+    if (target.dataset.action === 'edit') {
+      window.location.href = `add-product.html?id=${id}`;
+      return;
+    }
 
     if (target.dataset.action === 'delete') {
       if (confirm('Hapus produk ini?')) {
@@ -785,9 +861,17 @@ function handleAddProductForm() {
   if (!form) return;
 
   const variantBody = document.getElementById('variant-body');
+  const pricingBody = document.getElementById('variant-pricing-body');
+  const pricingHeaderRow = document.getElementById('variant-pricing-header');
   const addVariantBtn = document.getElementById('add-variant-btn');
-
+  const addPricingRowBtn = document.getElementById('add-pricing-row-btn');
   const photoInputs = Array.from(form.querySelectorAll('[data-photo-field]'));
+  const titleEl = document.getElementById('product-form-title');
+  const subtitleEl = document.getElementById('product-form-subtitle');
+  const submitBtn = form.querySelector('.primary-btn');
+  const params = new URLSearchParams(window.location.search);
+  const editingId = params.get('id');
+  let suppressPricingRefresh = false;
 
   const clearPreview = (container, preview, input) => {
     if (!container || !preview) return;
@@ -882,7 +966,253 @@ function handleAddProductForm() {
     });
   });
 
-  if (!variantBody) return;
+  const getVariantDefinitions = () => {
+    if (!variantBody) return [];
+    return Array.from(variantBody.querySelectorAll('.variant-row')).map((row, index) => {
+      const nameInput = row.querySelector('.variant-name');
+      const rawName = (nameInput?.value ?? '').toString().trim();
+      const options = Array.from(row.querySelectorAll('[data-option-chip]'))
+        .map(chip => chip.dataset.optionValue?.toString().trim())
+        .filter(Boolean);
+      return {
+        name: rawName || `Varian ${index + 1}`,
+        rawName,
+        options
+      };
+    });
+  };
+
+  function collectPricingRows(variantDefs = getVariantDefinitions()) {
+    if (!pricingBody) return [];
+    return Array.from(pricingBody.querySelectorAll('.pricing-row')).map(row => {
+      const getValue = selector => {
+        const field = row.querySelector(selector);
+        if (!field) return '';
+        return (field.value ?? '').toString().trim();
+      };
+
+      const data = {
+        id: row.dataset.pricingId || null,
+        supplierPrice: getValue('[data-field="supplierPrice"]'),
+        offlinePrice: getValue('[data-field="offlinePrice"]'),
+        entraversePrice: getValue('[data-field="entraversePrice"]'),
+        tokopediaPrice: getValue('[data-field="tokopediaPrice"]'),
+        skuSeller: getValue('[data-field="skuSeller"]'),
+        skuEntraverse: getValue('[data-field="skuEntraverse"]'),
+        stock: getValue('[data-field="stock"]'),
+        weight: getValue('[data-field="weight"]')
+      };
+
+      if (variantDefs.length) {
+        data.variants = variantDefs.map((variant, index) => {
+          const select = row.querySelector(`[data-variant-select="${index}"]`);
+          const value = select ? (select.value ?? '').toString().trim() : '';
+          return {
+            name: variant.rawName || variant.name,
+            value
+          };
+        });
+      } else {
+        data.variantLabel = getValue('[data-field="variantLabel"]');
+      }
+
+      return data;
+    });
+  }
+
+  function hydratePricingRow(row, initialData = {}, variantDefs = getVariantDefinitions()) {
+    if (!row) return;
+
+    if (initialData.id) {
+      row.dataset.pricingId = initialData.id;
+    }
+
+    if (variantDefs.length) {
+      const valueMap = new Map();
+      if (Array.isArray(initialData.variants)) {
+        initialData.variants.forEach(item => {
+          if (!item) return;
+          const key = (item.name ?? '').toString().trim().toLowerCase();
+          if (!key) return;
+          valueMap.set(key, (item.value ?? '').toString().trim());
+        });
+      }
+
+      variantDefs.forEach((variant, index) => {
+        const select = row.querySelector(`[data-variant-select="${index}"]`);
+        if (!select) return;
+        const keys = [variant.rawName, variant.name]
+          .map(name => (name ?? '').toString().trim().toLowerCase())
+          .filter(Boolean);
+
+        let value = '';
+        for (const key of keys) {
+          if (valueMap.has(key)) {
+            value = valueMap.get(key) ?? '';
+            break;
+          }
+        }
+
+        if (value) {
+          const exists = Array.from(select.options).some(option => option.value === value);
+          if (!exists) {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            option.dataset.temporaryOption = 'true';
+            select.appendChild(option);
+          }
+          select.value = value;
+        }
+      });
+    } else if (initialData.variantLabel) {
+      const variantInput = row.querySelector('[data-field="variantLabel"]');
+      if (variantInput) {
+        variantInput.value = initialData.variantLabel;
+      }
+    }
+
+    [
+      'supplierPrice',
+      'offlinePrice',
+      'entraversePrice',
+      'tokopediaPrice',
+      'skuSeller',
+      'skuEntraverse',
+      'stock',
+      'weight'
+    ].forEach(field => {
+      const input = row.querySelector(`[data-field="${field}"]`);
+      if (input && initialData[field] !== undefined && initialData[field] !== null) {
+        input.value = initialData[field];
+      }
+    });
+  }
+
+  function createPricingRow(initialData = {}, variantDefs = getVariantDefinitions()) {
+    if (!pricingBody) return null;
+
+    const row = document.createElement('tr');
+    row.className = 'pricing-row';
+
+    if (variantDefs.length) {
+      variantDefs.forEach((variant, index) => {
+        const cell = document.createElement('td');
+        cell.dataset.pricingVariantCell = 'true';
+        const select = document.createElement('select');
+        select.dataset.variantSelect = index;
+        select.innerHTML = `<option value="">Pilih ${variant.name}</option>`;
+        variant.options.forEach(option => {
+          const opt = document.createElement('option');
+          opt.value = option;
+          opt.textContent = option;
+          select.appendChild(opt);
+        });
+        select.setAttribute('aria-label', `Pilih ${variant.name}`);
+        cell.appendChild(select);
+        row.appendChild(cell);
+      });
+    } else {
+      const cell = document.createElement('td');
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Contoh: Varian Utama';
+      input.dataset.field = 'variantLabel';
+      cell.appendChild(input);
+      row.appendChild(cell);
+    }
+
+    const buildInputCell = (field, placeholder, type = 'text') => {
+      const cell = document.createElement('td');
+      const input = document.createElement('input');
+      input.type = type;
+      input.placeholder = placeholder;
+      input.dataset.field = field;
+      if (['supplierPrice', 'offlinePrice', 'entraversePrice', 'tokopediaPrice'].includes(field)) {
+        input.inputMode = 'numeric';
+        input.classList.add('numeric-input');
+      }
+      if (field === 'stock' || field === 'weight') {
+        input.inputMode = 'numeric';
+        input.pattern = '[0-9]*';
+      }
+      cell.appendChild(input);
+      row.appendChild(cell);
+    };
+
+    buildInputCell('supplierPrice', 'Rp 0');
+    buildInputCell('offlinePrice', 'Rp 0');
+    buildInputCell('entraversePrice', 'Rp 0');
+    buildInputCell('tokopediaPrice', 'Rp 0');
+    buildInputCell('skuSeller', 'SKU Penjual');
+    buildInputCell('skuEntraverse', 'SKU Entraverse');
+    buildInputCell('stock', 'Stok');
+    buildInputCell('weight', 'Gram');
+
+    const actionsCell = document.createElement('td');
+    actionsCell.className = 'variant-actions';
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'icon-btn danger small remove-pricing-row';
+    removeBtn.setAttribute('aria-label', 'Hapus baris harga');
+    removeBtn.textContent = '🗑️';
+    actionsCell.appendChild(removeBtn);
+    row.appendChild(actionsCell);
+
+    pricingBody.appendChild(row);
+    hydratePricingRow(row, initialData, variantDefs);
+    return row;
+  }
+
+  function refreshPricingTableStructure() {
+    if (!pricingBody || !pricingHeaderRow || suppressPricingRefresh) {
+      return;
+    }
+
+    const variantDefs = getVariantDefinitions();
+    const existingData = collectPricingRows(variantDefs);
+
+    pricingHeaderRow.innerHTML = '';
+    if (variantDefs.length) {
+      variantDefs.forEach(variant => {
+        const th = document.createElement('th');
+        th.textContent = variant.name;
+        pricingHeaderRow.appendChild(th);
+      });
+    } else {
+      const th = document.createElement('th');
+      th.textContent = 'Varian';
+      pricingHeaderRow.appendChild(th);
+    }
+
+    [
+      'Harga Supplier',
+      'Harga Jual Offline',
+      'Harga Jual Entraverse.id',
+      'Harga Jual Tokopedia',
+      'SKU Penjual',
+      'SKU Entraverse',
+      'Stok',
+      'Berat Barang',
+      ''
+    ].forEach(label => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      if (!label) {
+        th.className = 'actions-col';
+      }
+      pricingHeaderRow.appendChild(th);
+    });
+
+    pricingBody.innerHTML = '';
+    if (!existingData.length) {
+      existingData.push({});
+    }
+
+    existingData.forEach(data => {
+      createPricingRow(data, variantDefs);
+    });
+  }
 
   const variantRowTemplate = () => `
     <td>
@@ -903,7 +1233,7 @@ function handleAddProductForm() {
     </td>
   `;
 
-  const addOptionChip = (list, rawValue, { silent = false } = {}) => {
+  function addOptionChip(list, rawValue, { silent = false } = {}) {
     if (!list) return false;
     const value = rawValue?.toString().trim();
     if (!value) {
@@ -933,10 +1263,15 @@ function handleAddProductForm() {
     chip.innerHTML = `<span>${value}</span><span aria-hidden="true">×</span>`;
     chip.setAttribute('aria-label', `Hapus opsi ${value}`);
     list.appendChild(chip);
-    return true;
-  };
 
-  const hydrateVariantRow = (row, initialVariant = null) => {
+    if (!silent && !suppressPricingRefresh) {
+      refreshPricingTableStructure();
+    }
+
+    return true;
+  }
+
+  function hydrateVariantRow(row, initialVariant = null) {
     if (!row) return;
     const optionsList = row.querySelector('[data-options-list]');
     if (initialVariant?.name) {
@@ -949,16 +1284,20 @@ function handleAddProductForm() {
     if (Array.isArray(initialVariant?.options)) {
       initialVariant.options.forEach(option => addOptionChip(optionsList, option, { silent: true }));
     }
-  };
+  }
 
-  const createVariantRow = (initialVariant = null) => {
+  function createVariantRow(initialVariant = null) {
+    if (!variantBody) return null;
     const row = document.createElement('tr');
     row.className = 'variant-row';
     row.innerHTML = variantRowTemplate();
     variantBody.appendChild(row);
     hydrateVariantRow(row, initialVariant);
+    if (!suppressPricingRefresh) {
+      refreshPricingTableStructure();
+    }
     return row;
-  };
+  }
 
   const handleAddOption = container => {
     if (!container) return;
@@ -972,10 +1311,6 @@ function handleAddProductForm() {
     }
     input.focus();
   };
-
-  if (variantBody && variantBody.children.length === 0) {
-    createVariantRow();
-  }
 
   addVariantBtn?.addEventListener('click', () => {
     createVariantRow();
@@ -991,6 +1326,9 @@ function handleAddProductForm() {
     const chip = event.target.closest('[data-option-chip]');
     if (chip) {
       chip.remove();
+      if (!suppressPricingRefresh) {
+        refreshPricingTableStructure();
+      }
       return;
     }
 
@@ -1001,7 +1339,10 @@ function handleAddProductForm() {
       toast.show('Minimal satu varian diperlukan.');
       return;
     }
-    button.closest('tr').remove();
+    button.closest('tr')?.remove();
+    if (!suppressPricingRefresh) {
+      refreshPricingTableStructure();
+    }
   });
 
   variantBody?.addEventListener('keydown', event => {
@@ -1010,6 +1351,122 @@ function handleAddProductForm() {
     event.preventDefault();
     handleAddOption(event.target.closest('[data-options]'));
   });
+
+  variantBody?.addEventListener('input', event => {
+    if (!event.target.matches('.variant-name')) return;
+    if (!suppressPricingRefresh) {
+      refreshPricingTableStructure();
+    }
+  });
+
+  addPricingRowBtn?.addEventListener('click', () => {
+    createPricingRow({}, getVariantDefinitions());
+  });
+
+  pricingBody?.addEventListener('click', event => {
+    const button = event.target.closest('.remove-pricing-row');
+    if (!button) return;
+    const rows = Array.from(pricingBody.querySelectorAll('.pricing-row'));
+    if (rows.length <= 1) {
+      const fields = rows[0]?.querySelectorAll('input, select');
+      fields?.forEach(field => {
+        if (field.tagName === 'SELECT') {
+          field.value = '';
+        } else {
+          field.value = '';
+        }
+      });
+      return;
+    }
+    button.closest('tr')?.remove();
+  });
+
+  if (editingId) {
+    const products = getData(STORAGE_KEYS.products, []);
+    const product = products.find(p => p.id === editingId);
+
+    if (!product) {
+      toast.show('Produk tidak ditemukan.');
+      setTimeout(() => {
+        window.location.href = 'dashboard.html';
+      }, 900);
+      if (!variantBody?.children.length) {
+        createVariantRow();
+      }
+      return;
+    }
+
+    form.dataset.editingId = product.id;
+
+    if (titleEl) {
+      titleEl.textContent = 'Edit Produk';
+    }
+    if (subtitleEl) {
+      subtitleEl.textContent = 'Perbarui detail produk dan varian Anda.';
+    }
+    if (submitBtn) {
+      submitBtn.textContent = 'Simpan Perubahan';
+    }
+
+    const nameInput = form.querySelector('#product-name');
+    if (nameInput) {
+      nameInput.value = product.name ?? '';
+    }
+    const categoryInput = form.querySelector('#product-category');
+    if (categoryInput) {
+      categoryInput.value = product.category ?? '';
+    }
+    const brandInput = form.querySelector('#product-brand');
+    if (brandInput) {
+      brandInput.value = product.brand ?? '';
+    }
+    const descriptionInput = form.querySelector('#product-description');
+    if (descriptionInput) {
+      descriptionInput.value = product.description ?? '';
+    }
+    const tradeToggle = form.querySelector('#trade-in-toggle');
+    if (tradeToggle) {
+      tradeToggle.checked = Boolean(product.tradeIn);
+    }
+
+    if (Array.isArray(product.photos)) {
+      product.photos.slice(0, photoInputs.length).forEach((photo, index) => {
+        const inputField = photoInputs[index];
+        if (!inputField) return;
+        const container = inputField.closest('.image-upload');
+        const preview = container?.querySelector('[data-preview-image]');
+        if (!container || !preview) return;
+        preview.src = photo;
+        preview.alt = product.name ? `Foto ${product.name}` : 'Foto produk';
+        preview.hidden = false;
+        container.classList.add('has-image');
+        container.dataset.photoValue = photo;
+      });
+    }
+
+    if (variantBody) {
+      suppressPricingRefresh = true;
+      variantBody.innerHTML = '';
+      if (Array.isArray(product.variants) && product.variants.length) {
+        product.variants.forEach(variant => createVariantRow(variant));
+      } else {
+        createVariantRow();
+      }
+      suppressPricingRefresh = false;
+      refreshPricingTableStructure();
+    }
+
+    if (pricingBody) {
+      pricingBody.innerHTML = '';
+      const defs = getVariantDefinitions();
+      const pricingData = Array.isArray(product.variantPricing) && product.variantPricing.length
+        ? product.variantPricing
+        : [{}];
+      pricingData.forEach(data => createPricingRow(data, defs));
+    }
+  } else {
+    createVariantRow();
+  }
 
   form.addEventListener('submit', event => {
     event.preventDefault();
@@ -1044,21 +1501,110 @@ function handleAddProductForm() {
       variants.push({ name, options });
     }
 
-    const product = {
-      id: crypto.randomUUID(),
+    const variantDefs = getVariantDefinitions();
+    const rawPricingRows = collectPricingRows(variantDefs);
+    const normalizedPricing = rawPricingRows.map(row => {
+      const normalized = {
+        supplierPrice: (row.supplierPrice ?? '').toString().trim(),
+        offlinePrice: (row.offlinePrice ?? '').toString().trim(),
+        entraversePrice: (row.entraversePrice ?? '').toString().trim(),
+        tokopediaPrice: (row.tokopediaPrice ?? '').toString().trim(),
+        skuSeller: (row.skuSeller ?? '').toString().trim(),
+        skuEntraverse: (row.skuEntraverse ?? '').toString().trim(),
+        stock: (row.stock ?? '').toString().trim(),
+        weight: (row.weight ?? '').toString().trim()
+      };
+
+      if (row.id) {
+        normalized.id = row.id;
+      }
+
+      if (variantDefs.length) {
+        normalized.variants = variantDefs.map((variant, index) => {
+          const source = row.variants?.[index];
+          const value = (source?.value ?? '').toString().trim();
+          const variantName = (variant.rawName || variant.name).toString().trim();
+          return { name: variantName, value };
+        });
+      } else {
+        normalized.variantLabel = (row.variantLabel ?? '').toString().trim();
+      }
+
+      return normalized;
+    });
+
+    const filteredPricing = normalizedPricing.filter(row => {
+      const detailValues = [
+        row.supplierPrice,
+        row.offlinePrice,
+        row.entraversePrice,
+        row.tokopediaPrice,
+        row.skuSeller,
+        row.skuEntraverse,
+        row.stock,
+        row.weight
+      ].map(value => (value ?? '').toString().trim());
+      const hasDetails = detailValues.some(Boolean);
+
+      if (variantDefs.length) {
+        const hasVariantValue = row.variants?.some(variant => (variant?.value ?? '').toString().trim());
+        return hasDetails || hasVariantValue;
+      }
+
+      return hasDetails || (row.variantLabel ?? '').toString().trim();
+    });
+
+    if (variantDefs.length) {
+      const invalidCombination = filteredPricing.some(row => row.variants?.some(variant => !variant.value));
+      if (invalidCombination) {
+        toast.show('Lengkapi pilihan varian pada daftar harga.');
+        return;
+      }
+    }
+
+    filteredPricing.forEach(row => {
+      if (!row.id) {
+        row.id = crypto.randomUUID();
+      }
+    });
+
+    const isEditing = Boolean(form.dataset.editingId);
+    const timestamp = Date.now();
+    const productId = isEditing ? form.dataset.editingId : crypto.randomUUID();
+    let productIndex = -1;
+
+    if (isEditing) {
+      productIndex = products.findIndex(p => p.id === productId);
+      if (productIndex === -1) {
+        toast.show('Produk tidak ditemukan.');
+        return;
+      }
+    }
+
+    const productPayload = {
+      id: productId,
       name: (formData.get('name') ?? '').toString().trim(),
       category: (formData.get('category') ?? '').toString().trim(),
       brand: (formData.get('brand') ?? '').toString().trim(),
       description: (formData.get('description') ?? '').toString().trim(),
-      tradeIn: form.querySelector('#trade-in-toggle').checked,
+      tradeIn: form.querySelector('#trade-in-toggle')?.checked ?? false,
       photos,
       variants,
-      createdAt: Date.now()
+      variantPricing: filteredPricing
     };
 
-    products.push(product);
+    if (isEditing) {
+      const existing = products[productIndex];
+      productPayload.createdAt = existing?.createdAt ?? timestamp;
+      productPayload.updatedAt = timestamp;
+      products[productIndex] = productPayload;
+    } else {
+      productPayload.createdAt = timestamp;
+      products.push(productPayload);
+    }
+
     setData(STORAGE_KEYS.products, products);
-    toast.show('Produk berhasil disimpan.');
+    toast.show(isEditing ? 'Produk berhasil diperbarui.' : 'Produk berhasil disimpan.');
     setTimeout(() => {
       window.location.href = 'dashboard.html';
     }, 800);

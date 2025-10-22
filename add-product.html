@@ -54,8 +54,8 @@
       </header>
       <section class="content-header">
         <div>
-          <h1>Tambah Produk Baru</h1>
-          <p>Isi detail produk secara lengkap agar mudah ditemukan oleh pelanggan.</p>
+          <h1 id="product-form-title">Tambah Produk Baru</h1>
+          <p id="product-form-subtitle">Isi detail produk secara lengkap agar mudah ditemukan oleh pelanggan.</p>
         </div>
       </section>
       <form id="add-product-form" class="card form-card">
@@ -142,6 +142,32 @@
                 </tr>
               </thead>
               <tbody id="variant-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="form-section" data-pricing-section>
+          <div class="section-header">
+            <h2>Harga &amp; Detail Varian</h2>
+            <button type="button" id="add-pricing-row-btn" class="btn ghost-btn small">+ Tambah Baris Harga</button>
+          </div>
+          <p class="field-hint">Tentukan harga jual dan detail inventori untuk setiap kombinasi varian.</p>
+          <div class="variant-pricing-table-wrapper">
+            <table class="variant-pricing-table">
+              <thead>
+                <tr id="variant-pricing-header">
+                  <th>Varian</th>
+                  <th>Harga Supplier</th>
+                  <th>Harga Jual Offline</th>
+                  <th>Harga Jual Entraverse.id</th>
+                  <th>Harga Jual Tokopedia</th>
+                  <th>SKU Penjual</th>
+                  <th>SKU Entraverse</th>
+                  <th>Stok</th>
+                  <th>Berat Barang</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="variant-pricing-body"></tbody>
             </table>
           </div>
         </div>
