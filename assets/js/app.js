@@ -441,12 +441,29 @@ function handleSync() {
   const button = document.getElementById('sync-btn');
   if (!button) return;
 
+  const hiddenLabel = button.querySelector('[data-label]');
+  const defaultLabel = button.dataset.labelDefault || 'Sync ke Mekari Jurnal';
+  const loadingLabel = button.dataset.labelLoading || 'Menyinkronkan...';
+
+  const setLabel = value => {
+    if (hiddenLabel) {
+      hiddenLabel.textContent = value;
+    }
+    button.setAttribute('aria-label', value);
+  };
+
+  setLabel(defaultLabel);
+
   button.addEventListener('click', () => {
+    if (button.disabled) return;
+
     button.disabled = true;
-    button.textContent = 'Menyinkronkan...';
+    button.classList.add('is-loading');
+    setLabel(loadingLabel);
     setTimeout(() => {
       button.disabled = false;
-      button.textContent = 'Sync ke Mubai Journal';
+      button.classList.remove('is-loading');
+      setLabel(defaultLabel);
       toast.show('Produk berhasil disinkronkan.');
     }, 1200);
   });
