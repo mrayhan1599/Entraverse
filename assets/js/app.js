@@ -10,7 +10,6 @@ const DEFAULT_PRODUCTS = [
     name: 'Meta Quest 3S 128 GB Virtual Reality Headset',
     category: 'Virtual Reality',
     brand: 'Meta',
-    link: 'https://example.com/meta-quest-3s',
     photos: [
       'https://images.unsplash.com/photo-1580894897617-4812950f48cd?auto=format&fit=crop&w=600&q=80'
     ],
@@ -27,7 +26,6 @@ const DEFAULT_PRODUCTS = [
     name: 'Meta Quest 3S 256 GB Virtual Reality Headset',
     category: 'Virtual Reality',
     brand: 'Meta',
-    link: 'https://example.com/meta-quest-3s-256',
     photos: [
       'https://images.unsplash.com/photo-1549923746-c502d488b3ea?auto=format&fit=crop&w=600&q=80'
     ],
@@ -355,9 +353,6 @@ function renderProducts(filterText = '') {
         </div>
       </td>
       <td>
-        <a class="btn ghost-btn small" target="_blank" rel="noopener" href="${product.link}">View</a>
-      </td>
-      <td>
         <label class="switch">
           <input type="checkbox" ${product.tradeIn ? 'checked' : ''} data-action="toggle-trade" data-id="${product.id}">
           <span class="slider"></span>
@@ -474,16 +469,20 @@ function handleAddProductForm() {
   const variantBody = document.getElementById('variant-body');
   const addVariantBtn = document.getElementById('add-variant-btn');
 
-  const photoFields = Array.from(form.querySelectorAll('[data-photo-field]'));
+  const photoInputs = Array.from(form.querySelectorAll('[data-photo-field]'));
 
-  const clearPreview = (container, preview) => {
+  const clearPreview = (container, preview, input) => {
     if (!container || !preview) return;
     preview.removeAttribute('src');
     preview.hidden = true;
     container.classList.remove('has-image');
+    delete container.dataset.photoValue;
+    if (input) {
+      input.value = '';
+    }
   };
 
-  photoFields.forEach(input => {
+  photoInputs.forEach(input => {
     const container = input.closest('.image-upload');
     const dropzone = container?.querySelector('[data-photo-preview]');
     const preview = container?.querySelector('[data-preview-image]');
@@ -492,20 +491,61 @@ function handleAddProductForm() {
       return;
     }
 
-    const syncPreview = () => {
-      const value = input.value.trim();
-      if (!value) {
-        clearPreview(container, preview);
+    const handleFileChange = () => {
+      const [file] = input.files ?? [];
+      if (!file) {
+        clearPreview(container, preview, input);
         return;
       }
 
-      preview.src = value;
-      preview.hidden = false;
-      container.classList.add('has-image');
+      if (!file.type.startsWith('image/')) {
+        toast.show('Pilih file gambar dengan format yang didukung.');
+        clearPreview(container, preview, input);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result !== 'string') {
+          toast.show('Gagal membaca file gambar.');
+          clearPreview(container, preview, input);
+          return;
+        }
+
+        preview.src = result;
+        preview.alt = file.name ? `Foto ${file.name}` : 'Foto produk';
+        preview.hidden = false;
+        container.classList.add('has-image');
+        container.dataset.photoValue = result;
+      };
+
+      reader.onerror = () => {
+        toast.show('Gagal memuat gambar, coba lagi.');
+        clearPreview(container, preview, input);
+      };
+
+      reader.readAsDataURL(file);
     };
 
-    dropzone.addEventListener('click', () => {
-      input.focus();
+    dropzone.addEventListener('click', event => {
+      event.preventDefault();
+      input.click();
+    });
+
+    dropzone.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        input.click();
+      }
+    });
+
+    dropzone.addEventListener('focus', () => {
+      dropzone.classList.add('is-focused');
+    });
+
+    dropzone.addEventListener('blur', () => {
+      dropzone.classList.remove('is-focused');
     });
 
     input.addEventListener('focus', () => {
@@ -516,21 +556,12 @@ function handleAddProductForm() {
       dropzone.classList.remove('is-focused');
     });
 
-    input.addEventListener('input', syncPreview);
-    input.addEventListener('change', syncPreview);
+    input.addEventListener('change', handleFileChange);
 
     preview.addEventListener('error', () => {
-      clearPreview(container, preview);
+      toast.show('Tidak dapat menampilkan gambar tersebut.');
+      clearPreview(container, preview, input);
     });
-
-    preview.addEventListener('load', () => {
-      if (input.value.trim()) {
-        preview.hidden = false;
-        container.classList.add('has-image');
-      }
-    });
-
-    syncPreview();
   });
 
   if (!variantBody) return;
@@ -667,7 +698,8 @@ function handleAddProductForm() {
     const formData = new FormData(form);
     const products = getData(STORAGE_KEYS.products, []);
 
-    const photos = Array.from({ length: 4 }, (_, index) => formData.get(`photo-${index}`)?.trim())
+    const photos = photoInputs
+      .map(input => input.closest('.image-upload')?.dataset.photoValue)
       .filter(Boolean);
 
     const variantRows = Array.from(form.querySelectorAll('.variant-row'));
@@ -696,11 +728,10 @@ function handleAddProductForm() {
 
     const product = {
       id: crypto.randomUUID(),
-      name: formData.get('name').trim(),
-      category: formData.get('category').trim(),
-      brand: formData.get('brand').trim(),
-      link: formData.get('link').trim(),
-      description: formData.get('description').trim(),
+      name: (formData.get('name') ?? '').toString().trim(),
+      category: (formData.get('category') ?? '').toString().trim(),
+      brand: (formData.get('brand') ?? '').toString().trim(),
+      description: (formData.get('description') ?? '').toString().trim(),
       tradeIn: form.querySelector('#trade-in-toggle').checked,
       photos,
       variants,

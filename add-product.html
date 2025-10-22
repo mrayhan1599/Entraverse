@@ -74,45 +74,43 @@
             <label>Foto Produk</label>
             <div class="image-upload-grid" id="photo-inputs">
               <div class="image-upload" data-index="0">
-                <div class="image-dropzone" data-photo-preview aria-hidden="true">
+                <label class="image-dropzone" data-photo-preview for="photo-0" role="button" tabindex="0">
                   <img data-preview-image alt="" hidden>
                   <span class="image-icon" aria-hidden="true">🖼️</span>
-                </div>
-                <input type="url" name="photo-0" placeholder="Tempel tautan gambar" data-photo-field>
+                  <span class="image-text">Unggah foto</span>
+                </label>
+                <input type="file" id="photo-0" name="photo-0" accept="image/*" class="visually-hidden" data-photo-field>
               </div>
               <div class="image-upload" data-index="1">
-                <div class="image-dropzone" data-photo-preview aria-hidden="true">
+                <label class="image-dropzone" data-photo-preview for="photo-1" role="button" tabindex="0">
                   <img data-preview-image alt="" hidden>
                   <span class="image-icon" aria-hidden="true">🖼️</span>
-                </div>
-                <input type="url" name="photo-1" placeholder="Tempel tautan gambar" data-photo-field>
+                  <span class="image-text">Unggah foto</span>
+                </label>
+                <input type="file" id="photo-1" name="photo-1" accept="image/*" class="visually-hidden" data-photo-field>
               </div>
               <div class="image-upload" data-index="2">
-                <div class="image-dropzone" data-photo-preview aria-hidden="true">
+                <label class="image-dropzone" data-photo-preview for="photo-2" role="button" tabindex="0">
                   <img data-preview-image alt="" hidden>
                   <span class="image-icon" aria-hidden="true">🖼️</span>
-                </div>
-                <input type="url" name="photo-2" placeholder="Tempel tautan gambar" data-photo-field>
+                  <span class="image-text">Unggah foto</span>
+                </label>
+                <input type="file" id="photo-2" name="photo-2" accept="image/*" class="visually-hidden" data-photo-field>
               </div>
               <div class="image-upload" data-index="3">
-                <div class="image-dropzone" data-photo-preview aria-hidden="true">
+                <label class="image-dropzone" data-photo-preview for="photo-3" role="button" tabindex="0">
                   <img data-preview-image alt="" hidden>
                   <span class="image-icon" aria-hidden="true">🖼️</span>
-                </div>
-                <input type="url" name="photo-3" placeholder="Tempel tautan gambar" data-photo-field>
+                  <span class="image-text">Unggah foto</span>
+                </label>
+                <input type="file" id="photo-3" name="photo-3" accept="image/*" class="visually-hidden" data-photo-field>
               </div>
             </div>
-            <p class="field-hint">Masukkan tautan gambar produk (maks. 4 foto).</p>
+            <p class="field-hint">Unggah foto produk langsung dari perangkat Anda (maks. 4 foto).</p>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="product-brand">Brand</label>
-              <input type="text" id="product-brand" name="brand" placeholder="Pilih brand" required>
-            </div>
-            <div class="form-group">
-              <label for="product-link">Link Produk</label>
-              <input type="url" id="product-link" name="link" placeholder="https://tokomu.com/produk" required>
-            </div>
+          <div class="form-group">
+            <label for="product-brand">Brand</label>
+            <input type="text" id="product-brand" name="brand" placeholder="Pilih brand" required>
           </div>
           <div class="form-group">
             <label for="product-description">Deskripsi</label>
