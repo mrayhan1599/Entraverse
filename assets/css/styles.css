@@ -111,6 +111,18 @@ label {
   color: #31364c;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 input,
 textarea,
 select {
@@ -662,10 +674,19 @@ input:checked + .slider:before {
   overflow: hidden;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
   cursor: pointer;
+  text-align: center;
+  padding: 16px;
 }
 
 .image-dropzone .image-icon {
   font-size: 28px;
+}
+
+.image-text {
+  font-size: 13px;
+  font-weight: 500;
+  margin-top: 8px;
+  color: var(--color-muted);
 }
 
 .image-dropzone.is-focused {
@@ -685,16 +706,16 @@ input:checked + .slider:before {
   visibility: hidden;
 }
 
+.image-upload.has-image .image-text {
+  display: none;
+}
+
 .image-dropzone img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.image-upload input {
-  width: 100%;
 }
 
 [data-preview-image][hidden] {
@@ -751,6 +772,10 @@ input:checked + .slider:before {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.variant-options-list:empty {
+  display: none;
 }
 
 .option-chip {
