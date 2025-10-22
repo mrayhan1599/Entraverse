@@ -1401,14 +1401,40 @@ input:checked + .slider:before {
     flex-direction: column;
   }
 
-  .title-bar {
+  .topbar {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 12px;
   }
 
-  .title-actions {
+  .topbar-left {
+    align-items: center;
+    gap: 12px;
     width: 100%;
+  }
+
+  .topbar-left .search-bar {
+    max-width: none;
+    padding: 8px 12px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+
+  .title-bar {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .title-bar h1 {
+    font-size: 24px;
+    flex: 1 1 auto;
+  }
+
+  .title-actions {
+    width: auto;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    margin-left: auto;
   }
 
   .card {
@@ -1416,9 +1442,7 @@ input:checked + .slider:before {
   }
 
   .topbar-actions {
-    align-self: stretch;
-    display: flex;
-    justify-content: flex-end;
+    align-self: flex-end;
   }
 
   .variant-table,
