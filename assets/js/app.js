@@ -40,37 +40,38 @@ const DEFAULT_PRODUCTS = [
 ];
 
 const THEME_STORAGE_KEY = 'entraverse_theme_mode';
-const THEME_MODES = ['day', 'night', 'dark'];
-const DEFAULT_THEME_MODE = 'night';
-const NIGHT_MODE_INTERVAL = 5 * 60 * 1000;
+const THEME_MODES = ['system', 'light', 'dark'];
+const DEFAULT_THEME_MODE = 'system';
 const THEME_LABELS = {
-  day: 'Day Mode',
-  night: 'Night Mode (Auto)',
+  system: 'Auto (System)',
+  light: 'Light Mode',
   dark: 'Dark Mode'
 };
 const THEME_ICON_MARKUP = {
-  day: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.5v1.5m0 12v1.5m7.5-7.5h1.5m-18 0H3m13.364-6.364 1.06-1.06m-12.728 0-1.06-1.06m12.728 12.728 1.06 1.06m-12.728 0-1.06 1.06M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0z"/></svg>',
-  night: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>',
+  system: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v18m0 0a9 9 0 1 0 0-18"/></svg>',
+  light: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.5v1.5m0 12v1.5m7.5-7.5h1.5m-18 0H3m13.364-6.364 1.06-1.06m-12.728 0-1.06-1.06m12.728 12.728 1.06 1.06m-12.728 0-1.06 1.06M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0z"/></svg>',
   dark: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12.79A9 9 0 1 1 11.21 3a7.5 7.5 0 0 0 9.79 9.79z"/></svg>'
 };
 
+const systemDarkQuery = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+  ? window.matchMedia('(prefers-color-scheme: dark)')
+  : null;
+
 let themeControls = [];
-let nightModeIntervalId = null;
 let themeListenersAttached = false;
+let systemPreferenceListenerAttached = false;
 
 function isValidThemeMode(mode) {
   return THEME_MODES.includes(mode);
 }
 
-function isNightTime() {
-  const hour = new Date().getHours();
-  return hour >= 18 || hour < 6;
-}
-
 function resolveTheme(mode) {
   if (mode === 'dark') return 'dark';
-  if (mode === 'day') return 'day';
-  return isNightTime() ? 'dark' : 'day';
+  if (mode === 'light') return 'light';
+  if (systemDarkQuery && typeof systemDarkQuery.matches === 'boolean') {
+    return systemDarkQuery.matches ? 'dark' : 'light';
+  }
+  return 'light';
 }
 
 function getStoredThemeMode() {
@@ -92,6 +93,44 @@ function persistThemeMode(mode) {
 
 function setColorScheme(resolved) {
   document.documentElement.style.setProperty('color-scheme', resolved === 'dark' ? 'dark' : 'light');
+}
+
+function refreshSystemTheme() {
+  if (document.body.dataset.themeMode !== 'system') {
+    return;
+  }
+  const resolved = resolveTheme('system');
+  document.body.dataset.theme = resolved;
+  setColorScheme(resolved);
+  updateThemeControlsUI('system');
+}
+
+function handleSystemPreferenceChange() {
+  refreshSystemTheme();
+}
+
+function attachSystemPreferenceListener() {
+  if (!systemDarkQuery || systemPreferenceListenerAttached) {
+    return;
+  }
+  if (typeof systemDarkQuery.addEventListener === 'function') {
+    systemDarkQuery.addEventListener('change', handleSystemPreferenceChange);
+  } else if (typeof systemDarkQuery.addListener === 'function') {
+    systemDarkQuery.addListener(handleSystemPreferenceChange);
+  }
+  systemPreferenceListenerAttached = true;
+}
+
+function detachSystemPreferenceListener() {
+  if (!systemDarkQuery || !systemPreferenceListenerAttached) {
+    return;
+  }
+  if (typeof systemDarkQuery.removeEventListener === 'function') {
+    systemDarkQuery.removeEventListener('change', handleSystemPreferenceChange);
+  } else if (typeof systemDarkQuery.removeListener === 'function') {
+    systemDarkQuery.removeListener(handleSystemPreferenceChange);
+  }
+  systemPreferenceListenerAttached = false;
 }
 
 function updateThemeControlsUI(mode) {
@@ -118,21 +157,6 @@ function updateThemeControlsUI(mode) {
       option.setAttribute('aria-selected', isActive ? 'true' : 'false');
       option.classList.toggle('is-active', isActive);
     });
-  });
-}
-
-function refreshNightModeTheme() {
-  if (document.body.dataset.themeMode !== 'night') {
-    return;
-  }
-  const resolved = resolveTheme('night');
-  document.body.dataset.theme = resolved;
-  setColorScheme(resolved);
-  themeControls.forEach(control => {
-    const iconTarget = control.querySelector('[data-theme-icon]');
-    if (iconTarget) {
-      iconTarget.dataset.iconTheme = resolved;
-    }
   });
 }
 
@@ -184,14 +208,11 @@ function applyTheme(mode, { skipStorage } = {}) {
 
   updateThemeControlsUI(normalizedMode);
 
-  if (normalizedMode === 'night') {
-    refreshNightModeTheme();
-    if (!nightModeIntervalId) {
-      nightModeIntervalId = setInterval(refreshNightModeTheme, NIGHT_MODE_INTERVAL);
-    }
-  } else if (nightModeIntervalId) {
-    clearInterval(nightModeIntervalId);
-    nightModeIntervalId = null;
+  if (normalizedMode === 'system') {
+    refreshSystemTheme();
+    attachSystemPreferenceListener();
+  } else {
+    detachSystemPreferenceListener();
   }
 
   return resolved;
@@ -299,17 +320,22 @@ function setupThemeControls() {
   if (!themeListenersAttached) {
     document.addEventListener('click', handleThemeControlDocumentClick);
     document.addEventListener('keydown', handleThemeControlEscape);
-    window.addEventListener('focus', refreshNightModeTheme);
+    window.addEventListener('focus', refreshSystemTheme);
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
-        refreshNightModeTheme();
+        refreshSystemTheme();
       }
     });
     themeListenersAttached = true;
   }
 
   updateThemeControlsUI(currentMode);
-  refreshNightModeTheme();
+  if (currentMode === 'system') {
+    attachSystemPreferenceListener();
+    refreshSystemTheme();
+  } else {
+    detachSystemPreferenceListener();
+  }
 }
 
 initializeTheme();
