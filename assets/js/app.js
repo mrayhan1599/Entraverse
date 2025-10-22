@@ -17,8 +17,8 @@ const DEFAULT_PRODUCTS = [
     description: 'Headset VR canggih untuk pengalaman imersif dalam dunia virtual.',
     tradeIn: true,
     variants: [
-      { name: '128 GB', sku: 'MQ3S-128', stock: 12, price: 10299000 },
-      { name: '256 GB', sku: 'MQ3S-256', stock: 6, price: 11999000 }
+      { name: 'Memori Internal', options: ['128 GB', '256 GB'] },
+      { name: 'Warna', options: ['Putih'] }
     ],
     createdAt: Date.now()
   },
@@ -34,7 +34,8 @@ const DEFAULT_PRODUCTS = [
     description: 'Versi penyimpanan besar untuk koleksi aplikasi VR favorit.',
     tradeIn: false,
     variants: [
-      { name: '256 GB', sku: 'MQ3S-256B', stock: 8, price: 12999000 }
+      { name: 'Memori Internal', options: ['256 GB'] },
+      { name: 'Warna', options: ['Hitam'] }
     ],
     createdAt: Date.now()
   }
@@ -124,6 +125,63 @@ function formatCurrency(value) {
     currency: 'IDR',
     maximumFractionDigits: 0
   }).format(value);
+}
+
+function normalizeVariants(variants) {
+  if (!Array.isArray(variants)) {
+    return [];
+  }
+
+  return variants
+    .map(variant => {
+      if (!variant) return null;
+      const name = (variant.name ?? '').toString().trim() || 'Varian';
+
+      if (Array.isArray(variant.options)) {
+        const options = variant.options
+          .map(option => option?.toString().trim())
+          .filter(Boolean);
+        if (options.length) {
+          return { name, options };
+        }
+      }
+
+      const fallback = [];
+      const pushOption = value => {
+        if (value === null || value === undefined) return;
+        const text = value.toString().trim();
+        if (text) {
+          fallback.push(text);
+        }
+      };
+
+      pushOption(variant.option);
+      pushOption(variant.value);
+      pushOption(variant.label);
+
+      if (variant.sku) {
+        pushOption(`SKU ${variant.sku}`);
+      }
+
+      if (variant.stock !== undefined) {
+        pushOption(`Stok ${variant.stock}`);
+      }
+
+      if (typeof variant.price === 'number' && !Number.isNaN(variant.price)) {
+        pushOption(formatCurrency(variant.price));
+      }
+
+      if (!fallback.length && variant.name) {
+        pushOption(variant.name);
+      }
+
+      if (!fallback.length) {
+        return null;
+      }
+
+      return { name, options: fallback };
+    })
+    .filter(Boolean);
 }
 
 function setupSidebarToggle() {
@@ -283,12 +341,26 @@ function renderProducts(filterText = '') {
 
   filtered.forEach((product, index) => {
     const row = document.createElement('tr');
+    const normalizedVariants = normalizeVariants(product.variants);
+    const variantSummary = normalizedVariants.length
+      ? normalizedVariants
+        .map(variant => {
+          const visibleOptions = variant.options.slice(0, 3).join(', ');
+          const remaining = Math.max(variant.options.length - 3, 0);
+          return remaining
+            ? `${variant.name}: ${visibleOptions} +${remaining}`
+            : `${variant.name}: ${visibleOptions}`;
+        })
+        .join(' • ')
+      : '';
+
     row.innerHTML = `
       <td>${index + 1}</td>
       <td>
         <div class="product-cell">
           <strong>${product.name}</strong>
           <span class="product-meta">${product.brand} • ${product.category}</span>
+          ${variantSummary ? `<span class="product-meta">Varian: ${variantSummary}</span>` : ''}
         </div>
       </td>
       <td>
@@ -351,9 +423,10 @@ function handleProductActions() {
 
     if (target.dataset.action === 'view-variants') {
       const product = products[productIndex];
-      const variantText = product.variants
-        .map(v => `• ${v.name} (${v.sku}) — Stok ${v.stock}, ${formatCurrency(v.price)}`)
-        .join('\n');
+      const normalizedVariants = normalizeVariants(product.variants);
+      const variantText = normalizedVariants.length
+        ? normalizedVariants.map(v => `• ${v.name}: ${v.options.join(', ')}`).join('\n')
+        : 'Belum ada varian yang disimpan.';
       alert(`Varian ${product.name}:\n${variantText}`);
     }
   });
@@ -414,22 +487,118 @@ function handleAddProductForm() {
 
   const variantBody = document.getElementById('variant-body');
   const addVariantBtn = document.getElementById('add-variant-btn');
+  if (!variantBody) return;
 
-  addVariantBtn?.addEventListener('click', () => {
-    const rowCount = variantBody.querySelectorAll('.variant-row').length;
+  const variantRowTemplate = () => `
+    <td>
+      <input type="text" class="variant-name" placeholder="Contoh: Warna" required>
+    </td>
+    <td>
+      <div class="variant-options" data-options>
+        <div class="variant-options-list" data-options-list></div>
+        <div class="variant-options-input">
+          <input type="text" class="variant-option-field" placeholder="Tambah opsi (Enter)" aria-label="Tambah opsi varian" data-option-input>
+          <button type="button" class="btn ghost-btn small" data-add-option>Tambah</button>
+        </div>
+        <p class="field-hint">Contoh: Merah, Biru, Hijau.</p>
+      </div>
+    </td>
+    <td class="variant-actions">
+      <button type="button" class="icon-btn danger remove-variant" aria-label="Hapus varian">🗑️</button>
+    </td>
+  `;
+
+  const addOptionChip = (list, rawValue, { silent = false } = {}) => {
+    if (!list) return false;
+    const value = rawValue?.toString().trim();
+    if (!value) {
+      if (!silent) {
+        toast.show('Masukkan nama opsi terlebih dahulu.');
+      }
+      return false;
+    }
+
+    const normalized = value.toLowerCase();
+    const exists = Array.from(list.querySelectorAll('[data-option-chip]')).some(
+      chip => chip.dataset.optionValue?.toLowerCase() === normalized
+    );
+
+    if (exists) {
+      if (!silent) {
+        toast.show('Opsi tersebut sudah ada.');
+      }
+      return false;
+    }
+
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'option-chip';
+    chip.dataset.optionChip = 'true';
+    chip.dataset.optionValue = value;
+    chip.innerHTML = `<span>${value}</span><span aria-hidden="true">×</span>`;
+    chip.setAttribute('aria-label', `Hapus opsi ${value}`);
+    list.appendChild(chip);
+    return true;
+  };
+
+  const hydrateVariantRow = (row, initialVariant = null) => {
+    if (!row) return;
+    const optionsList = row.querySelector('[data-options-list]');
+    if (initialVariant?.name) {
+      const nameInput = row.querySelector('.variant-name');
+      if (nameInput) {
+        nameInput.value = initialVariant.name;
+      }
+    }
+
+    if (Array.isArray(initialVariant?.options)) {
+      initialVariant.options.forEach(option => addOptionChip(optionsList, option, { silent: true }));
+    }
+  };
+
+  const createVariantRow = (initialVariant = null) => {
     const row = document.createElement('tr');
     row.className = 'variant-row';
-    row.innerHTML = `
-      <td><input type="text" name="variant-name-${rowCount}" placeholder="Nama varian" required></td>
-      <td><input type="text" name="variant-sku-${rowCount}" placeholder="SKU" required></td>
-      <td><input type="number" name="variant-stock-${rowCount}" placeholder="0" min="0" required></td>
-      <td><input type="number" name="variant-price-${rowCount}" placeholder="0" min="0" required></td>
-      <td><button type="button" class="icon-btn danger remove-variant" aria-label="Hapus">🗑️</button></td>
-    `;
+    row.innerHTML = variantRowTemplate();
     variantBody.appendChild(row);
+    hydrateVariantRow(row, initialVariant);
+    return row;
+  };
+
+  const handleAddOption = container => {
+    if (!container) return;
+    const input = container.querySelector('[data-option-input]');
+    const list = container.querySelector('[data-options-list]');
+    if (!input || !list) return;
+
+    const added = addOptionChip(list, input.value);
+    if (added) {
+      input.value = '';
+    }
+    input.focus();
+  };
+
+  if (variantBody && variantBody.children.length === 0) {
+    createVariantRow();
+  }
+
+  addVariantBtn?.addEventListener('click', () => {
+    createVariantRow();
   });
 
   variantBody?.addEventListener('click', event => {
+    const addButton = event.target.closest('[data-add-option]');
+    if (addButton) {
+      handleAddOption(addButton.closest('[data-options]'));
+      return;
+    }
+
+    const chip = event.target.closest('[data-option-chip]');
+    if (chip) {
+      chip.remove();
+      return;
+    }
+
     const button = event.target.closest('.remove-variant');
     if (!button) return;
     const rows = Array.from(variantBody.querySelectorAll('.variant-row'));
@@ -440,6 +609,13 @@ function handleAddProductForm() {
     button.closest('tr').remove();
   });
 
+  variantBody?.addEventListener('keydown', event => {
+    if (event.key !== 'Enter') return;
+    if (!event.target.matches('[data-option-input]')) return;
+    event.preventDefault();
+    handleAddOption(event.target.closest('[data-options]'));
+  });
+
   form.addEventListener('submit', event => {
     event.preventDefault();
     const formData = new FormData(form);
@@ -448,15 +624,29 @@ function handleAddProductForm() {
     const photos = Array.from({ length: 4 }, (_, index) => formData.get(`photo-${index}`)?.trim())
       .filter(Boolean);
 
-    const variants = Array.from(form.querySelectorAll('.variant-row')).map(row => {
-      const inputs = row.querySelectorAll('input');
-      return {
-        name: inputs[0].value.trim(),
-        sku: inputs[1].value.trim(),
-        stock: Number(inputs[2].value) || 0,
-        price: Number(inputs[3].value) || 0
-      };
-    });
+    const variantRows = Array.from(form.querySelectorAll('.variant-row'));
+    const variants = [];
+
+    for (const row of variantRows) {
+      const nameInput = row.querySelector('.variant-name');
+      const optionChips = Array.from(row.querySelectorAll('[data-option-chip]'));
+      const name = nameInput?.value.trim();
+      const options = optionChips.map(chip => chip.dataset.optionValue).filter(Boolean);
+
+      if (!name) {
+        toast.show('Nama varian tidak boleh kosong.');
+        nameInput?.focus();
+        return;
+      }
+
+      if (!options.length) {
+        toast.show(`Tambahkan minimal satu opsi untuk ${name}.`);
+        row.querySelector('[data-option-input]')?.focus();
+        return;
+      }
+
+      variants.push({ name, options });
+    }
 
     const product = {
       id: crypto.randomUUID(),
