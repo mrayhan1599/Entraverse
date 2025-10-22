@@ -708,19 +708,19 @@ function renderProducts(filterText = '') {
 
   tbody.innerHTML = '';
 
-  filtered.forEach((product, index) => {
+  filtered.forEach(product => {
     const row = document.createElement('tr');
 
     row.innerHTML = `
-      <td>${index + 1}</td>
-      <td>
-        <div class="product-cell">
-          <strong>${product.name}</strong>
-        </div>
-      </td>
       <td>
         <div class="photo-preview">
           ${product.photos?.length ? `<img src="${product.photos[0]}" alt="${product.name}">` : 'No Photo'}
+        </div>
+      </td>
+      <td>
+        <div class="product-cell">
+          <strong>${product.name}</strong>
+          ${product.brand ? `<span class="product-meta">${product.brand}</span>` : ''}
         </div>
       </td>
       <td>
