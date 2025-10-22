@@ -982,6 +982,76 @@ function handleAddProductForm() {
     });
   };
 
+  function buildCombinationKeyFromValues(values = []) {
+    return values
+      .map(value => (value ?? '').toString().trim().toLowerCase())
+      .join('||');
+  }
+
+  function buildCombinationKeyFromData(row, variantDefs) {
+    if (!row || !variantDefs.length) {
+      return '';
+    }
+
+    const values = variantDefs.map((variant, index) => {
+      if (!Array.isArray(row.variants)) return '';
+      const direct = row.variants[index];
+      if (direct && typeof direct === 'object') {
+        const directValue = (direct.value ?? '').toString().trim();
+        if (directValue) {
+          return directValue;
+        }
+      }
+
+      const variantName = (variant.rawName || variant.name || '').toString().trim().toLowerCase();
+      const match = row.variants.find(item => (item?.name ?? '').toString().trim().toLowerCase() === variantName);
+      return (match?.value ?? '').toString().trim();
+    });
+
+    if (values.some(value => !value)) {
+      return '';
+    }
+
+    return buildCombinationKeyFromValues(values);
+  }
+
+  function generateVariantCombinations(variantDefs) {
+    if (!Array.isArray(variantDefs) || !variantDefs.length) {
+      return [];
+    }
+
+    const hasEmptyOptions = variantDefs.some(variant => !Array.isArray(variant.options) || !variant.options.length);
+    if (hasEmptyOptions) {
+      return [];
+    }
+
+    const combinations = [];
+    const traverse = (index, currentVariants, currentValues) => {
+      if (index === variantDefs.length) {
+        combinations.push({
+          variants: currentVariants.map(item => ({ name: item.name, value: item.value })),
+          key: buildCombinationKeyFromValues(currentValues)
+        });
+        return;
+      }
+
+      const variant = variantDefs[index];
+      const variantName = (variant.rawName || variant.name || `Varian ${index + 1}`).toString().trim();
+
+      variant.options.forEach(option => {
+        const optionValue = (option ?? '').toString().trim();
+        traverse(
+          index + 1,
+          [...currentVariants, { name: variantName, value: optionValue }],
+          [...currentValues, optionValue]
+        );
+      });
+    };
+
+    traverse(0, [], []);
+    return combinations;
+  }
+
   function collectPricingRows(variantDefs = getVariantDefinitions()) {
     if (!pricingBody) return [];
     return Array.from(pricingBody.querySelectorAll('.pricing-row')).map(row => {
@@ -1089,11 +1159,12 @@ function handleAddProductForm() {
     });
   }
 
-  function createPricingRow(initialData = {}, variantDefs = getVariantDefinitions()) {
+  function createPricingRow(initialData = {}, variantDefs = getVariantDefinitions(), options = {}) {
     if (!pricingBody) return null;
 
     const row = document.createElement('tr');
     row.className = 'pricing-row';
+    const { lockVariantSelection = false } = options;
 
     if (variantDefs.length) {
       variantDefs.forEach((variant, index) => {
@@ -1109,6 +1180,9 @@ function handleAddProductForm() {
           select.appendChild(opt);
         });
         select.setAttribute('aria-label', `Pilih ${variant.name}`);
+        if (lockVariantSelection) {
+          select.disabled = true;
+        }
         cell.appendChild(select);
         row.appendChild(cell);
       });
@@ -1151,12 +1225,16 @@ function handleAddProductForm() {
 
     const actionsCell = document.createElement('td');
     actionsCell.className = 'variant-actions';
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'icon-btn danger small remove-pricing-row';
-    removeBtn.setAttribute('aria-label', 'Hapus baris harga');
-    removeBtn.textContent = '🗑️';
-    actionsCell.appendChild(removeBtn);
+    if (lockVariantSelection) {
+      actionsCell.classList.add('locked');
+    } else {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'icon-btn danger small remove-pricing-row';
+      removeBtn.setAttribute('aria-label', 'Hapus baris harga');
+      removeBtn.textContent = '🗑️';
+      actionsCell.appendChild(removeBtn);
+    }
     row.appendChild(actionsCell);
 
     pricingBody.appendChild(row);
@@ -1164,13 +1242,26 @@ function handleAddProductForm() {
     return row;
   }
 
-  function refreshPricingTableStructure() {
+  function refreshPricingTableStructure(options = {}) {
     if (!pricingBody || !pricingHeaderRow || suppressPricingRefresh) {
       return;
     }
 
+    const { externalData = null } = options;
     const variantDefs = getVariantDefinitions();
-    const existingData = collectPricingRows(variantDefs);
+    const sourceData = Array.isArray(externalData) ? externalData : collectPricingRows(variantDefs);
+    const combinations = generateVariantCombinations(variantDefs);
+    const hasAutoCombinations = combinations.length > 0;
+
+    if (addPricingRowBtn) {
+      if (hasAutoCombinations) {
+        addPricingRowBtn.classList.add('is-hidden');
+        addPricingRowBtn.disabled = true;
+      } else {
+        addPricingRowBtn.classList.remove('is-hidden');
+        addPricingRowBtn.disabled = false;
+      }
+    }
 
     pricingHeaderRow.innerHTML = '';
     if (variantDefs.length) {
@@ -1205,11 +1296,28 @@ function handleAddProductForm() {
     });
 
     pricingBody.innerHTML = '';
-    if (!existingData.length) {
-      existingData.push({});
+
+    if (variantDefs.length && hasAutoCombinations) {
+      const dataMap = new Map();
+      sourceData.forEach(row => {
+        const key = buildCombinationKeyFromData(row, variantDefs);
+        if (key) {
+          dataMap.set(key, row);
+        }
+      });
+
+      combinations.forEach(combo => {
+        const rowData = dataMap.get(combo.key) || {};
+        if (!rowData.variants) {
+          rowData.variants = combo.variants;
+        }
+        createPricingRow(rowData, variantDefs, { lockVariantSelection: true });
+      });
+      return;
     }
 
-    existingData.forEach(data => {
+    const fallbackData = sourceData.length ? sourceData : [{}];
+    fallbackData.forEach(data => {
       createPricingRow(data, variantDefs);
     });
   }
@@ -1360,7 +1468,13 @@ function handleAddProductForm() {
   });
 
   addPricingRowBtn?.addEventListener('click', () => {
-    createPricingRow({}, getVariantDefinitions());
+    const variantDefs = getVariantDefinitions();
+    const hasAutoCombinations = generateVariantCombinations(variantDefs).length > 0;
+    if (hasAutoCombinations) {
+      toast.show('Daftar harga dibuat otomatis untuk setiap kombinasi varian.');
+      return;
+    }
+    createPricingRow({}, variantDefs);
   });
 
   pricingBody?.addEventListener('click', event => {
@@ -1457,12 +1571,10 @@ function handleAddProductForm() {
     }
 
     if (pricingBody) {
-      pricingBody.innerHTML = '';
-      const defs = getVariantDefinitions();
       const pricingData = Array.isArray(product.variantPricing) && product.variantPricing.length
         ? product.variantPricing
         : [{}];
-      pricingData.forEach(data => createPricingRow(data, defs));
+      refreshPricingTableStructure({ externalData: pricingData });
     }
   } else {
     createVariantRow();
