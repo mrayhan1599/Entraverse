@@ -341,26 +341,12 @@ function renderProducts(filterText = '') {
 
   filtered.forEach((product, index) => {
     const row = document.createElement('tr');
-    const normalizedVariants = normalizeVariants(product.variants);
-    const variantSummary = normalizedVariants.length
-      ? normalizedVariants
-        .map(variant => {
-          const visibleOptions = variant.options.slice(0, 3).join(', ');
-          const remaining = Math.max(variant.options.length - 3, 0);
-          return remaining
-            ? `${variant.name}: ${visibleOptions} +${remaining}`
-            : `${variant.name}: ${visibleOptions}`;
-        })
-        .join(' • ')
-      : '';
 
     row.innerHTML = `
       <td>${index + 1}</td>
       <td>
         <div class="product-cell">
           <strong>${product.name}</strong>
-          <span class="product-meta">${product.brand} • ${product.category}</span>
-          ${variantSummary ? `<span class="product-meta">Varian: ${variantSummary}</span>` : ''}
         </div>
       </td>
       <td>
@@ -487,6 +473,66 @@ function handleAddProductForm() {
 
   const variantBody = document.getElementById('variant-body');
   const addVariantBtn = document.getElementById('add-variant-btn');
+
+  const photoFields = Array.from(form.querySelectorAll('[data-photo-field]'));
+
+  const clearPreview = (container, preview) => {
+    if (!container || !preview) return;
+    preview.removeAttribute('src');
+    preview.hidden = true;
+    container.classList.remove('has-image');
+  };
+
+  photoFields.forEach(input => {
+    const container = input.closest('.image-upload');
+    const dropzone = container?.querySelector('[data-photo-preview]');
+    const preview = container?.querySelector('[data-preview-image]');
+
+    if (!container || !dropzone || !preview) {
+      return;
+    }
+
+    const syncPreview = () => {
+      const value = input.value.trim();
+      if (!value) {
+        clearPreview(container, preview);
+        return;
+      }
+
+      preview.src = value;
+      preview.hidden = false;
+      container.classList.add('has-image');
+    };
+
+    dropzone.addEventListener('click', () => {
+      input.focus();
+    });
+
+    input.addEventListener('focus', () => {
+      dropzone.classList.add('is-focused');
+    });
+
+    input.addEventListener('blur', () => {
+      dropzone.classList.remove('is-focused');
+    });
+
+    input.addEventListener('input', syncPreview);
+    input.addEventListener('change', syncPreview);
+
+    preview.addEventListener('error', () => {
+      clearPreview(container, preview);
+    });
+
+    preview.addEventListener('load', () => {
+      if (input.value.trim()) {
+        preview.hidden = false;
+        container.classList.add('has-image');
+      }
+    });
+
+    syncPreview();
+  });
+
   if (!variantBody) return;
 
   const variantRowTemplate = () => `
