@@ -166,6 +166,10 @@ label {
   border: 0;
 }
 
+.is-hidden {
+  display: none !important;
+}
+
 input,
 textarea,
 select {
@@ -1005,16 +1009,36 @@ input:checked + .slider:before {
 }
 
 .image-upload-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 16px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
   width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+
+.image-upload-grid::-webkit-scrollbar {
+  height: 6px;
+}
+
+.image-upload-grid::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+}
+
+.image-upload-grid::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .image-upload {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  flex: 0 0 120px;
+  max-width: 120px;
+  scroll-snap-align: start;
 }
 
 .image-dropzone {
@@ -1031,7 +1055,7 @@ input:checked + .slider:before {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
   cursor: pointer;
   text-align: center;
-  padding: 16px;
+  padding: 12px;
 }
 
 .image-dropzone .image-icon {
@@ -1155,6 +1179,16 @@ input:checked + .slider:before {
   text-align: center;
 }
 
+.variant-pricing-table .variant-actions.locked {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.variant-pricing-table .variant-actions.locked::after {
+  content: '—';
+  display: inline-block;
+}
+
 .variant-pricing-table .icon-btn {
   margin-inline: auto;
 }
@@ -1167,6 +1201,13 @@ input:checked + .slider:before {
 
 .variant-pricing-table .numeric-input {
   min-width: 120px;
+}
+
+.variant-pricing-table select:disabled {
+  background: var(--color-surface);
+  color: var(--color-text);
+  opacity: 1;
+  cursor: default;
 }
 
 .variant-table th:last-child,
