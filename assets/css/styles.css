@@ -324,6 +324,8 @@ body.sidebar-open {
 body.sidebar-open .sidebar-backdrop {
   opacity: 1;
   pointer-events: auto;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 .sidebar {
@@ -1336,16 +1338,29 @@ input:checked + .slider:before {
     left: 0;
     bottom: 0;
     width: min(var(--sidebar-width), 320px, 85vw);
-    background: var(--color-sidebar);
+    background: linear-gradient(140deg, rgba(30, 64, 175, 0.78), rgba(15, 23, 42, 0.72));
     transform: translateX(-100%);
     transition: transform 0.3s ease;
     z-index: 1000;
     overflow-y: auto;
     box-shadow: var(--shadow-md);
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(26px) saturate(180%);
+    -webkit-backdrop-filter: blur(26px) saturate(180%);
   }
 
   body.sidebar-open .sidebar {
     transform: translateX(0);
+  }
+
+  body:not([data-theme="dark"]) .sidebar {
+    background: linear-gradient(140deg, rgba(255, 255, 255, 0.92), rgba(226, 232, 255, 0.78));
+    border-right-color: rgba(148, 163, 184, 0.28);
+  }
+
+  body[data-theme="dark"] .sidebar {
+    background: linear-gradient(140deg, rgba(15, 23, 42, 0.88), rgba(30, 41, 59, 0.76));
+    border-right-color: rgba(148, 163, 184, 0.16);
   }
 
   .main-content {
@@ -1402,20 +1417,24 @@ input:checked + .slider:before {
   }
 
   .topbar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 10px;
   }
 
   .topbar-left {
     align-items: center;
-    gap: 12px;
-    width: 100%;
+    gap: 10px;
+    width: auto;
+    flex: 1 1 auto;
   }
 
   .topbar-left .search-bar {
-    max-width: none;
-    padding: 6px 10px;
+    flex: 0 1 220px;
+    max-width: 220px;
+    width: 100%;
+    padding: 6px 12px;
     gap: 6px;
     border-radius: 10px;
   }
@@ -1452,7 +1471,8 @@ input:checked + .slider:before {
   }
 
   .topbar-actions {
-    align-self: flex-end;
+    margin-left: auto;
+    align-self: center;
   }
 
   .variant-table,
