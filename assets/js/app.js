@@ -5,6 +5,13 @@ const STORAGE_KEYS = {
   categories: 'entraverse_categories'
 };
 
+const GUEST_USER = Object.freeze({
+  id: 'guest-user',
+  name: 'Tamu Entraverse',
+  company: 'Entraverse',
+  email: 'guest@entraverse.local'
+});
+
 const DEFAULT_PRODUCTS = [
   {
     id: crypto.randomUUID(),
@@ -580,6 +587,10 @@ function ensureSeeded() {
   }
 }
 
+function getGuestUser() {
+  return { ...GUEST_USER };
+}
+
 function getCurrentUser() {
   const session = getData(STORAGE_KEYS.session, null);
   if (!session) return null;
@@ -814,15 +825,24 @@ function handleLogin() {
   });
 }
 
+function handleGuestAccess() {
+  const button = document.querySelector('[data-guest-access]');
+  if (!button) return;
+
+  button.addEventListener('click', () => {
+    setCurrentUser(null);
+    toast.show('Mengalihkan ke dashboard sebagai tamu...');
+    setTimeout(() => {
+      window.location.href = 'dashboard.html';
+    }, 400);
+  });
+}
+
 function ensureAuthenticatedPage() {
   const page = document.body.dataset.page;
   if (['dashboard', 'add-product', 'categories'].includes(page)) {
     const user = getCurrentUser();
-    if (!user) {
-      window.location.href = 'index.html';
-      return null;
-    }
-    return user;
+    return user ?? getGuestUser();
   }
   return null;
 }
@@ -1273,7 +1293,16 @@ function handleLogout() {
 
   button.addEventListener('click', () => {
     setCurrentUser(null);
-    window.location.href = 'index.html';
+    const guest = getGuestUser();
+    document.querySelectorAll('.avatar').forEach(el => {
+      el.textContent = guest.name
+        .split(' ')
+        .map(part => part[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+    });
+    toast.show('Anda sekarang menjelajah sebagai tamu.');
   });
 }
 
@@ -2245,7 +2274,13 @@ function initPage() {
     setupThemeControls();
 
     if (page === 'login') {
+      const existingUser = getCurrentUser();
+      if (existingUser) {
+        window.location.href = 'dashboard.html';
+        return;
+      }
       handleLogin();
+      handleGuestAccess();
     }
 
     if (page === 'register') {
