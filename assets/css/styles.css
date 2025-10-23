@@ -21,6 +21,7 @@
   --color-sidebar-link-active: rgba(255, 255, 255, 1);
   --color-focus: rgba(59, 130, 246, 0.4);
   --color-success: #10b981;
+  --color-danger: #ef4444;
   --color-accent-soft: rgba(37, 99, 235, 0.16);
   --sidebar-width: 280px;
   --radius-lg: 16px;
@@ -53,6 +54,7 @@ body[data-theme="dark"] {
   --color-sidebar-link: rgba(226, 232, 240, 0.78);
   --color-sidebar-link-active: rgba(255, 255, 255, 0.96);
   --color-focus: rgba(96, 165, 250, 0.42);
+  --color-danger: #f87171;
   --color-accent-soft: rgba(96, 165, 250, 0.26);
   --shadow-sm: 0 16px 30px rgba(2, 6, 23, 0.55);
   --shadow-md: 0 28px 50px rgba(2, 6, 23, 0.65);
@@ -931,6 +933,120 @@ a.action-icon {
   letter-spacing: 0.04em;
   font-size: 12px;
   color: var(--color-muted);
+}
+
+.category-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.category-table th,
+.category-table td {
+  text-align: left;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 15px;
+  vertical-align: middle;
+}
+
+.category-table th {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.category-table .empty-state td {
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.category-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.category-note {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.fee-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 13px;
+  background: var(--color-icon-bg);
+  border: 1px solid var(--color-icon-border);
+  color: var(--color-text);
+  min-width: 88px;
+}
+
+.fee-chip--highlight {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: rgba(37, 99, 235, 0.32);
+  color: var(--color-primary);
+}
+
+.margin-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.trend-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.trend-indicator.is-up {
+  color: var(--color-success);
+}
+
+.trend-indicator.is-down {
+  color: var(--color-danger);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--color-icon-bg);
+  border: 1px solid var(--color-icon-border);
+  color: var(--color-muted);
+}
+
+.status-pill.is-active {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: var(--color-success);
+}
+
+.status-pill.is-muted {
+  background: transparent;
+  border-color: var(--color-border);
+}
+
+.card-subtitle {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-size: 14px;
 }
 
 .photo-preview {
