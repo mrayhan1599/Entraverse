@@ -123,11 +123,12 @@
                 <th>Fee Entraverse ID</th>
                 <th>Margin Keuntungan</th>
                 <th>Bonus</th>
+                <th>Aksi</th>
               </tr>
             </thead>
             <tbody id="category-table-body">
               <tr class="empty-state">
-                <td colspan="6">Tidak ada kategori ditemukan.</td>
+                <td colspan="7">Tidak ada kategori ditemukan.</td>
               </tr>
             </tbody>
           </table>
@@ -137,6 +138,67 @@
         </footer>
       </section>
     </main>
+    <div class="modal-backdrop" id="category-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="category-modal-title">
+        <form id="category-form" class="modal-form">
+          <div class="modal-header">
+            <h2 id="category-modal-title">Tambah Kategori</h2>
+            <button class="icon-btn small" type="button" data-close-modal aria-label="Tutup formulir">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="category-name">Nama Kategori</label>
+              <input type="text" id="category-name" name="name" placeholder="Contoh: Virtual Reality" required>
+            </div>
+            <div class="form-group">
+              <label for="category-note">Catatan</label>
+              <textarea id="category-note" name="note" rows="3" placeholder="Catatan singkat mengenai kategori"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="category-fee-marketplace">Fee Tokopedia &amp; Tiktok</label>
+                <input type="text" id="category-fee-marketplace" name="feeMarketplace" placeholder="Misal 10%">
+              </div>
+              <div class="form-group">
+                <label for="category-fee-shopee">Fee Shopee</label>
+                <input type="text" id="category-fee-shopee" name="feeShopee" placeholder="Misal 8%">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="category-fee-entraverse">Fee Entraverse ID</label>
+                <input type="text" id="category-fee-entraverse" name="feeEntraverse" placeholder="Misal 7.5%">
+              </div>
+              <div class="form-group">
+                <label for="category-bonus">Bonus</label>
+                <input type="text" id="category-bonus" name="bonus" placeholder="Contoh: Campaign Flash Sale">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="category-margin-value">Margin Keuntungan</label>
+                <input type="text" id="category-margin-value" name="marginValue" placeholder="Misal 10%">
+              </div>
+              <div class="form-group">
+                <label for="category-margin-trend">Tren Margin</label>
+                <select id="category-margin-trend" name="marginTrend">
+                  <option value="up">Naik</option>
+                  <option value="down">Turun</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="category-margin-note">Catatan Margin</label>
+              <input type="text" id="category-margin-note" name="marginNote" placeholder="Contoh: +1% vs bulan lalu">
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn ghost-btn" type="button" data-close-modal>Batal</button>
+            <button class="btn primary-btn" type="submit">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
   <script src="assets/js/app.js"></script>
 </body>

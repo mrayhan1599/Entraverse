@@ -950,6 +950,12 @@ a.action-icon {
   vertical-align: middle;
 }
 
+.category-table th:last-child,
+.category-table td:last-child {
+  text-align: center;
+  width: 120px;
+}
+
 .category-table th {
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1357,6 +1363,75 @@ input:checked + .slider:before {
   color: var(--color-text);
   opacity: 1;
   cursor: default;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.48);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modal-backdrop[hidden] {
+  display: none !important;
+}
+
+.modal {
+  width: min(520px, 100%);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.modal .icon-btn.small {
+  width: 32px;
+  height: 32px;
+}
+
+.modal .btn {
+  min-width: 120px;
+}
+
+.modal textarea {
+  min-height: 110px;
 }
 
 .variant-table th:last-child,
