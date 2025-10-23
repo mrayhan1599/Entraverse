@@ -1391,14 +1391,14 @@ body.modal-open {
 }
 
 .modal {
-  width: min(520px, 100%);
+  width: min(480px, calc(100% - 48px));
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  padding: 28px;
+  padding: 26px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
   max-height: calc(100vh - 48px);
   overflow: hidden;
 }
@@ -1429,7 +1429,7 @@ body.modal-open {
 .modal-body {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -1443,6 +1443,12 @@ body.modal-open {
   justify-content: flex-end;
   gap: 12px;
   flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 12px;
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(180deg, transparent 0%, var(--color-surface) 35%, var(--color-surface) 100%);
+  backdrop-filter: blur(2px);
 }
 
 .modal .icon-btn.small {
@@ -1465,7 +1471,8 @@ body.modal-open {
   }
 
   .modal {
-    width: 100%;
+    width: calc(100% - 24px);
+    margin: 0 auto;
     padding: 22px;
     gap: 16px;
     max-height: calc(100vh - 32px);
@@ -1485,6 +1492,7 @@ body.modal-open {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
+    padding-top: 16px;
   }
 
   .modal .btn {
