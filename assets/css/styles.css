@@ -12,7 +12,7 @@
   --color-icon-bg: rgba(37, 99, 235, 0.08);
   --color-icon-border: rgba(37, 99, 235, 0.16);
   --color-icon-hover: rgba(37, 99, 235, 0.18);
-  --color-sidebar: linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%);
+  --color-sidebar: #1e1e2d;
   --color-sidebar-alt: rgba(255, 255, 255, 0.16);
   --color-sidebar-active: rgba(255, 255, 255, 0.22);
   --color-sidebar-text: rgba(255, 255, 255, 0.96);
