@@ -1161,7 +1161,7 @@ input:checked + .slider:before {
 
 .form-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
 }
 
@@ -1392,7 +1392,7 @@ body.modal-open {
 }
 
 .modal {
-  width: min(480px, calc(100% - 48px));
+  width: min(420px, calc(100% - 48px));
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
@@ -1473,7 +1473,7 @@ body.modal-open {
   }
 
   .modal {
-    width: calc(100% - 24px);
+    width: min(360px, calc(100% - 24px));
     margin: 0 auto;
     padding: 22px 20px 24px;
     gap: 16px;
