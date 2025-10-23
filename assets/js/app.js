@@ -1,7 +1,8 @@
 const STORAGE_KEYS = {
   users: 'entraverse_users',
   session: 'entraverse_session',
-  products: 'entraverse_products'
+  products: 'entraverse_products',
+  categories: 'entraverse_categories'
 };
 
 const DEFAULT_PRODUCTS = [
@@ -109,8 +110,9 @@ const DEFAULT_PRODUCTS = [
   }
 ];
 
-const CATEGORY_DATA = [
+const DEFAULT_CATEGORIES = [
   {
+    id: 'cat-virtual-reality',
     name: 'Virtual Reality',
     note: 'Headset, controller, dan aksesoris AR/VR',
     fees: { marketplace: '10.3%', shopee: '8.0%', entraverse: '8.00%' },
@@ -118,6 +120,7 @@ const CATEGORY_DATA = [
     bonus: null
   },
   {
+    id: 'cat-konsol-game',
     name: 'Konsol Game',
     note: 'PlayStation, Xbox, dan Nintendo resmi',
     fees: { marketplace: '10.3%', shopee: '8.0%', entraverse: '8.00%' },
@@ -125,6 +128,7 @@ const CATEGORY_DATA = [
     bonus: 'Campaign Flash Sale'
   },
   {
+    id: 'cat-handphone',
     name: 'Handphone',
     note: 'Smartphone flagship & mid-range',
     fees: { marketplace: '9.5%', shopee: '7.5%', entraverse: '7.40%' },
@@ -132,6 +136,7 @@ const CATEGORY_DATA = [
     bonus: null
   },
   {
+    id: 'cat-laptop',
     name: 'Laptop',
     note: 'Laptop consumer dan bisnis',
     fees: { marketplace: '10.0%', shopee: '8.0%', entraverse: '8.25%' },
@@ -139,6 +144,7 @@ const CATEGORY_DATA = [
     bonus: 'Subsidi ongkir'
   },
   {
+    id: 'cat-tablet',
     name: 'Tablet',
     note: 'Tablet Android & iPad',
     fees: { marketplace: '9.8%', shopee: '7.8%', entraverse: '7.90%' },
@@ -146,6 +152,7 @@ const CATEGORY_DATA = [
     bonus: null
   },
   {
+    id: 'cat-audio',
     name: 'Audio',
     note: 'Headphone, speaker, dan audio pro',
     fees: { marketplace: '8.5%', shopee: '7.0%', entraverse: '7.10%' },
@@ -153,6 +160,7 @@ const CATEGORY_DATA = [
     bonus: 'Bundling voucher'
   },
   {
+    id: 'cat-smart-home',
     name: 'Smart Home',
     note: 'Perangkat IoT & otomasi rumah',
     fees: { marketplace: '8.0%', shopee: '6.5%', entraverse: '6.75%' },
@@ -160,6 +168,7 @@ const CATEGORY_DATA = [
     bonus: null
   },
   {
+    id: 'cat-outdoor-outtam',
     name: 'Outdoor - Outtam',
     note: 'Peralatan outdoor & travelling',
     fees: { marketplace: '7.5%', shopee: '6.2%', entraverse: '6.40%' },
@@ -167,6 +176,7 @@ const CATEGORY_DATA = [
     bonus: 'Bonus katalog'
   },
   {
+    id: 'cat-aksesoris',
     name: 'Aksesoris',
     note: 'Aksesoris gadget & lifestyle',
     fees: { marketplace: '8.8%', shopee: '6.9%', entraverse: '7.10%' },
@@ -493,6 +503,19 @@ function clone(value) {
   }
 }
 
+function escapeHtml(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return value
+    .toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function getData(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
@@ -508,10 +531,52 @@ function setData(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function getCategories() {
+  const categories = getData(STORAGE_KEYS.categories, null);
+  if (!Array.isArray(categories)) {
+    return [];
+  }
+  return categories.filter(category => category && typeof category === 'object');
+}
+
+function saveCategories(categories) {
+  setData(STORAGE_KEYS.categories, categories);
+  document.dispatchEvent(new CustomEvent('categories:changed', {
+    detail: { categories: clone(categories) }
+  }));
+}
+
 function ensureSeeded() {
   const existingProducts = getData(STORAGE_KEYS.products, null);
   if (!existingProducts) {
     setData(STORAGE_KEYS.products, DEFAULT_PRODUCTS);
+  }
+
+  const existingCategories = getData(STORAGE_KEYS.categories, null);
+  if (!Array.isArray(existingCategories)) {
+    setData(STORAGE_KEYS.categories, DEFAULT_CATEGORIES);
+  } else {
+    const normalized = [];
+    let mutated = false;
+
+    existingCategories.forEach(category => {
+      if (!category || typeof category !== 'object') {
+        mutated = true;
+        return;
+      }
+      const withId = { ...category };
+      if (!withId.id) {
+        withId.id = crypto.randomUUID();
+        mutated = true;
+      }
+      normalized.push(withId);
+    });
+
+    if (!normalized.length && existingCategories.length) {
+      setData(STORAGE_KEYS.categories, DEFAULT_CATEGORIES);
+    } else if (mutated) {
+      setData(STORAGE_KEYS.categories, normalized);
+    }
   }
 }
 
@@ -766,12 +831,13 @@ function renderCategories(filterText = '') {
   const tbody = document.getElementById('category-table-body');
   if (!tbody) return;
 
-  const normalized = filterText.toLowerCase();
-  const filtered = CATEGORY_DATA.filter(category => {
+  const categories = getCategories();
+  const normalized = (filterText ?? '').toString().trim().toLowerCase();
+  const filtered = categories.filter(category => {
     if (!normalized) return true;
     return (
-      category.name.toLowerCase().includes(normalized) ||
-      (category.note ?? '').toLowerCase().includes(normalized)
+      (category.name ?? '').toString().toLowerCase().includes(normalized) ||
+      (category.note ?? '').toString().toLowerCase().includes(normalized)
     );
   });
 
@@ -780,11 +846,12 @@ function renderCategories(filterText = '') {
   if (!filtered.length) {
     const emptyRow = document.createElement('tr');
     emptyRow.className = 'empty-state';
-    emptyRow.innerHTML = '<td colspan="6">Tidak ada kategori ditemukan.</td>';
+    emptyRow.innerHTML = '<td colspan="7">Tidak ada kategori ditemukan.</td>';
     tbody.appendChild(emptyRow);
   } else {
     filtered.forEach(category => {
       const row = document.createElement('tr');
+      const safeId = escapeHtml(category.id ?? '');
       const hasBonus = typeof category.bonus === 'string'
         ? category.bonus.trim().toLowerCase() !== 'tidak ada' && category.bonus.trim() !== ''
         : Boolean(category.bonus);
@@ -793,27 +860,39 @@ function renderCategories(filterText = '') {
         : 'Tidak Ada';
       const trendClass = category.margin?.trend === 'down' ? 'is-down' : 'is-up';
       const trendSymbol = category.margin?.trend === 'down' ? '↓' : '↑';
+      const noteText = category.note ?? '';
+      const hasNote = noteText !== null && noteText !== undefined && noteText.toString().trim() !== '';
+      const marginNoteRaw = category.margin?.note ?? '';
+      const hasMarginNote = marginNoteRaw !== null && marginNoteRaw !== undefined && marginNoteRaw.toString().trim() !== '';
+      const marginNote = hasMarginNote ? `${trendSymbol} ${marginNoteRaw}` : '';
 
+      row.dataset.categoryId = category.id ?? '';
       row.innerHTML = `
         <td>
           <div class="category-cell">
-            <strong>${category.name}</strong>
-            ${category.note ? `<span class="category-note">${category.note}</span>` : ''}
+            <strong>${escapeHtml(category.name ?? '')}</strong>
+            ${hasNote ? `<span class="category-note">${escapeHtml(noteText)}</span>` : ''}
           </div>
         </td>
-        <td><span class="fee-chip">${category.fees?.marketplace ?? '-'}</span></td>
-        <td><span class="fee-chip">${category.fees?.shopee ?? '-'}</span></td>
-        <td><span class="fee-chip">${category.fees?.entraverse ?? '-'}</span></td>
+        <td><span class="fee-chip">${escapeHtml(category.fees?.marketplace ?? '-')}</span></td>
+        <td><span class="fee-chip">${escapeHtml(category.fees?.shopee ?? '-')}</span></td>
+        <td><span class="fee-chip">${escapeHtml(category.fees?.entraverse ?? '-')}</span></td>
         <td>
           <div class="margin-cell">
-            <span class="fee-chip fee-chip--highlight">${category.margin?.value ?? '-'}</span>
-            ${category.margin?.note ? `<span class="trend-indicator ${trendClass}">${trendSymbol} ${category.margin.note}</span>` : ''}
+            <span class="fee-chip fee-chip--highlight">${escapeHtml(category.margin?.value ?? '-')}</span>
+            ${hasMarginNote ? `<span class="trend-indicator ${trendClass}">${escapeHtml(marginNote)}</span>` : ''}
           </div>
         </td>
         <td>
           <span class="status-pill ${hasBonus ? 'is-active' : 'is-muted'}">
-            ${hasBonus ? '🎯' : '—'} ${bonusLabel}
+            ${hasBonus ? '🎯' : '—'} ${escapeHtml(typeof bonusLabel === 'string' ? bonusLabel : '')}
           </span>
+        </td>
+        <td>
+          <div class="table-actions">
+            <button class="icon-btn small" type="button" data-category-action="edit" data-id="${safeId}" title="Edit kategori">✏️</button>
+            <button class="icon-btn danger small" type="button" data-category-action="delete" data-id="${safeId}" title="Hapus kategori">🗑️</button>
+          </div>
         </td>
       `;
 
@@ -828,7 +907,7 @@ function renderCategories(filterText = '') {
   }
   if (metaEl) {
     metaEl.textContent = filtered.length
-      ? `Menampilkan ${filtered.length} dari ${CATEGORY_DATA.length} kategori`
+      ? `Menampilkan ${filtered.length} dari ${categories.length} kategori`
       : 'Tidak ada kategori ditemukan';
   }
 }
@@ -942,11 +1021,201 @@ function handleProductActions() {
 }
 
 function handleCategoryActions() {
-  const button = document.getElementById('add-category-btn');
-  if (!button) return;
+  const addButton = document.getElementById('add-category-btn');
+  const modal = document.getElementById('category-modal');
+  const form = document.getElementById('category-form');
+  const modalTitle = document.getElementById('category-modal-title');
+  const tableBody = document.getElementById('category-table-body');
+  if (!addButton || !modal || !form || !modalTitle || !tableBody) return;
 
-  button.addEventListener('click', () => {
-    toast.show('Fitur tambah kategori segera hadir.');
+  const closeButtons = modal.querySelectorAll('[data-close-modal]');
+  const nameInput = form.querySelector('#category-name');
+  const noteInput = form.querySelector('#category-note');
+  const marketplaceInput = form.querySelector('#category-fee-marketplace');
+  const shopeeInput = form.querySelector('#category-fee-shopee');
+  const entraverseInput = form.querySelector('#category-fee-entraverse');
+  const bonusInput = form.querySelector('#category-bonus');
+  const marginValueInput = form.querySelector('#category-margin-value');
+  const marginTrendInput = form.querySelector('#category-margin-trend');
+  const marginNoteInput = form.querySelector('#category-margin-note');
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const searchInput = document.getElementById('search-input');
+
+  const getCurrentFilter = () => (searchInput?.value ?? '').toString();
+
+  const closeModal = () => {
+    modal.hidden = true;
+    document.body.classList.remove('modal-open');
+    form.reset();
+    delete form.dataset.editingId;
+  };
+
+  const fillForm = category => {
+    if (!category) {
+      form.reset();
+      if (marginTrendInput) {
+        marginTrendInput.value = 'up';
+      }
+      return;
+    }
+
+    if (nameInput) nameInput.value = category.name ?? '';
+    if (noteInput) noteInput.value = category.note ?? '';
+    if (marketplaceInput) marketplaceInput.value = category.fees?.marketplace ?? '';
+    if (shopeeInput) shopeeInput.value = category.fees?.shopee ?? '';
+    if (entraverseInput) entraverseInput.value = category.fees?.entraverse ?? '';
+    if (bonusInput) bonusInput.value = typeof category.bonus === 'string' ? category.bonus : '';
+    if (marginValueInput) marginValueInput.value = category.margin?.value ?? '';
+    if (marginTrendInput) marginTrendInput.value = category.margin?.trend === 'down' ? 'down' : 'up';
+    if (marginNoteInput) marginNoteInput.value = category.margin?.note ?? '';
+  };
+
+  const focusNameField = () => {
+    if (!nameInput) return;
+    requestAnimationFrame(() => {
+      nameInput.focus({ preventScroll: true });
+      nameInput.select?.();
+    });
+  };
+
+  const openModal = category => {
+    const isEditing = Boolean(category);
+    form.reset();
+    if (marginTrendInput) {
+      marginTrendInput.value = 'up';
+    }
+    if (isEditing) {
+      form.dataset.editingId = category.id;
+      modalTitle.textContent = 'Edit Kategori';
+      if (submitBtn) submitBtn.textContent = 'Perbarui';
+      fillForm(category);
+    } else {
+      delete form.dataset.editingId;
+      modalTitle.textContent = 'Tambah Kategori';
+      if (submitBtn) submitBtn.textContent = 'Simpan';
+    }
+    modal.hidden = false;
+    document.body.classList.add('modal-open');
+    focusNameField();
+  };
+
+  const handleEscape = event => {
+    if (event.key === 'Escape' && !modal.hidden) {
+      closeModal();
+    }
+  };
+
+  addButton.addEventListener('click', () => openModal());
+  closeButtons.forEach(button => button.addEventListener('click', closeModal));
+  document.addEventListener('keydown', handleEscape);
+  modal.addEventListener('click', event => {
+    if (event.target === modal) {
+      closeModal();
+    }
+  });
+
+  tableBody.addEventListener('click', event => {
+    const button = event.target.closest('[data-category-action]');
+    if (!button) return;
+
+    const id = button.dataset.id;
+    if (!id) return;
+
+    if (button.dataset.categoryAction === 'edit') {
+      const categories = getCategories();
+      const category = categories.find(item => item.id === id);
+      if (!category) {
+        toast.show('Kategori tidak ditemukan.');
+        renderCategories(getCurrentFilter());
+        return;
+      }
+      openModal(category);
+      return;
+    }
+
+    if (button.dataset.categoryAction === 'delete') {
+      if (!confirm('Hapus kategori ini?')) {
+        return;
+      }
+      const categories = getCategories();
+      const updated = categories.filter(item => item.id !== id);
+      saveCategories(updated);
+      toast.show('Kategori berhasil dihapus.');
+      renderCategories(getCurrentFilter());
+    }
+  });
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+
+    const formData = new FormData(form);
+    const name = (formData.get('name') ?? '').toString().trim();
+    const note = (formData.get('note') ?? '').toString().trim();
+    const feeMarketplace = (formData.get('feeMarketplace') ?? '').toString().trim();
+    const feeShopee = (formData.get('feeShopee') ?? '').toString().trim();
+    const feeEntraverse = (formData.get('feeEntraverse') ?? '').toString().trim();
+    const bonus = (formData.get('bonus') ?? '').toString().trim();
+    const marginValue = (formData.get('marginValue') ?? '').toString().trim();
+    const marginTrend = (formData.get('marginTrend') ?? 'up').toString();
+    const marginNote = (formData.get('marginNote') ?? '').toString().trim();
+
+    if (!name) {
+      toast.show('Nama kategori wajib diisi.');
+      nameInput?.focus();
+      return;
+    }
+
+    const categories = getCategories();
+    const editingId = form.dataset.editingId;
+    const normalizedName = name.toLowerCase();
+    const hasDuplicate = categories.some(category =>
+      category.name?.toLowerCase() === normalizedName && category.id !== editingId
+    );
+
+    if (hasDuplicate) {
+      toast.show('Nama kategori sudah digunakan.');
+      nameInput?.focus();
+      return;
+    }
+
+    const payload = {
+      id: editingId || crypto.randomUUID(),
+      name,
+      note,
+      fees: {
+        marketplace: feeMarketplace,
+        shopee: feeShopee,
+        entraverse: feeEntraverse
+      },
+      margin: {
+        value: marginValue,
+        trend: marginTrend === 'down' ? 'down' : 'up',
+        note: marginNote
+      },
+      bonus: bonus || null
+    };
+
+    if (editingId) {
+      const index = categories.findIndex(category => category.id === editingId);
+      if (index === -1) {
+        toast.show('Kategori tidak ditemukan.');
+        closeModal();
+        renderCategories(getCurrentFilter());
+        return;
+      }
+      payload.createdAt = categories[index].createdAt ?? Date.now();
+      payload.updatedAt = Date.now();
+      categories[index] = payload;
+      toast.show('Kategori berhasil diperbarui.');
+    } else {
+      payload.createdAt = Date.now();
+      categories.push(payload);
+      toast.show('Kategori berhasil ditambahkan.');
+    }
+
+    saveCategories(categories);
+    closeModal();
+    renderCategories(getCurrentFilter());
   });
 }
 
@@ -1008,6 +1277,62 @@ function handleLogout() {
   });
 }
 
+function populateCategorySelect(select, { selectedValue, helperEl } = {}) {
+  if (!select) return;
+
+  const placeholder = select.dataset.placeholder || 'Pilih kategori';
+  const categories = getCategories()
+    .filter(category => typeof category?.name === 'string' && category.name.trim())
+    .map(category => ({ id: category.id, name: category.name.trim() }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
+
+  const currentValue = selectedValue ?? select.value ?? '';
+  select.innerHTML = '';
+
+  const placeholderOption = document.createElement('option');
+  placeholderOption.value = '';
+  placeholderOption.textContent = categories.length ? placeholder : 'Belum ada kategori';
+  placeholderOption.selected = !currentValue;
+  placeholderOption.disabled = categories.length > 0;
+  select.appendChild(placeholderOption);
+
+  categories.forEach(category => {
+    const option = document.createElement('option');
+    option.value = category.name;
+    option.textContent = category.name;
+    select.appendChild(option);
+  });
+
+  let hasFallback = false;
+  if (currentValue) {
+    select.value = currentValue;
+    if (select.value !== currentValue) {
+      const fallbackOption = document.createElement('option');
+      fallbackOption.value = currentValue;
+      fallbackOption.textContent = `${currentValue} (tidak tersedia)`;
+      select.appendChild(fallbackOption);
+      select.value = currentValue;
+      hasFallback = true;
+    }
+  }
+
+  if (!currentValue) {
+    select.value = '';
+  }
+
+  select.disabled = !categories.length && !hasFallback;
+
+  if (helperEl) {
+    if (!categories.length && !hasFallback) {
+      helperEl.textContent = 'Belum ada kategori. Tambahkan kategori pada halaman Kategori.';
+    } else if (hasFallback) {
+      helperEl.textContent = 'Kategori lama tidak lagi tersedia. Pilih kategori terbaru atau tambahkan yang baru.';
+    } else {
+      helperEl.textContent = 'Kategori diambil dari daftar Kategori yang Anda kelola.';
+    }
+  }
+}
+
 function handleAddProductForm() {
   const form = document.getElementById('add-product-form');
   if (!form) return;
@@ -1021,9 +1346,18 @@ function handleAddProductForm() {
   const titleEl = document.getElementById('product-form-title');
   const subtitleEl = document.getElementById('product-form-subtitle');
   const submitBtn = form.querySelector('.primary-btn');
+  const categorySelect = form.querySelector('#product-category');
+  const categoryHelper = document.getElementById('category-helper-text');
   const params = new URLSearchParams(window.location.search);
   const editingId = params.get('id');
   let suppressPricingRefresh = false;
+
+  populateCategorySelect(categorySelect, { helperEl: categoryHelper });
+
+  document.addEventListener('categories:changed', () => {
+    const selectedValue = categorySelect?.value ?? '';
+    populateCategorySelect(categorySelect, { selectedValue, helperEl: categoryHelper });
+  });
 
   const clearPreview = (container, preview, input) => {
     if (!container || !preview) return;
@@ -1678,9 +2012,11 @@ function handleAddProductForm() {
     if (nameInput) {
       nameInput.value = product.name ?? '';
     }
-    const categoryInput = form.querySelector('#product-category');
-    if (categoryInput) {
-      categoryInput.value = product.category ?? '';
+    if (categorySelect) {
+      populateCategorySelect(categorySelect, {
+        selectedValue: product.category ?? '',
+        helperEl: categoryHelper
+      });
     }
     const brandInput = form.querySelector('#product-brand');
     if (brandInput) {
@@ -1734,8 +2070,20 @@ function handleAddProductForm() {
 
   form.addEventListener('submit', event => {
     event.preventDefault();
+    if (categorySelect && categorySelect.disabled) {
+      toast.show('Tambahkan kategori terlebih dahulu di halaman Kategori.');
+      categorySelect.focus();
+      return;
+    }
     const formData = new FormData(form);
     const products = getData(STORAGE_KEYS.products, []);
+    const categoryValue = (formData.get('category') ?? '').toString().trim();
+
+    if (!categoryValue) {
+      toast.show('Pilih kategori produk.');
+      categorySelect?.focus();
+      return;
+    }
 
     const photos = photoInputs
       .map(input => input.closest('.image-upload')?.dataset.photoValue)
@@ -1848,7 +2196,7 @@ function handleAddProductForm() {
     const productPayload = {
       id: productId,
       name: (formData.get('name') ?? '').toString().trim(),
-      category: (formData.get('category') ?? '').toString().trim(),
+      category: categoryValue,
       brand: (formData.get('brand') ?? '').toString().trim(),
       description: (formData.get('description') ?? '').toString().trim(),
       tradeIn: form.querySelector('#trade-in-toggle')?.checked ?? false,
@@ -1884,6 +2232,7 @@ function initDashboard() {
 }
 
 function initCategories() {
+  ensureSeeded();
   renderCategories();
   handleSearch(value => renderCategories(value));
   handleCategoryActions();
