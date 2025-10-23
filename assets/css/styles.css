@@ -175,6 +175,7 @@ label {
 input,
 textarea,
 select {
+  width: 100%;
   padding: 12px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
@@ -1161,6 +1162,10 @@ input:checked + .slider:before {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
+}
+
+.form-row > .form-group {
+  min-width: 0;
 }
 
 .image-upload-grid {
