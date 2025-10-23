@@ -109,6 +109,72 @@ const DEFAULT_PRODUCTS = [
   }
 ];
 
+const CATEGORY_DATA = [
+  {
+    name: 'Virtual Reality',
+    note: 'Headset, controller, dan aksesoris AR/VR',
+    fees: { marketplace: '10.3%', shopee: '8.0%', entraverse: '8.00%' },
+    margin: { value: '10.00%', trend: 'up', note: '+1.2% vs bulan lalu' },
+    bonus: null
+  },
+  {
+    name: 'Konsol Game',
+    note: 'PlayStation, Xbox, dan Nintendo resmi',
+    fees: { marketplace: '10.3%', shopee: '8.0%', entraverse: '8.00%' },
+    margin: { value: '9.40%', trend: 'up', note: '+0.5% dibanding Q1' },
+    bonus: 'Campaign Flash Sale'
+  },
+  {
+    name: 'Handphone',
+    note: 'Smartphone flagship & mid-range',
+    fees: { marketplace: '9.5%', shopee: '7.5%', entraverse: '7.40%' },
+    margin: { value: '8.20%', trend: 'down', note: '-0.3% vs bulan lalu' },
+    bonus: null
+  },
+  {
+    name: 'Laptop',
+    note: 'Laptop consumer dan bisnis',
+    fees: { marketplace: '10.0%', shopee: '8.0%', entraverse: '8.25%' },
+    margin: { value: '11.40%', trend: 'up', note: '+0.8% vs bulan lalu' },
+    bonus: 'Subsidi ongkir'
+  },
+  {
+    name: 'Tablet',
+    note: 'Tablet Android & iPad',
+    fees: { marketplace: '9.8%', shopee: '7.8%', entraverse: '7.90%' },
+    margin: { value: '9.75%', trend: 'up', note: '+0.2% vs bulan lalu' },
+    bonus: null
+  },
+  {
+    name: 'Audio',
+    note: 'Headphone, speaker, dan audio pro',
+    fees: { marketplace: '8.5%', shopee: '7.0%', entraverse: '7.10%' },
+    margin: { value: '12.60%', trend: 'up', note: '+1.0% dibanding Q1' },
+    bonus: 'Bundling voucher'
+  },
+  {
+    name: 'Smart Home',
+    note: 'Perangkat IoT & otomasi rumah',
+    fees: { marketplace: '8.0%', shopee: '6.5%', entraverse: '6.75%' },
+    margin: { value: '13.20%', trend: 'up', note: '+1.8% vs bulan lalu' },
+    bonus: null
+  },
+  {
+    name: 'Outdoor - Outtam',
+    note: 'Peralatan outdoor & travelling',
+    fees: { marketplace: '7.5%', shopee: '6.2%', entraverse: '6.40%' },
+    margin: { value: '10.80%', trend: 'up', note: '+0.6% dibanding Q1' },
+    bonus: 'Bonus katalog'
+  },
+  {
+    name: 'Aksesoris',
+    note: 'Aksesoris gadget & lifestyle',
+    fees: { marketplace: '8.8%', shopee: '6.9%', entraverse: '7.10%' },
+    margin: { value: '9.10%', trend: 'down', note: '-0.2% vs bulan lalu' },
+    bonus: null
+  }
+];
+
 const THEME_STORAGE_KEY = 'entraverse_theme_mode';
 const THEME_MODES = ['system', 'light', 'dark'];
 const DEFAULT_THEME_MODE = 'system';
@@ -685,7 +751,7 @@ function handleLogin() {
 
 function ensureAuthenticatedPage() {
   const page = document.body.dataset.page;
-  if (['dashboard', 'add-product'].includes(page)) {
+  if (['dashboard', 'add-product', 'categories'].includes(page)) {
     const user = getCurrentUser();
     if (!user) {
       window.location.href = 'index.html';
@@ -694,6 +760,77 @@ function ensureAuthenticatedPage() {
     return user;
   }
   return null;
+}
+
+function renderCategories(filterText = '') {
+  const tbody = document.getElementById('category-table-body');
+  if (!tbody) return;
+
+  const normalized = filterText.toLowerCase();
+  const filtered = CATEGORY_DATA.filter(category => {
+    if (!normalized) return true;
+    return (
+      category.name.toLowerCase().includes(normalized) ||
+      (category.note ?? '').toLowerCase().includes(normalized)
+    );
+  });
+
+  tbody.innerHTML = '';
+
+  if (!filtered.length) {
+    const emptyRow = document.createElement('tr');
+    emptyRow.className = 'empty-state';
+    emptyRow.innerHTML = '<td colspan="6">Tidak ada kategori ditemukan.</td>';
+    tbody.appendChild(emptyRow);
+  } else {
+    filtered.forEach(category => {
+      const row = document.createElement('tr');
+      const hasBonus = typeof category.bonus === 'string'
+        ? category.bonus.trim().toLowerCase() !== 'tidak ada' && category.bonus.trim() !== ''
+        : Boolean(category.bonus);
+      const bonusLabel = hasBonus
+        ? (typeof category.bonus === 'string' ? category.bonus : 'Bonus aktif')
+        : 'Tidak Ada';
+      const trendClass = category.margin?.trend === 'down' ? 'is-down' : 'is-up';
+      const trendSymbol = category.margin?.trend === 'down' ? '↓' : '↑';
+
+      row.innerHTML = `
+        <td>
+          <div class="category-cell">
+            <strong>${category.name}</strong>
+            ${category.note ? `<span class="category-note">${category.note}</span>` : ''}
+          </div>
+        </td>
+        <td><span class="fee-chip">${category.fees?.marketplace ?? '-'}</span></td>
+        <td><span class="fee-chip">${category.fees?.shopee ?? '-'}</span></td>
+        <td><span class="fee-chip">${category.fees?.entraverse ?? '-'}</span></td>
+        <td>
+          <div class="margin-cell">
+            <span class="fee-chip fee-chip--highlight">${category.margin?.value ?? '-'}</span>
+            ${category.margin?.note ? `<span class="trend-indicator ${trendClass}">${trendSymbol} ${category.margin.note}</span>` : ''}
+          </div>
+        </td>
+        <td>
+          <span class="status-pill ${hasBonus ? 'is-active' : 'is-muted'}">
+            ${hasBonus ? '🎯' : '—'} ${bonusLabel}
+          </span>
+        </td>
+      `;
+
+      tbody.appendChild(row);
+    });
+  }
+
+  const countEl = document.getElementById('category-count');
+  const metaEl = document.getElementById('category-meta');
+  if (countEl) {
+    countEl.textContent = `${filtered.length} kategori`;
+  }
+  if (metaEl) {
+    metaEl.textContent = filtered.length
+      ? `Menampilkan ${filtered.length} dari ${CATEGORY_DATA.length} kategori`
+      : 'Tidak ada kategori ditemukan';
+  }
 }
 
 function renderProducts(filterText = '') {
@@ -804,14 +941,29 @@ function handleProductActions() {
   });
 }
 
-function handleSearch() {
-  const input = document.getElementById('search-input');
-  if (!input) return;
+function handleCategoryActions() {
+  const button = document.getElementById('add-category-btn');
+  if (!button) return;
 
-  input.addEventListener('input', event => {
-    const value = event.target.value.trim().toLowerCase();
-    renderProducts(value);
+  button.addEventListener('click', () => {
+    toast.show('Fitur tambah kategori segera hadir.');
   });
+}
+
+function handleSearch(callback) {
+  const input = document.getElementById('search-input');
+  if (!input || typeof callback !== 'function') return;
+
+  const handle = event => {
+    const value = (event?.target?.value ?? input.value ?? '').trim().toLowerCase();
+    callback(value);
+  };
+
+  input.addEventListener('input', handle);
+
+  if (input.value) {
+    callback(input.value.trim().toLowerCase());
+  }
 }
 
 function handleSync() {
@@ -1727,8 +1879,14 @@ function initDashboard() {
   ensureSeeded();
   renderProducts();
   handleProductActions();
-  handleSearch();
+  handleSearch(value => renderProducts(value));
   handleSync();
+}
+
+function initCategories() {
+  renderCategories();
+  handleSearch(value => renderCategories(value));
+  handleCategoryActions();
 }
 
 function initPage() {
@@ -1745,7 +1903,7 @@ function initPage() {
       handleRegister();
     }
 
-    if (['dashboard', 'add-product'].includes(page)) {
+    if (['dashboard', 'add-product', 'categories'].includes(page)) {
       setupSidebarToggle();
       const user = ensureAuthenticatedPage();
       if (!user) return;
@@ -1766,6 +1924,10 @@ function initPage() {
     if (page === 'add-product') {
       ensureSeeded();
       handleAddProductForm();
+    }
+
+    if (page === 'categories') {
+      initCategories();
     }
   });
 }
