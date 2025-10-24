@@ -192,9 +192,28 @@ const DEFAULT_CATEGORIES = [
   }
 ];
 
-const BANK_INDONESIA_EXCHANGE_ENDPOINTS = Object.freeze([
-  'https://www.bi.go.id/biwebservice/dataservice.svc/spotrate?$format=json',
-  'https://cors.isomorphic-git.org/https://www.bi.go.id/biwebservice/dataservice.svc/spotrate?$format=json'
+const BANK_INDONESIA_SOURCE_TYPES = Object.freeze({
+  JSON: 'json',
+  HTML: 'html'
+});
+
+const BANK_INDONESIA_EXCHANGE_SOURCES = Object.freeze([
+  {
+    type: BANK_INDONESIA_SOURCE_TYPES.JSON,
+    url: 'https://www.bi.go.id/biwebservice/dataservice.svc/spotrate?$format=json'
+  },
+  {
+    type: BANK_INDONESIA_SOURCE_TYPES.JSON,
+    url: 'https://cors.isomorphic-git.org/https://www.bi.go.id/biwebservice/dataservice.svc/spotrate?$format=json'
+  },
+  {
+    type: BANK_INDONESIA_SOURCE_TYPES.HTML,
+    url: 'https://www.bi.go.id/id/statistik/informasi-kurs/transaksi-bi/default.aspx'
+  },
+  {
+    type: BANK_INDONESIA_SOURCE_TYPES.HTML,
+    url: 'https://cors.isomorphic-git.org/https://www.bi.go.id/id/statistik/informasi-kurs/transaksi-bi/default.aspx'
+  }
 ]);
 const BANK_INDONESIA_SUPPORTED_CURRENCIES = Object.freeze(['IDR', 'USD', 'SGD', 'EUR']);
 
@@ -728,6 +747,340 @@ function parseDateValue(value) {
   }
 
   return null;
+}
+
+const INDONESIAN_MONTH_INDEX = Object.freeze({
+  januari: 0,
+  februari: 1,
+  maret: 2,
+  april: 3,
+  mei: 4,
+  juni: 5,
+  juli: 6,
+  agustus: 7,
+  september: 8,
+  oktober: 9,
+  november: 10,
+  desember: 11
+});
+
+function parseIndonesianDateString(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const textualMatch = trimmed.match(
+    /(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+(\d{4})/i
+  );
+  if (textualMatch) {
+    const day = Number(textualMatch[1]);
+    const monthName = textualMatch[2].toLowerCase();
+    const year = Number(textualMatch[3]);
+    const monthIndex = INDONESIAN_MONTH_INDEX[monthName];
+    if (Number.isFinite(day) && Number.isFinite(year) && Number.isFinite(monthIndex)) {
+      const candidate = new Date(year, monthIndex, day);
+      if (!Number.isNaN(candidate.getTime())) {
+        return candidate;
+      }
+    }
+  }
+
+  const slashMatch = trimmed.match(/(\d{1,2})[\/](\d{1,2})[\/](\d{4})/);
+  if (slashMatch) {
+    const day = Number(slashMatch[1]);
+    const month = Number(slashMatch[2]) - 1;
+    const year = Number(slashMatch[3]);
+    if (Number.isFinite(day) && Number.isFinite(month) && Number.isFinite(year)) {
+      const candidate = new Date(year, month, day);
+      if (!Number.isNaN(candidate.getTime())) {
+        return candidate;
+      }
+    }
+  }
+
+  const isoMatch = trimmed.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]) - 1;
+    const day = Number(isoMatch[3]);
+    if (Number.isFinite(day) && Number.isFinite(month) && Number.isFinite(year)) {
+      const candidate = new Date(year, month, day);
+      if (!Number.isNaN(candidate.getTime())) {
+        return candidate;
+      }
+    }
+  }
+
+  const direct = new Date(trimmed);
+  return Number.isNaN(direct.getTime()) ? null : direct;
+}
+
+function extractBankIndonesiaDateFromHtml(doc, rawHtml) {
+  const candidates = [];
+
+  if (doc) {
+    const targetedElements = doc.querySelectorAll('[id*="tanggal" i], [class*="tanggal" i], [data-tanggal]');
+    targetedElements.forEach(element => {
+      const text = element?.textContent?.trim();
+      if (text) {
+        candidates.push(text);
+      }
+      const value = element?.getAttribute?.('value');
+      if (value) {
+        candidates.push(value);
+      }
+      const dataValue = element?.getAttribute?.('data-tanggal');
+      if (dataValue) {
+        candidates.push(dataValue);
+      }
+    });
+
+    const hiddenInputs = doc.querySelectorAll('input[type="hidden" i]');
+    hiddenInputs.forEach(input => {
+      const name = input?.getAttribute?.('name')?.toLowerCase?.() ?? '';
+      if (name.includes('tanggal')) {
+        const value = input?.getAttribute?.('value')?.trim?.();
+        if (value) {
+          candidates.push(value);
+        }
+      }
+    });
+
+    const bodyText = doc.body?.textContent;
+    if (bodyText) {
+      candidates.push(bodyText);
+    }
+  }
+
+  if (typeof rawHtml === 'string' && rawHtml.trim()) {
+    candidates.push(rawHtml);
+  }
+
+  const patterns = [
+    /Tanggal[^0-9A-Za-z]*:?\s*(\d{1,2}\s+(?:Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+\d{4})/i,
+    /Per\s*(\d{1,2}\s+(?:Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+\d{4})/i,
+    /(\d{1,2}\s+(?:Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+\d{4})/i,
+    /(\d{1,2}[\/](?:\d{1,2})[\/](?:\d{4}))/,
+    /(\d{4}-\d{2}-\d{2})/
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    for (const pattern of patterns) {
+      const match = candidate.match(pattern);
+      if (match && match[1]) {
+        const parsed = parseIndonesianDateString(match[1]);
+        if (parsed) {
+          return parsed;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function parseBankIndonesiaJsonPayload(payload) {
+  const candidates = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.d?.results)
+      ? payload.d.results
+      : Array.isArray(payload?.d)
+        ? payload.d
+        : Array.isArray(payload?.value)
+          ? payload.value
+          : [];
+
+  const rates = new Map();
+  let latestDate = null;
+
+  candidates.forEach(item => {
+    if (!item) return;
+    const code = (item.currency ?? item.Currency ?? item.mata_uang ?? item.kode ?? item.symbol ?? '')
+      .toString()
+      .trim()
+      .toUpperCase();
+    if (!BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(code)) {
+      return;
+    }
+
+    const midRate = parseNumericValue(
+      item.kurs_tengah ?? item.kursTengah ?? item.midRate ?? item.mid_rate ?? item.middleRate ?? item.rate
+    );
+    const buyRate = parseNumericValue(item.kurs_beli ?? item.buyRate ?? item.kursBeli);
+    const sellRate = parseNumericValue(item.kurs_jual ?? item.sellRate ?? item.kursJual);
+
+    let resolvedRate = midRate;
+    if (!Number.isFinite(resolvedRate)) {
+      if (Number.isFinite(buyRate) && Number.isFinite(sellRate)) {
+        resolvedRate = (buyRate + sellRate) / 2;
+      } else if (Number.isFinite(buyRate)) {
+        resolvedRate = buyRate;
+      } else if (Number.isFinite(sellRate)) {
+        resolvedRate = sellRate;
+      }
+    }
+
+    if (!Number.isFinite(resolvedRate)) {
+      return;
+    }
+
+    const dateValue = parseDateValue(
+      item.tanggal ?? item.Tanggal ?? item.date ?? item.Date ?? item.tanggal_update ?? item.valid_from
+    );
+
+    const existing = rates.get(code);
+    if (!existing || (dateValue && (!existing.date || dateValue > existing.date))) {
+      rates.set(code, { rate: resolvedRate, date: dateValue });
+    }
+
+    if (dateValue && (!latestDate || dateValue > latestDate)) {
+      latestDate = dateValue;
+    }
+  });
+
+  if (!rates.size) {
+    return null;
+  }
+
+  rates.set('IDR', { rate: 1, date: latestDate });
+  return { rates, latestDate };
+}
+
+function parseBankIndonesiaHtmlPayload(html) {
+  if (typeof html !== 'string' || !html.trim()) {
+    return null;
+  }
+
+  if (typeof DOMParser === 'undefined') {
+    console.warn('DOMParser tidak tersedia di lingkungan ini.');
+    return null;
+  }
+
+  let doc;
+  try {
+    const parser = new DOMParser();
+    doc = parser.parseFromString(html, 'text/html');
+  } catch (error) {
+    console.warn('Tidak dapat mem-parsing HTML kurs Bank Indonesia.', error);
+    return null;
+  }
+
+  if (!doc) {
+    return null;
+  }
+
+  const tables = Array.from(doc.querySelectorAll('table'));
+  let targetTable = null;
+  let headerCells = [];
+
+  for (const table of tables) {
+    const headerRows = [
+      ...Array.from(table.querySelectorAll('thead tr')),
+      table.querySelector('tr')
+    ].filter(Boolean);
+
+    for (const row of headerRows) {
+      const cells = Array.from(row.querySelectorAll('th,td'));
+      if (!cells.length) {
+        continue;
+      }
+
+      const normalized = cells.map(cell => cell.textContent?.trim().toLowerCase() ?? '');
+      if (normalized.some(text => text.includes('mata uang')) && normalized.some(text => text.includes('kurs tengah'))) {
+        targetTable = table;
+        headerCells = cells;
+        break;
+      }
+    }
+
+    if (targetTable) {
+      break;
+    }
+  }
+
+  if (!targetTable) {
+    return null;
+  }
+
+  let currencyColumnIndex = headerCells.findIndex(cell => (cell.textContent ?? '').toLowerCase().includes('mata uang'));
+  if (currencyColumnIndex === -1) {
+    currencyColumnIndex = 1;
+  }
+
+  const tanggalColumnIndex = headerCells.findIndex(cell => (cell.textContent ?? '').toLowerCase().includes('tanggal'));
+
+  let rateColumnIndex = headerCells.findIndex(cell => {
+    const text = (cell.textContent ?? '').toLowerCase();
+    return text.includes('kurs tengah') || text.includes('middle rate');
+  });
+  if (rateColumnIndex === -1) {
+    rateColumnIndex = headerCells.findIndex(cell => (cell.textContent ?? '').toLowerCase().includes('kurs jual'));
+  }
+  if (rateColumnIndex === -1) {
+    rateColumnIndex = headerCells.length - 1;
+  }
+
+  const dataRows = Array.from(targetTable.querySelectorAll('tbody tr')).filter(row => row.querySelectorAll('td').length);
+  const fallbackRows = Array.from(targetTable.querySelectorAll('tr')).slice(1);
+  const rows = dataRows.length ? dataRows : fallbackRows;
+
+  const rates = new Map();
+  let latestDate = extractBankIndonesiaDateFromHtml(doc, html);
+
+  rows.forEach(row => {
+    const cells = Array.from(row.querySelectorAll('td'));
+    if (!cells.length) {
+      return;
+    }
+
+    const currencyCell = cells[currencyColumnIndex] ?? cells.find(cell => /[A-Z]{3}/.test(cell.textContent ?? ''));
+    if (!currencyCell) {
+      return;
+    }
+
+    const currencyMatch = (currencyCell.textContent ?? '')
+      .toUpperCase()
+      .match(/([A-Z]{3})/);
+    if (!currencyMatch) {
+      return;
+    }
+
+    const code = currencyMatch[1];
+    if (!BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(code)) {
+      return;
+    }
+
+    const rateCell = cells[rateColumnIndex] ?? cells[cells.length - 1];
+    const rate = parseNumericValue(rateCell?.textContent ?? '');
+    if (!Number.isFinite(rate)) {
+      return;
+    }
+
+    let rowDate = null;
+    if (tanggalColumnIndex !== -1 && tanggalColumnIndex < cells.length) {
+      rowDate = parseIndonesianDateString(cells[tanggalColumnIndex]?.textContent ?? '');
+    }
+
+    const entryDate = rowDate || latestDate;
+    if (rowDate && (!latestDate || rowDate > latestDate)) {
+      latestDate = rowDate;
+    }
+
+    rates.set(code, { rate, date: entryDate });
+  });
+
+  if (!rates.size) {
+    return null;
+  }
+
+  rates.set('IDR', { rate: 1, date: latestDate });
+  return { rates, latestDate };
 }
 
 function formatCurrency(value) {
@@ -1530,7 +1883,8 @@ function handleAddProductForm() {
     rates: new Map(),
     lastUpdated: null,
     loading: false,
-    error: null
+    error: null,
+    source: null
   };
 
   const getSelectedCurrency = () => {
@@ -1632,110 +1986,82 @@ function handleAddProductForm() {
 
     exchangeRateState.loading = true;
     exchangeRateState.error = null;
+    exchangeRateState.source = null;
     updateExchangeRateInfo();
 
     try {
-      const endpoints = Array.isArray(BANK_INDONESIA_EXCHANGE_ENDPOINTS)
-        ? BANK_INDONESIA_EXCHANGE_ENDPOINTS
-        : [BANK_INDONESIA_EXCHANGE_ENDPOINTS].filter(Boolean);
+      const sources = Array.isArray(BANK_INDONESIA_EXCHANGE_SOURCES)
+        ? BANK_INDONESIA_EXCHANGE_SOURCES
+        : [BANK_INDONESIA_EXCHANGE_SOURCES].filter(Boolean);
 
-      if (endpoints.length === 0) {
-        throw new Error('Endpoint kurs Bank Indonesia tidak tersedia.');
+      if (sources.length === 0) {
+        throw new Error('Sumber kurs Bank Indonesia tidak tersedia.');
       }
 
-      let payload = null;
       let lastError = null;
+      let result = null;
 
-      for (const endpoint of endpoints) {
+      for (const source of sources) {
+        if (!source || !source.url) {
+          continue;
+        }
+
         try {
-          const response = await fetch(endpoint, {
-            mode: 'cors',
-            cache: 'no-store',
-            credentials: 'omit',
-            headers: {
-              Accept: 'application/json'
-            }
-          });
+          const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          const timeout = Number.isFinite(source.timeout) ? source.timeout : 10000;
+          const timer = controller ? setTimeout(() => controller.abort(), timeout) : null;
 
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+          let response;
+          try {
+            response = await fetch(source.url, {
+              mode: 'cors',
+              cache: 'no-store',
+              credentials: 'omit',
+              signal: controller?.signal,
+              headers: {
+                Accept:
+                  source.type === BANK_INDONESIA_SOURCE_TYPES.JSON
+                    ? 'application/json, text/plain, */*'
+                    : 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+              }
+            });
+          } finally {
+            if (timer) {
+              clearTimeout(timer);
+            }
           }
 
-          payload = await response.json();
-          if (payload) {
+          if (!response?.ok) {
+            throw new Error(`HTTP ${response?.status ?? 'unknown'}`);
+          }
+
+          if (source.type === BANK_INDONESIA_SOURCE_TYPES.JSON) {
+            const payload = await response.json();
+            result = parseBankIndonesiaJsonPayload(payload);
+          } else if (source.type === BANK_INDONESIA_SOURCE_TYPES.HTML) {
+            const payload = await response.text();
+            result = parseBankIndonesiaHtmlPayload(payload);
+          } else {
+            throw new Error(`Tipe sumber tidak dikenal: ${source.type}`);
+          }
+
+          if (result && result.rates?.size) {
+            exchangeRateState.rates = result.rates;
+            exchangeRateState.lastUpdated = result.latestDate ?? null;
+            exchangeRateState.source = source;
             break;
           }
-        } catch (endpointError) {
-          lastError = endpointError;
-          console.warn(`Tidak dapat mengambil kurs Bank Indonesia dari ${endpoint}`, endpointError);
+
+          result = null;
+        } catch (sourceError) {
+          lastError = sourceError;
+          console.warn(`Tidak dapat mengambil kurs Bank Indonesia dari ${source.url}`, sourceError);
         }
       }
 
-      if (!payload) {
+      if (!result || !result.rates?.size) {
         throw lastError || new Error('Gagal memuat data kurs Bank Indonesia.');
       }
-
-      const candidates = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload?.d?.results)
-          ? payload.d.results
-          : Array.isArray(payload?.d)
-            ? payload.d
-            : Array.isArray(payload?.value)
-              ? payload.value
-              : [];
-      const rates = new Map();
-      let latestDate = null;
-
-      candidates.forEach(item => {
-        if (!item) return;
-        const code = (item.currency ?? item.Currency ?? item.mata_uang ?? item.kode ?? item.symbol ?? '')
-          .toString()
-          .trim()
-          .toUpperCase();
-        if (!BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(code)) {
-          return;
-        }
-
-        const midRate = parseNumericValue(
-          item.kurs_tengah ?? item.kursTengah ?? item.midRate ?? item.mid_rate ?? item.middleRate ?? item.rate
-        );
-        const buyRate = parseNumericValue(item.kurs_beli ?? item.buyRate ?? item.kursBeli);
-        const sellRate = parseNumericValue(item.kurs_jual ?? item.sellRate ?? item.kursJual);
-
-        let resolvedRate = midRate;
-        if (!Number.isFinite(resolvedRate)) {
-          if (Number.isFinite(buyRate) && Number.isFinite(sellRate)) {
-            resolvedRate = (buyRate + sellRate) / 2;
-          } else if (Number.isFinite(buyRate)) {
-            resolvedRate = buyRate;
-          } else if (Number.isFinite(sellRate)) {
-            resolvedRate = sellRate;
-          }
-        }
-
-        if (!Number.isFinite(resolvedRate)) {
-          return;
-        }
-
-        const dateValue = parseDateValue(
-          item.tanggal ?? item.Tanggal ?? item.date ?? item.Date ?? item.tanggal_update ?? item.valid_from
-        );
-
-        const existing = rates.get(code);
-        if (!existing || (dateValue && (!existing.date || dateValue > existing.date))) {
-          rates.set(code, { rate: resolvedRate, date: dateValue });
-        }
-
-        if (dateValue && (!latestDate || dateValue > latestDate)) {
-          latestDate = dateValue;
-        }
-      });
-
-      rates.set('IDR', { rate: 1, date: latestDate });
-
-      exchangeRateState.rates = rates;
-      exchangeRateState.lastUpdated = latestDate;
     } catch (error) {
       console.error('Gagal memuat kurs Bank Indonesia', error);
       exchangeRateState.error = 'Gagal memuat kurs Bank Indonesia. Masukkan nilai kurs secara manual bila diperlukan.';
