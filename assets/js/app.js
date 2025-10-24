@@ -192,7 +192,10 @@ const DEFAULT_CATEGORIES = [
   }
 ];
 
-const BANK_INDONESIA_EXCHANGE_ENDPOINT = 'https://www.bi.go.id/biwebservice/dataservice.svc/spotrate?$format=json';
+const BANK_INDONESIA_EXCHANGE_ENDPOINTS = Object.freeze([
+  'https://www.bi.go.id/biwebservice/dataservice.svc/spotrate?$format=json',
+  'https://cors.isomorphic-git.org/https://www.bi.go.id/biwebservice/dataservice.svc/spotrate?$format=json'
+]);
 const BANK_INDONESIA_SUPPORTED_CURRENCIES = Object.freeze(['IDR', 'USD', 'SGD', 'EUR']);
 
 const THEME_STORAGE_KEY = 'entraverse_theme_mode';
@@ -1559,17 +1562,20 @@ function handleAddProductForm() {
     if (exchangeRateInput) {
       const currency = getSelectedCurrency();
       const shouldSyncInput = force || exchangeRateInput.dataset.userEdited !== 'true';
-      exchangeRateInput.readOnly = currency === 'IDR';
       if (currency === 'IDR') {
+        exchangeRateInput.setAttribute('readonly', 'readonly');
         if (shouldSyncInput) {
           exchangeRateInput.value = '1';
         }
-      } else if (shouldSyncInput) {
-        const entry = exchangeRateState.rates.get(currency);
-        if (entry && Number.isFinite(entry.rate)) {
-          exchangeRateInput.value = entry.rate.toString();
-        } else {
-          exchangeRateInput.value = '';
+      } else {
+        exchangeRateInput.removeAttribute('readonly');
+        if (shouldSyncInput) {
+          const entry = exchangeRateState.rates.get(currency);
+          if (entry && Number.isFinite(entry.rate)) {
+            exchangeRateInput.value = entry.rate.toString();
+          } else {
+            exchangeRateInput.value = '';
+          }
         }
       }
     }
@@ -1629,12 +1635,46 @@ function handleAddProductForm() {
     updateExchangeRateInfo();
 
     try {
-      const response = await fetch(BANK_INDONESIA_EXCHANGE_ENDPOINT);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      const endpoints = Array.isArray(BANK_INDONESIA_EXCHANGE_ENDPOINTS)
+        ? BANK_INDONESIA_EXCHANGE_ENDPOINTS
+        : [BANK_INDONESIA_EXCHANGE_ENDPOINTS].filter(Boolean);
+
+      if (endpoints.length === 0) {
+        throw new Error('Endpoint kurs Bank Indonesia tidak tersedia.');
       }
 
-      const payload = await response.json();
+      let payload = null;
+      let lastError = null;
+
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(endpoint, {
+            mode: 'cors',
+            cache: 'no-store',
+            credentials: 'omit',
+            headers: {
+              Accept: 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          payload = await response.json();
+          if (payload) {
+            break;
+          }
+        } catch (endpointError) {
+          lastError = endpointError;
+          console.warn(`Tidak dapat mengambil kurs Bank Indonesia dari ${endpoint}`, endpointError);
+        }
+      }
+
+      if (!payload) {
+        throw lastError || new Error('Gagal memuat data kurs Bank Indonesia.');
+      }
+
       const candidates = Array.isArray(payload)
         ? payload
         : Array.isArray(payload?.d?.results)
@@ -1644,7 +1684,6 @@ function handleAddProductForm() {
             : Array.isArray(payload?.value)
               ? payload.value
               : [];
-
       const rates = new Map();
       let latestDate = null;
 
