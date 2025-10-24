@@ -2101,6 +2101,20 @@ function handleAddProductForm() {
     if (tradeToggle) {
       tradeToggle.checked = Boolean(product.tradeIn);
     }
+    const inventoryFields = {
+      initialStockPrediction: form.querySelector('#initial-stock-prediction'),
+      purchasePrice: form.querySelector('#purchase-price'),
+      exchangeRate: form.querySelector('#exchange-rate'),
+      dailyAverageSales: form.querySelector('#daily-average-sales'),
+      leadTime: form.querySelector('#lead-time'),
+      reorderPoint: form.querySelector('#reorder-point')
+    };
+    const inventory = product.inventory ?? {};
+    Object.entries(inventoryFields).forEach(([key, input]) => {
+      if (!input) return;
+      const value = inventory?.[key] ?? '';
+      input.value = value;
+    });
 
     if (Array.isArray(product.photos)) {
       product.photos.slice(0, photoInputs.length).forEach((photo, index) => {
@@ -2149,6 +2163,15 @@ function handleAddProductForm() {
     const formData = new FormData(form);
     const products = getData(STORAGE_KEYS.products, []);
     const categoryValue = (formData.get('category') ?? '').toString().trim();
+    const inventoryData = {
+      initialStockPrediction: (formData.get('initialStockPrediction') ?? '').toString().trim(),
+      purchasePrice: (formData.get('purchasePrice') ?? '').toString().trim(),
+      exchangeRate: (formData.get('exchangeRate') ?? '').toString().trim(),
+      dailyAverageSales: (formData.get('dailyAverageSales') ?? '').toString().trim(),
+      leadTime: (formData.get('leadTime') ?? '').toString().trim(),
+      reorderPoint: (formData.get('reorderPoint') ?? '').toString().trim()
+    };
+    const hasInventoryData = Object.values(inventoryData).some(value => value);
 
     if (!categoryValue) {
       toast.show('Pilih kategori produk.');
@@ -2271,6 +2294,7 @@ function handleAddProductForm() {
       brand: (formData.get('brand') ?? '').toString().trim(),
       description: (formData.get('description') ?? '').toString().trim(),
       tradeIn: form.querySelector('#trade-in-toggle')?.checked ?? false,
+      inventory: hasInventoryData ? inventoryData : null,
       photos,
       variants,
       variantPricing: filteredPricing
