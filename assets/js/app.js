@@ -199,10 +199,6 @@ const BANK_INDONESIA_SOURCE_TYPES = Object.freeze({
 
 const BANK_INDONESIA_EXCHANGE_SOURCES = Object.freeze([
   {
-    type: BANK_INDONESIA_SOURCE_TYPES.HTML,
-    url: 'assets/data/kurs-transaksi-bi.html'
-  },
-  {
     type: BANK_INDONESIA_SOURCE_TYPES.JSON,
     url: 'https://www.bi.go.id/biwebservice/dataservice.svc/spotrate?$format=json'
   },
@@ -217,6 +213,10 @@ const BANK_INDONESIA_EXCHANGE_SOURCES = Object.freeze([
   {
     type: BANK_INDONESIA_SOURCE_TYPES.HTML,
     url: 'https://cors.isomorphic-git.org/https://www.bi.go.id/id/statistik/informasi-kurs/transaksi-bi/default.aspx'
+  },
+  {
+    type: BANK_INDONESIA_SOURCE_TYPES.HTML,
+    url: 'assets/data/kurs-transaksi-bi.html'
   }
 ]);
 const BANK_INDONESIA_SUPPORTED_CURRENCIES = Object.freeze(['IDR', 'USD', 'SGD', 'EUR']);
