@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8">
+    <title>Kurs Transaksi Bank Indonesia</title>
+    <meta name="description" content="Tabel kurs transaksi Bank Indonesia (snapshot offline).">
+    <style>
+      body {
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        padding: 1.5rem;
+        color: #1f2933;
+        background-color: #f8fafc;
+      }
+      h1 {
+        font-size: 1.75rem;
+        margin-bottom: 0.25rem;
+      }
+      p {
+        margin: 0 0 1.5rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: #ffffff;
+        border: 1px solid #d2dae2;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      }
+      thead {
+        background-color: #e2e8f0;
+      }
+      th,
+      td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #d2dae2;
+        text-align: left;
+        font-size: 0.95rem;
+      }
+      th {
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+      tbody tr:nth-child(even) {
+        background-color: #f1f5f9;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Kurs Transaksi Bank Indonesia</h1>
+      <p id="tanggal-kurs">Update Terakhir: 24 Oktober 2023</p>
+      <p>Data ini merupakan salinan tabel kurs transaksi Bank Indonesia yang disimpan secara lokal untuk penggunaan aplikasi.</p>
+    </header>
+    <table aria-describedby="tanggal-kurs">
+      <thead>
+        <tr>
+          <th scope="col">Mata Uang</th>
+          <th scope="col">Nilai</th>
+          <th scope="col">Kurs Beli</th>
+          <th scope="col">Kurs Tengah</th>
+          <th scope="col">Kurs Jual</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>USD - Dolar Amerika Serikat</td>
+          <td>1</td>
+          <td>15.824,66</td>
+          <td>15.850,00</td>
+          <td>15.875,34</td>
+        </tr>
+        <tr>
+          <td>SGD - Dolar Singapura</td>
+          <td>1</td>
+          <td>11.535,12</td>
+          <td>11.552,68</td>
+          <td>11.570,24</td>
+        </tr>
+        <tr>
+          <td>EUR - Euro</td>
+          <td>1</td>
+          <td>16.689,45</td>
+          <td>16.715,32</td>
+          <td>16.741,19</td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>

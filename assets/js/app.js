@@ -199,6 +199,10 @@ const BANK_INDONESIA_SOURCE_TYPES = Object.freeze({
 
 const BANK_INDONESIA_EXCHANGE_SOURCES = Object.freeze([
   {
+    type: BANK_INDONESIA_SOURCE_TYPES.HTML,
+    url: 'assets/data/kurs-transaksi-bi.html'
+  },
+  {
     type: BANK_INDONESIA_SOURCE_TYPES.JSON,
     url: 'https://www.bi.go.id/biwebservice/dataservice.svc/spotrate?$format=json'
   },
