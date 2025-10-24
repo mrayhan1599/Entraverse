@@ -192,6 +192,9 @@ const DEFAULT_CATEGORIES = [
   }
 ];
 
+const BANK_INDONESIA_EXCHANGE_ENDPOINT = 'https://www.bi.go.id/biwebservice/dataservice.svc/spotrate?$format=json';
+const BANK_INDONESIA_SUPPORTED_CURRENCIES = Object.freeze(['IDR', 'USD', 'SGD', 'EUR']);
+
 const THEME_STORAGE_KEY = 'entraverse_theme_mode';
 const THEME_MODES = ['system', 'light', 'dark'];
 const DEFAULT_THEME_MODE = 'system';
@@ -628,6 +631,100 @@ function createToast() {
       setTimeout(() => el.classList.remove('show'), 3000);
     }
   };
+}
+
+function parseNumericValue(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'bigint') {
+    return Number(value);
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const sanitized = trimmed.replace(/\s+/g, '');
+  const lastComma = sanitized.lastIndexOf(',');
+  const lastDot = sanitized.lastIndexOf('.');
+  const hasComma = lastComma !== -1;
+  const hasDot = lastDot !== -1;
+  let normalized = sanitized;
+
+  if (hasComma || hasDot) {
+    const decimalIndex = Math.max(lastComma, lastDot);
+    const decimalChar = decimalIndex === -1 ? null : sanitized[decimalIndex];
+    const occurrences = decimalChar
+      ? (sanitized.match(new RegExp(`\\${decimalChar}`, 'g')) || []).length
+      : 0;
+    const otherSeparator = decimalChar === ',' ? '.' : ',';
+    const hasOtherSeparator = otherSeparator && sanitized.includes(otherSeparator);
+    const fractionalCandidate = decimalChar ? sanitized.slice(decimalIndex + 1) : '';
+    const shouldTreatAsDecimal = Boolean(decimalChar)
+      && fractionalCandidate.length > 0
+      && (fractionalCandidate.length !== 3 || occurrences === 1 || hasOtherSeparator);
+
+    if (shouldTreatAsDecimal) {
+      const integerPart = sanitized
+        .slice(0, decimalIndex)
+        .replace(/[^0-9-]/g, '');
+      const fractionalPart = sanitized
+        .slice(decimalIndex + 1)
+        .replace(/[^0-9]/g, '');
+      normalized = fractionalPart ? `${integerPart}.${fractionalPart}` : integerPart;
+    } else {
+      normalized = sanitized.replace(/[^0-9-]/g, '');
+    }
+  } else {
+    normalized = sanitized.replace(/[^0-9-]/g, '');
+  }
+
+  if (!normalized || normalized === '-' || normalized === '.-' || normalized === '-.') {
+    return null;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseDateValue(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  if (typeof value === 'string') {
+    const match = value.match(/Date\((\d+)\)/);
+    if (match) {
+      const timestamp = Number(match[1]);
+      if (Number.isFinite(timestamp)) {
+        const date = new Date(timestamp);
+        if (!Number.isNaN(date.getTime())) {
+          return date;
+        }
+      }
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  return null;
 }
 
 function formatCurrency(value) {
@@ -1419,9 +1516,220 @@ function handleAddProductForm() {
   const submitBtn = form.querySelector('.primary-btn');
   const categorySelect = form.querySelector('#product-category');
   const categoryHelper = document.getElementById('category-helper-text');
+  const exchangeRateSelect = form.querySelector('#exchange-rate-currency');
+  const exchangeRateInput = form.querySelector('#exchange-rate');
+  const exchangeRateInfo = document.getElementById('exchange-rate-info');
   const params = new URLSearchParams(window.location.search);
   const editingId = params.get('id');
   let suppressPricingRefresh = false;
+
+  const exchangeRateState = {
+    rates: new Map(),
+    lastUpdated: null,
+    loading: false,
+    error: null
+  };
+
+  const getSelectedCurrency = () => {
+    const value = exchangeRateSelect?.value ?? 'IDR';
+    return BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(value) ? value : 'IDR';
+  };
+
+  const getInputRateValue = () => {
+    if (!exchangeRateInput) {
+      return null;
+    }
+    const value = parseNumericValue(exchangeRateInput.value);
+    return Number.isFinite(value) ? value : null;
+  };
+
+  const formatRateForDisplay = value => {
+    if (!Number.isFinite(value)) {
+      return null;
+    }
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    }).format(value);
+  };
+
+  const updateExchangeRateInfo = ({ force = false } = {}) => {
+    if (exchangeRateInput) {
+      const currency = getSelectedCurrency();
+      const shouldSyncInput = force || exchangeRateInput.dataset.userEdited !== 'true';
+      exchangeRateInput.readOnly = currency === 'IDR';
+      if (currency === 'IDR') {
+        if (shouldSyncInput) {
+          exchangeRateInput.value = '1';
+        }
+      } else if (shouldSyncInput) {
+        const entry = exchangeRateState.rates.get(currency);
+        if (entry && Number.isFinite(entry.rate)) {
+          exchangeRateInput.value = entry.rate.toString();
+        } else {
+          exchangeRateInput.value = '';
+        }
+      }
+    }
+
+    if (!exchangeRateInfo) {
+      return;
+    }
+
+    if (exchangeRateState.loading) {
+      exchangeRateInfo.textContent = 'Memuat kurs Bank Indonesia...';
+      return;
+    }
+
+    const currency = getSelectedCurrency();
+    if (currency === 'IDR') {
+      exchangeRateInfo.textContent = 'Kurs Bank Indonesia: 1 IDR = Rp 1';
+      return;
+    }
+
+    const entry = exchangeRateState.rates.get(currency);
+    const inputRate = getInputRateValue();
+
+    if (entry && Number.isFinite(entry.rate)) {
+      const formattedRate = formatRateForDisplay(inputRate ?? entry.rate);
+      const effectiveDate = entry.date || exchangeRateState.lastUpdated;
+      const dateText = effectiveDate
+        ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(effectiveDate)
+        : '';
+      if (formattedRate) {
+        exchangeRateInfo.textContent = dateText
+          ? `Kurs Bank Indonesia: 1 ${currency} = ${formattedRate} (kurs tengah, ${dateText}).`
+          : `Kurs Bank Indonesia: 1 ${currency} = ${formattedRate}.`;
+        return;
+      }
+    }
+
+    if (Number.isFinite(inputRate)) {
+      const formattedManualRate = formatRateForDisplay(inputRate);
+      if (formattedManualRate) {
+        exchangeRateInfo.textContent = `Kurs ${currency} diisi manual: 1 ${currency} = ${formattedManualRate}.`;
+        return;
+      }
+    }
+
+    exchangeRateInfo.textContent = exchangeRateState.error
+      ? exchangeRateState.error
+      : `Kurs Bank Indonesia untuk ${currency} belum tersedia. Isi nilai kurs secara manual jika diperlukan.`;
+  };
+
+  const loadBankIndonesiaRates = async () => {
+    if (!exchangeRateSelect) {
+      return;
+    }
+
+    exchangeRateState.loading = true;
+    exchangeRateState.error = null;
+    updateExchangeRateInfo();
+
+    try {
+      const response = await fetch(BANK_INDONESIA_EXCHANGE_ENDPOINT);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const candidates = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.d?.results)
+          ? payload.d.results
+          : Array.isArray(payload?.d)
+            ? payload.d
+            : Array.isArray(payload?.value)
+              ? payload.value
+              : [];
+
+      const rates = new Map();
+      let latestDate = null;
+
+      candidates.forEach(item => {
+        if (!item) return;
+        const code = (item.currency ?? item.Currency ?? item.mata_uang ?? item.kode ?? item.symbol ?? '')
+          .toString()
+          .trim()
+          .toUpperCase();
+        if (!BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(code)) {
+          return;
+        }
+
+        const midRate = parseNumericValue(
+          item.kurs_tengah ?? item.kursTengah ?? item.midRate ?? item.mid_rate ?? item.middleRate ?? item.rate
+        );
+        const buyRate = parseNumericValue(item.kurs_beli ?? item.buyRate ?? item.kursBeli);
+        const sellRate = parseNumericValue(item.kurs_jual ?? item.sellRate ?? item.kursJual);
+
+        let resolvedRate = midRate;
+        if (!Number.isFinite(resolvedRate)) {
+          if (Number.isFinite(buyRate) && Number.isFinite(sellRate)) {
+            resolvedRate = (buyRate + sellRate) / 2;
+          } else if (Number.isFinite(buyRate)) {
+            resolvedRate = buyRate;
+          } else if (Number.isFinite(sellRate)) {
+            resolvedRate = sellRate;
+          }
+        }
+
+        if (!Number.isFinite(resolvedRate)) {
+          return;
+        }
+
+        const dateValue = parseDateValue(
+          item.tanggal ?? item.Tanggal ?? item.date ?? item.Date ?? item.tanggal_update ?? item.valid_from
+        );
+
+        const existing = rates.get(code);
+        if (!existing || (dateValue && (!existing.date || dateValue > existing.date))) {
+          rates.set(code, { rate: resolvedRate, date: dateValue });
+        }
+
+        if (dateValue && (!latestDate || dateValue > latestDate)) {
+          latestDate = dateValue;
+        }
+      });
+
+      rates.set('IDR', { rate: 1, date: latestDate });
+
+      exchangeRateState.rates = rates;
+      exchangeRateState.lastUpdated = latestDate;
+    } catch (error) {
+      console.error('Gagal memuat kurs Bank Indonesia', error);
+      exchangeRateState.error = 'Gagal memuat kurs Bank Indonesia. Masukkan nilai kurs secara manual bila diperlukan.';
+    } finally {
+      exchangeRateState.loading = false;
+      const forceUpdate = exchangeRateInput?.dataset.userEdited !== 'true';
+      updateExchangeRateInfo({ force: forceUpdate });
+    }
+  };
+
+  if (exchangeRateInfo) {
+    exchangeRateInfo.textContent = 'Pilih mata uang untuk memuat kurs Bank Indonesia.';
+  }
+
+  if (exchangeRateSelect) {
+    exchangeRateSelect.addEventListener('change', () => {
+      if (exchangeRateInput) {
+        delete exchangeRateInput.dataset.userEdited;
+      }
+      updateExchangeRateInfo({ force: true });
+    });
+  }
+
+  if (exchangeRateInput) {
+    exchangeRateInput.addEventListener('input', () => {
+      exchangeRateInput.dataset.userEdited = 'true';
+      updateExchangeRateInfo();
+    });
+  }
+
+  loadBankIndonesiaRates().catch(error => {
+    console.error('Tidak dapat memuat kurs Bank Indonesia', error);
+  });
 
   populateCategorySelect(categorySelect, { helperEl: categoryHelper });
 
@@ -2102,6 +2410,7 @@ function handleAddProductForm() {
       tradeToggle.checked = Boolean(product.tradeIn);
     }
     const inventoryFields = {
+      currency: form.querySelector('#exchange-rate-currency'),
       initialStockPrediction: form.querySelector('#initial-stock-prediction'),
       purchasePrice: form.querySelector('#purchase-price'),
       exchangeRate: form.querySelector('#exchange-rate'),
@@ -2112,9 +2421,37 @@ function handleAddProductForm() {
     const inventory = product.inventory ?? {};
     Object.entries(inventoryFields).forEach(([key, input]) => {
       if (!input) return;
-      const value = inventory?.[key] ?? '';
+      let value = inventory?.[key] ?? '';
+
+      if (key === 'currency') {
+        const normalized = (value ?? '').toString().trim().toUpperCase();
+        const finalValue = BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(normalized)
+          ? normalized
+          : 'IDR';
+        input.value = finalValue;
+        if (input.value !== finalValue) {
+          const option = document.createElement('option');
+          option.value = finalValue;
+          option.textContent = finalValue;
+          option.dataset.temporaryOption = 'true';
+          input.appendChild(option);
+          input.value = finalValue;
+        }
+        return;
+      }
+
+      if (value === null || typeof value === 'undefined') {
+        value = '';
+      }
+
       input.value = value;
+
+      if (input === exchangeRateInput && value) {
+        exchangeRateInput.dataset.userEdited = 'true';
+      }
     });
+
+    updateExchangeRateInfo();
 
     if (Array.isArray(product.photos)) {
       product.photos.slice(0, photoInputs.length).forEach((photo, index) => {
@@ -2160,18 +2497,39 @@ function handleAddProductForm() {
       categorySelect.focus();
       return;
     }
-    const formData = new FormData(form);
-    const products = getData(STORAGE_KEYS.products, []);
-    const categoryValue = (formData.get('category') ?? '').toString().trim();
-    const inventoryData = {
-      initialStockPrediction: (formData.get('initialStockPrediction') ?? '').toString().trim(),
-      purchasePrice: (formData.get('purchasePrice') ?? '').toString().trim(),
-      exchangeRate: (formData.get('exchangeRate') ?? '').toString().trim(),
-      dailyAverageSales: (formData.get('dailyAverageSales') ?? '').toString().trim(),
-      leadTime: (formData.get('leadTime') ?? '').toString().trim(),
-      reorderPoint: (formData.get('reorderPoint') ?? '').toString().trim()
-    };
-    const hasInventoryData = Object.values(inventoryData).some(value => value);
+      const formData = new FormData(form);
+      const products = getData(STORAGE_KEYS.products, []);
+      const categoryValue = (formData.get('category') ?? '').toString().trim();
+      const rawCurrency = (formData.get('currency') ?? 'IDR').toString().trim().toUpperCase();
+      const currencyValue = BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(rawCurrency) ? rawCurrency : 'IDR';
+      const inventoryData = {
+        currency: currencyValue,
+        initialStockPrediction: (formData.get('initialStockPrediction') ?? '').toString().trim(),
+        purchasePrice: (formData.get('purchasePrice') ?? '').toString().trim(),
+        exchangeRate: (formData.get('exchangeRate') ?? '').toString().trim(),
+        dailyAverageSales: (formData.get('dailyAverageSales') ?? '').toString().trim(),
+        leadTime: (formData.get('leadTime') ?? '').toString().trim(),
+        reorderPoint: (formData.get('reorderPoint') ?? '').toString().trim()
+      };
+      const hasInventoryData = Object.entries(inventoryData).some(([key, value]) => {
+        if (!value) {
+          return false;
+        }
+        if (key === 'currency') {
+          return value !== 'IDR';
+        }
+        if (key === 'exchangeRate') {
+          const numeric = parseNumericValue(value);
+          if (!Number.isFinite(numeric)) {
+            return false;
+          }
+          if (currencyValue === 'IDR') {
+            return numeric !== 1;
+          }
+          return true;
+        }
+        return true;
+      });
 
     if (!categoryValue) {
       toast.show('Pilih kategori produk.');
