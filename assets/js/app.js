@@ -711,11 +711,14 @@ function setupSidebarToggle() {
   const closeSidebar = () => {
     document.body.classList.remove('sidebar-open');
     setExpanded(false);
+    sidebar.setAttribute('aria-hidden', 'false');
   };
 
   const openSidebar = () => {
+    document.body.classList.remove('sidebar-collapsed');
     document.body.classList.add('sidebar-open');
     setExpanded(true);
+    sidebar.setAttribute('aria-hidden', 'false');
   };
 
   const toggleSidebar = () => {
@@ -750,6 +753,45 @@ function setupSidebarToggle() {
       closeSidebar();
     }
   };
+
+  if (typeof mediaQuery.addEventListener === 'function') {
+    mediaQuery.addEventListener('change', handleMediaChange);
+  } else {
+    mediaQuery.addListener(handleMediaChange);
+  }
+}
+
+function setupSidebarCollapse() {
+  const toggle = document.querySelector('[data-sidebar-collapse]');
+  const sidebar = document.querySelector('[data-sidebar]');
+  if (!toggle || !sidebar) {
+    return;
+  }
+
+  const applyState = collapsed => {
+    document.body.classList.toggle('sidebar-collapsed', collapsed);
+    document.body.classList.remove('sidebar-open');
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.setAttribute('aria-label', collapsed ? 'Tampilkan navigasi' : 'Sembunyikan navigasi');
+    sidebar.setAttribute('aria-hidden', collapsed ? 'true' : 'false');
+  };
+
+  const currentCollapsed = document.body.classList.contains('sidebar-collapsed');
+  applyState(currentCollapsed);
+
+  toggle.addEventListener('click', () => {
+    const collapsed = !document.body.classList.contains('sidebar-collapsed');
+    applyState(collapsed);
+  });
+
+  const mediaQuery = window.matchMedia('(max-width: 960px)');
+  const handleMediaChange = event => {
+    if (event.matches) {
+      applyState(false);
+    }
+  };
+
+  handleMediaChange(mediaQuery);
 
   if (typeof mediaQuery.addEventListener === 'function') {
     mediaQuery.addEventListener('change', handleMediaChange);
@@ -2289,6 +2331,7 @@ function initPage() {
 
     if (['dashboard', 'add-product', 'categories'].includes(page)) {
       setupSidebarToggle();
+      setupSidebarCollapse();
       const user = ensureAuthenticatedPage();
       if (!user) return;
       document.querySelectorAll('.avatar').forEach(el => {
