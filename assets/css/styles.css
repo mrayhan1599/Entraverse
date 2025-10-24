@@ -73,6 +73,12 @@ body {
   overflow-x: hidden;
 }
 
+body[data-page="dashboard"],
+body[data-page="categories"],
+body[data-page="add-product"] {
+  overflow: hidden;
+}
+
 a {
   color: var(--color-primary);
   text-decoration: none;
@@ -299,12 +305,16 @@ textarea {
 .app-shell {
   display: flex;
   min-height: 100vh;
+  height: 100vh;
   max-width: 100vw;
-  overflow-x: hidden;
+  overflow: hidden;
+  position: relative;
 }
 
 .main-content {
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .card {
@@ -333,7 +343,9 @@ body.sidebar-open .sidebar-backdrop {
 }
 
 .sidebar {
+  position: relative;
   width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
   background: var(--color-sidebar);
   color: var(--color-sidebar-text);
   display: flex;
@@ -342,6 +354,68 @@ body.sidebar-open .sidebar-backdrop {
   gap: 24px;
   overflow-x: hidden;
   overscroll-behavior: contain;
+  transition: width 0.3s ease, flex-basis 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
+}
+
+.sidebar > * {
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar-collapse-toggle {
+  position: absolute;
+  top: 28px;
+  left: calc(var(--sidebar-width) - 16px);
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+  transition: left 0.3s ease, transform 0.3s ease;
+  z-index: 950;
+}
+
+.sidebar-collapse-toggle:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.sidebar-collapse-toggle svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s ease;
+}
+
+body[data-theme="dark"] .sidebar-collapse-toggle {
+  background: var(--color-surface-alt);
+  color: var(--color-sidebar-text);
+}
+
+body.sidebar-collapsed .sidebar {
+  width: 0;
+  flex-basis: 0;
+  padding-inline: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+body.sidebar-collapsed .sidebar > * {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.sidebar-collapsed .sidebar-collapse-toggle {
+  left: 16px;
+}
+
+body.sidebar-collapsed .sidebar-collapse-toggle svg {
+  transform: rotate(180deg);
 }
 
 .sidebar-header {
@@ -1614,6 +1688,10 @@ body.modal-open {
 
   .app-shell {
     position: relative;
+  }
+
+  .sidebar-collapse-toggle {
+    display: none;
   }
 
   .sidebar {
