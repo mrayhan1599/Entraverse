@@ -36,6 +36,10 @@ const DEFAULT_PRODUCTS = [
           { name: 'Garansi', value: '1 Tahun' },
           { name: 'Kapasitas', value: '128 GB' }
         ],
+        purchasePrice: '389',
+        purchaseCurrency: 'USD',
+        exchangeRate: '15500',
+        purchasePriceIdr: '6039500',
         offlinePrice: '9555000',
         entraversePrice: '9700000',
         tokopediaPrice: '9750000',
@@ -50,6 +54,10 @@ const DEFAULT_PRODUCTS = [
           { name: 'Garansi', value: 'Tanpa Garansi' },
           { name: 'Kapasitas', value: '256 GB' }
         ],
+        purchasePrice: '429',
+        purchaseCurrency: 'USD',
+        exchangeRate: '15500',
+        purchasePriceIdr: '6650000',
         offlinePrice: '9799000',
         entraversePrice: '9899000',
         tokopediaPrice: '10000000',
@@ -83,6 +91,10 @@ const DEFAULT_PRODUCTS = [
           { name: 'Garansi', value: '1 Tahun' },
           { name: 'Kapasitas', value: '256 GB' }
         ],
+        purchasePrice: '459',
+        purchaseCurrency: 'USD',
+        exchangeRate: '15500',
+        purchasePriceIdr: '7114500',
         offlinePrice: '10350000',
         entraversePrice: '10499000',
         tokopediaPrice: '10699000',
@@ -97,6 +109,10 @@ const DEFAULT_PRODUCTS = [
           { name: 'Garansi', value: '2 Tahun' },
           { name: 'Kapasitas', value: '256 GB' }
         ],
+        purchasePrice: '499',
+        purchaseCurrency: 'USD',
+        exchangeRate: '15500',
+        purchasePriceIdr: '7734500',
         offlinePrice: '10899000',
         entraversePrice: '10999000',
         tokopediaPrice: '11150000',
@@ -3107,6 +3123,10 @@ async function handleAddProductForm() {
 
       const data = {
         id: row.dataset.pricingId || null,
+        purchasePrice: getValue('[data-field="purchasePrice"]'),
+        purchaseCurrency: getValue('[data-field="purchaseCurrency"]'),
+        exchangeRate: getValue('[data-field="exchangeRate"]'),
+        purchasePriceIdr: getValue('[data-field="purchasePriceIdr"]'),
         offlinePrice: getValue('[data-field="offlinePrice"]'),
         entraversePrice: getValue('[data-field="entraversePrice"]'),
         tokopediaPrice: getValue('[data-field="tokopediaPrice"]'),
@@ -3185,6 +3205,10 @@ async function handleAddProductForm() {
     }
 
     [
+      'purchasePrice',
+      'purchaseCurrency',
+      'exchangeRate',
+      'purchasePriceIdr',
       'offlinePrice',
       'entraversePrice',
       'tokopediaPrice',
@@ -3244,7 +3268,17 @@ async function handleAddProductForm() {
       input.type = type;
       input.placeholder = placeholder;
       input.dataset.field = field;
-      if (['offlinePrice', 'entraversePrice', 'tokopediaPrice', 'shopeePrice'].includes(field)) {
+      if (
+        [
+          'purchasePrice',
+          'exchangeRate',
+          'purchasePriceIdr',
+          'offlinePrice',
+          'entraversePrice',
+          'tokopediaPrice',
+          'shopeePrice'
+        ].includes(field)
+      ) {
         input.inputMode = 'numeric';
         input.classList.add('numeric-input');
       }
@@ -3256,6 +3290,10 @@ async function handleAddProductForm() {
       row.appendChild(cell);
     };
 
+    buildInputCell('purchasePrice', '0');
+    buildInputCell('purchaseCurrency', 'Contoh: USD');
+    buildInputCell('exchangeRate', '0');
+    buildInputCell('purchasePriceIdr', 'Rp 0');
     buildInputCell('offlinePrice', 'Rp 0');
     buildInputCell('entraversePrice', 'Rp 0');
     buildInputCell('tokopediaPrice', 'Rp 0');
@@ -3301,6 +3339,10 @@ async function handleAddProductForm() {
     }
 
     const staticHeaders = [
+      'Harga Beli',
+      'Kurs',
+      'Nilai Tukar Kurs',
+      'Harga Beli (Rp.)',
       'Harga Jual Offline',
       'Harga Jual Entraverse.id',
       'Harga Jual Tokopedia',
@@ -3652,6 +3694,10 @@ async function handleAddProductForm() {
     const rawPricingRows = collectPricingRows(variantDefs);
     const normalizedPricing = rawPricingRows.map(row => {
       const normalized = {
+        purchasePrice: (row.purchasePrice ?? '').toString().trim(),
+        purchaseCurrency: (row.purchaseCurrency ?? '').toString().trim(),
+        exchangeRate: (row.exchangeRate ?? '').toString().trim(),
+        purchasePriceIdr: (row.purchasePriceIdr ?? '').toString().trim(),
         offlinePrice: (row.offlinePrice ?? '').toString().trim(),
         entraversePrice: (row.entraversePrice ?? '').toString().trim(),
         tokopediaPrice: (row.tokopediaPrice ?? '').toString().trim(),
@@ -3680,6 +3726,10 @@ async function handleAddProductForm() {
 
     const filteredPricing = normalizedPricing.filter(row => {
       const detailValues = [
+        row.purchasePrice,
+        row.purchaseCurrency,
+        row.exchangeRate,
+        row.purchasePriceIdr,
         row.offlinePrice,
         row.entraversePrice,
         row.tokopediaPrice,
