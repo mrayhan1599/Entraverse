@@ -190,7 +190,528 @@ const DEFAULT_CATEGORIES = [
     margin: { value: '9.10%', trend: 'down', note: '-0.2% vs bulan lalu' },
     bonus: null
   }
-];
+
+
+const SUPABASE_TABLES = Object.freeze({
+  users: 'users',
+  products: 'products',
+  categories: 'categories'
+});
+
+let supabaseClient = null;
+let supabaseInitializationPromise = null;
+let supabaseInitializationError = null;
+
+const remoteCache = {
+  [STORAGE_KEYS.users]: [],
+  [STORAGE_KEYS.products]: [],
+  [STORAGE_KEYS.categories]: []
+};
+
+let seedingPromise = null;
+
+function getSupabaseConfig() {
+  const config = window.entraverseConfig?.supabase ?? {};
+  const url = typeof config.url === 'string' ? config.url.trim() : '';
+  const anonKey = typeof config.anonKey === 'string' ? config.anonKey.trim() : '';
+
+  if (!url || !anonKey || url.includes('your-project.supabase.co') || anonKey === 'public-anon-key') {
+    return null;
+  }
+
+  return { url, anonKey };
+}
+
+function getSupabaseInitializationError() {
+  return supabaseInitializationError;
+}
+
+function isSupabaseConfigured() {
+  return Boolean(getSupabaseConfig());
+}
+
+function getSupabaseClient() {
+  if (supabaseClient) {
+    return supabaseClient;
+  }
+
+  if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+    throw new Error('Library Supabase belum dimuat.');
+  }
+
+  const config = getSupabaseConfig();
+  if (!config) {
+    throw new Error('Konfigurasi Supabase belum diatur.');
+  }
+
+  supabaseClient = window.supabase.createClient(config.url, config.anonKey);
+  return supabaseClient;
+}
+
+async function ensureSupabase() {
+  if (supabaseInitializationPromise) {
+    return supabaseInitializationPromise;
+  }
+
+  supabaseInitializationPromise = (async () => {
+    try {
+      return getSupabaseClient();
+    } catch (error) {
+      supabaseInitializationError = error;
+      throw error;
+    }
+  })();
+
+  return supabaseInitializationPromise;
+}
+
+function toIsoTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return null;
+    }
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+
+  if (typeof value === 'string') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+
+  return null;
+}
+
+function setRemoteCache(key, value) {
+  if (!Object.prototype.hasOwnProperty.call(remoteCache, key)) {
+    return;
+  }
+
+  if (!Array.isArray(value)) {
+    remoteCache[key] = [];
+    return;
+  }
+
+  remoteCache[key] = value.map(item => clone(item));
+}
+
+function getRemoteCache(key, fallback) {
+  if (!Object.prototype.hasOwnProperty.call(remoteCache, key)) {
+    return clone(fallback);
+  }
+
+  return clone(remoteCache[key]);
+}
+
+function mapSupabaseCategory(record) {
+  if (!record) {
+    return null;
+  }
+
+  const fees = typeof record.fees === 'object' && record.fees ? record.fees : {};
+  const margin = typeof record.margin === 'object' && record.margin ? record.margin : {};
+
+  return {
+    id: record.id,
+    name: record.name ?? '',
+    note: record.note ?? '',
+    fees: {
+      marketplace: fees.marketplace ?? '',
+      shopee: fees.shopee ?? '',
+      entraverse: fees.entraverse ?? ''
+    },
+    margin: {
+      value: margin.value ?? '',
+      trend: margin.trend === 'down' ? 'down' : 'up',
+      note: margin.note ?? ''
+    },
+    bonus: typeof record.bonus === 'string' && record.bonus.trim() ? record.bonus : null,
+    createdAt: record.created_at ? new Date(record.created_at).getTime() : Date.now(),
+    updatedAt: record.updated_at ? new Date(record.updated_at).getTime() : null
+  };
+}
+
+function mapCategoryToRecord(category) {
+  const fees = category.fees ?? {};
+  const margin = category.margin ?? {};
+
+  return {
+    id: category.id,
+    name: category.name,
+    note: category.note || null,
+    fees: {
+      marketplace: fees.marketplace ?? '',
+      shopee: fees.shopee ?? '',
+      entraverse: fees.entraverse ?? ''
+    },
+    margin: {
+      value: margin.value ?? '',
+      trend: margin.trend === 'down' ? 'down' : 'up',
+      note: margin.note ?? ''
+    },
+    bonus: category.bonus || null,
+    created_at: toIsoTimestamp(category.createdAt) ?? new Date().toISOString(),
+    updated_at: toIsoTimestamp(category.updatedAt)
+  };
+}
+
+function setCategoryCache(categories) {
+  setRemoteCache(STORAGE_KEYS.categories, Array.isArray(categories) ? categories : []);
+  document.dispatchEvent(new CustomEvent('categories:changed', {
+    detail: { categories: getCategories() }
+  }));
+}
+
+function getCategoriesFromCache() {
+  return getRemoteCache(STORAGE_KEYS.categories, []);
+}
+
+async function refreshCategoriesFromSupabase() {
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const { data, error } = await client
+    .from(SUPABASE_TABLES.categories)
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const categories = (data ?? []).map(mapSupabaseCategory).filter(Boolean);
+  setCategoryCache(categories);
+  return categories;
+}
+
+async function deleteCategoryFromSupabase(id) {
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const { error } = await client
+    .from(SUPABASE_TABLES.categories)
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function upsertCategoryToSupabase(category) {
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const payload = mapCategoryToRecord(category);
+  if (!payload.id) {
+    payload.id = crypto.randomUUID();
+  }
+  if (!payload.updated_at) {
+    payload.updated_at = new Date().toISOString();
+  }
+
+  const { error } = await client
+    .from(SUPABASE_TABLES.categories)
+    .upsert(payload, { onConflict: 'id' })
+    .select();
+
+  if (error) {
+    throw error;
+  }
+}
+
+function mapSupabaseProduct(record) {
+  if (!record) {
+    return null;
+  }
+
+  const photos = Array.isArray(record.photos) ? record.photos.filter(Boolean) : [];
+  const variants = Array.isArray(record.variants) ? record.variants : [];
+  const variantPricing = Array.isArray(record.variant_pricing) ? record.variant_pricing : [];
+
+  return {
+    id: record.id,
+    name: record.name ?? '',
+    category: record.category ?? '',
+    brand: record.brand ?? '',
+    description: record.description ?? '',
+    tradeIn: Boolean(record.trade_in),
+    inventory: record.inventory ?? null,
+    photos,
+    variants,
+    variantPricing,
+    createdAt: record.created_at ? new Date(record.created_at).getTime() : Date.now(),
+    updatedAt: record.updated_at ? new Date(record.updated_at).getTime() : null
+  };
+}
+
+function mapProductToRecord(product) {
+  return {
+    id: product.id,
+    name: product.name,
+    category: product.category,
+    brand: product.brand || null,
+    description: product.description || null,
+    trade_in: Boolean(product.tradeIn),
+    inventory: product.inventory ?? null,
+    photos: Array.isArray(product.photos) ? product.photos : [],
+    variants: Array.isArray(product.variants) ? product.variants : [],
+    variant_pricing: Array.isArray(product.variantPricing) ? product.variantPricing : [],
+    created_at: toIsoTimestamp(product.createdAt) ?? new Date().toISOString(),
+    updated_at: toIsoTimestamp(product.updatedAt)
+  };
+}
+
+function setProductCache(products) {
+  setRemoteCache(STORAGE_KEYS.products, Array.isArray(products) ? products : []);
+}
+
+function getProductsFromCache() {
+  return getRemoteCache(STORAGE_KEYS.products, []);
+}
+
+async function refreshProductsFromSupabase() {
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const { data, error } = await client
+    .from(SUPABASE_TABLES.products)
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const products = (data ?? []).map(mapSupabaseProduct).filter(Boolean);
+  setProductCache(products);
+  return products;
+}
+
+async function deleteProductFromSupabase(id) {
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const { error } = await client
+    .from(SUPABASE_TABLES.products)
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function upsertProductToSupabase(product) {
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const payload = mapProductToRecord(product);
+  if (!payload.id) {
+    payload.id = crypto.randomUUID();
+  }
+  if (!payload.updated_at) {
+    payload.updated_at = new Date().toISOString();
+  }
+
+  const { error } = await client
+    .from(SUPABASE_TABLES.products)
+    .upsert(payload, { onConflict: 'id' })
+    .select();
+
+  if (error) {
+    throw error;
+  }
+}
+
+function sanitizeSessionUser(user) {
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    name: user.name ?? '',
+    company: user.company ?? '',
+    email: user.email ?? ''
+  };
+}
+
+function mapSupabaseUser(record) {
+  if (!record) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    name: record.name ?? '',
+    company: record.company ?? '',
+    email: record.email ?? '',
+    passwordHash: record.password_hash ?? '',
+    createdAt: record.created_at ? new Date(record.created_at).getTime() : Date.now(),
+    updatedAt: record.updated_at ? new Date(record.updated_at).getTime() : null
+  };
+}
+
+function mapUserToRecord(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    company: user.company,
+    email: user.email,
+    password_hash: user.passwordHash,
+    created_at: toIsoTimestamp(user.createdAt) ?? new Date().toISOString(),
+    updated_at: toIsoTimestamp(user.updatedAt)
+  };
+}
+
+async function fetchUserByEmail(email) {
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const { data, error } = await client
+    .from(SUPABASE_TABLES.users)
+    .select('*')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === 'PGRST116' || error.code === 'PGRST103') {
+      return null;
+    }
+    if (error.details?.includes('No rows found')) {
+      return null;
+    }
+    throw error;
+  }
+
+  return mapSupabaseUser(data);
+}
+
+async function fetchUserById(id) {
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const { data, error } = await client
+    .from(SUPABASE_TABLES.users)
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === 'PGRST116' || error.code === 'PGRST103') {
+      return null;
+    }
+    if (error.details?.includes('No rows found')) {
+      return null;
+    }
+    throw error;
+  }
+
+  return mapSupabaseUser(data);
+}
+
+async function insertUserToSupabase(user) {
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const payload = mapUserToRecord(user);
+  const { data, error } = await client
+    .from(SUPABASE_TABLES.users)
+    .insert(payload)
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapSupabaseUser(data);
+}
+
+async function ensureSeeded() {
+  await ensureSupabase();
+  if (!seedingPromise) {
+    seedingPromise = (async () => {
+      const client = getSupabaseClient();
+
+      const { count: categoryCount, error: categoryError } = await client
+        .from(SUPABASE_TABLES.categories)
+        .select('id', { count: 'exact', head: true });
+
+      if (categoryError) {
+        throw categoryError;
+      }
+
+      if (!categoryCount) {
+        const now = new Date().toISOString();
+        await client.from(SUPABASE_TABLES.categories).insert(
+          DEFAULT_CATEGORIES.map(category => {
+            const mapped = mapCategoryToRecord({
+              ...category,
+              createdAt: now,
+              updatedAt: now
+            });
+            mapped.created_at = now;
+            mapped.updated_at = now;
+            return mapped;
+          })
+        );
+      }
+
+      const { count: productCount, error: productError } = await client
+        .from(SUPABASE_TABLES.products)
+        .select('id', { count: 'exact', head: true });
+
+      if (productError) {
+        throw productError;
+      }
+
+      if (!productCount) {
+        const now = new Date().toISOString();
+        await client.from(SUPABASE_TABLES.products).insert(
+          DEFAULT_PRODUCTS.map(product => {
+            const mapped = mapProductToRecord({
+              ...product,
+              createdAt: now,
+              updatedAt: now
+            });
+            mapped.created_at = now;
+            mapped.updated_at = now;
+            return mapped;
+          })
+        );
+      }
+
+      await refreshCategoriesFromSupabase();
+      await refreshProductsFromSupabase();
+    })().catch(error => {
+      console.error('Gagal melakukan seeding awal Supabase.', error);
+      throw error;
+    });
+  }
+
+  return seedingPromise;
+}
+
+async function hashPassword(password) {
+  if (typeof password !== 'string') {
+    return '';
+  }
+
+  try {
+    if (typeof crypto?.subtle?.digest === 'function' && typeof TextEncoder === 'function') {
+      const encoder = new TextEncoder();
+      const buffer = await crypto.subtle.digest('SHA-256', encoder.encode(password));
+      return Array.from(new Uint8Array(buffer))
+        .map(byte => byte.toString(16).padStart(2, '0'))
+        .join('');
+    }
+  } catch (error) {
+    console.warn('Gagal melakukan hashing password, menggunakan fallback.', error);
+  }
+
+  return password;
+}
 
 const BANK_INDONESIA_SOURCE_TYPES = Object.freeze({
   JSON: 'json',
@@ -905,6 +1426,10 @@ function escapeHtml(value) {
 }
 
 function getData(key, fallback) {
+  if (Object.prototype.hasOwnProperty.call(remoteCache, key)) {
+    return getRemoteCache(key, fallback);
+  }
+
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return clone(fallback);
@@ -916,56 +1441,20 @@ function getData(key, fallback) {
 }
 
 function setData(key, value) {
+  if (Object.prototype.hasOwnProperty.call(remoteCache, key)) {
+    setRemoteCache(key, Array.isArray(value) ? value : []);
+    return;
+  }
+
   localStorage.setItem(key, JSON.stringify(value));
 }
 
 function getCategories() {
-  const categories = getData(STORAGE_KEYS.categories, null);
-  if (!Array.isArray(categories)) {
-    return [];
-  }
-  return categories.filter(category => category && typeof category === 'object');
+  return getCategoriesFromCache();
 }
 
 function saveCategories(categories) {
-  setData(STORAGE_KEYS.categories, categories);
-  document.dispatchEvent(new CustomEvent('categories:changed', {
-    detail: { categories: clone(categories) }
-  }));
-}
-
-function ensureSeeded() {
-  const existingProducts = getData(STORAGE_KEYS.products, null);
-  if (!existingProducts) {
-    setData(STORAGE_KEYS.products, DEFAULT_PRODUCTS);
-  }
-
-  const existingCategories = getData(STORAGE_KEYS.categories, null);
-  if (!Array.isArray(existingCategories)) {
-    setData(STORAGE_KEYS.categories, DEFAULT_CATEGORIES);
-  } else {
-    const normalized = [];
-    let mutated = false;
-
-    existingCategories.forEach(category => {
-      if (!category || typeof category !== 'object') {
-        mutated = true;
-        return;
-      }
-      const withId = { ...category };
-      if (!withId.id) {
-        withId.id = crypto.randomUUID();
-        mutated = true;
-      }
-      normalized.push(withId);
-    });
-
-    if (!normalized.length && existingCategories.length) {
-      setData(STORAGE_KEYS.categories, DEFAULT_CATEGORIES);
-    } else if (mutated) {
-      setData(STORAGE_KEYS.categories, normalized);
-    }
-  }
+  setCategoryCache(Array.isArray(categories) ? categories : []);
 }
 
 function getGuestUser() {
@@ -974,9 +1463,10 @@ function getGuestUser() {
 
 function getCurrentUser() {
   const session = getData(STORAGE_KEYS.session, null);
-  if (!session) return null;
-  const users = getData(STORAGE_KEYS.users, []);
-  return users.find(user => user.id === session.userId) ?? null;
+  if (!session || !session.user) {
+    return null;
+  }
+  return sanitizeSessionUser(session.user);
 }
 
 function setCurrentUser(user) {
@@ -984,7 +1474,14 @@ function setCurrentUser(user) {
     localStorage.removeItem(STORAGE_KEYS.session);
     return;
   }
-  localStorage.setItem(STORAGE_KEYS.session, JSON.stringify({ userId: user.id, loggedInAt: Date.now() }));
+
+  const sanitized = sanitizeSessionUser(user);
+  const payload = {
+    userId: sanitized.id,
+    loggedInAt: Date.now(),
+    user: sanitized
+  };
+  localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(payload));
 }
 
 function createToast() {
@@ -1639,40 +2136,75 @@ function handleRegister() {
   const form = document.getElementById('register-form');
   if (!form) return;
 
-  form.addEventListener('submit', event => {
+  const submitBtn = form.querySelector('button[type="submit"]');
+
+  form.addEventListener('submit', async event => {
     event.preventDefault();
+
     const formData = new FormData(form);
-    const name = formData.get('name').trim();
-    const company = formData.get('company').trim();
-    const email = formData.get('email').trim().toLowerCase();
-    const password = formData.get('password').trim();
-    const confirm = formData.get('confirm').trim();
+    const name = (formData.get('name') ?? '').toString().trim();
+    const company = (formData.get('company') ?? '').toString().trim();
+    const email = (formData.get('email') ?? '').toString().trim().toLowerCase();
+    const password = (formData.get('password') ?? '').toString().trim();
+    const confirm = (formData.get('confirm') ?? '').toString().trim();
 
     if (password !== confirm) {
       toast.show('Kata sandi dan konfirmasi tidak sama.');
       return;
     }
 
-    const users = getData(STORAGE_KEYS.users, []);
-    if (users.some(user => user.email === email)) {
-      toast.show('Email sudah terdaftar, silakan masuk.');
+    if (!email || !password) {
+      toast.show('Lengkapi semua bidang formulir.');
       return;
     }
 
-    const newUser = {
-      id: crypto.randomUUID(),
-      name,
-      company,
-      email,
-      password
-    };
-    users.push(newUser);
-    setData(STORAGE_KEYS.users, users);
-    setCurrentUser(newUser);
-    toast.show('Pendaftaran berhasil, mengalihkan...');
-    setTimeout(() => {
-      window.location.href = 'dashboard.html';
-    }, 800);
+    try {
+      await ensureSupabase();
+    } catch (error) {
+      console.error('Supabase belum siap.', error);
+      toast.show('Supabase belum dikonfigurasi. Hubungi administrator.');
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('is-loading');
+    }
+
+    try {
+      const existing = await fetchUserByEmail(email);
+      if (existing) {
+        toast.show('Email sudah terdaftar, silakan masuk.');
+        return;
+      }
+
+      const passwordHash = await hashPassword(password);
+      const now = new Date().toISOString();
+      const newUser = {
+        id: crypto.randomUUID(),
+        name,
+        company,
+        email,
+        passwordHash,
+        createdAt: now,
+        updatedAt: now
+      };
+
+      const saved = await insertUserToSupabase(newUser);
+      setCurrentUser(saved);
+      toast.show('Pendaftaran berhasil, mengalihkan...');
+      setTimeout(() => {
+        window.location.href = 'dashboard.html';
+      }, 800);
+    } catch (error) {
+      console.error('Gagal mendaftarkan pengguna.', error);
+      toast.show('Gagal melakukan pendaftaran, coba lagi.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('is-loading');
+      }
+    }
   });
 }
 
@@ -1680,25 +2212,60 @@ function handleLogin() {
   const form = document.getElementById('login-form');
   if (!form) return;
 
-  form.addEventListener('submit', event => {
+  const submitBtn = form.querySelector('button[type="submit"]');
+
+  form.addEventListener('submit', async event => {
     event.preventDefault();
+
     const formData = new FormData(form);
-    const email = formData.get('email').trim().toLowerCase();
-    const password = formData.get('password').trim();
+    const email = (formData.get('email') ?? '').toString().trim().toLowerCase();
+    const password = (formData.get('password') ?? '').toString().trim();
 
-    const users = getData(STORAGE_KEYS.users, []);
-    const user = users.find(u => u.email === email && u.password === password);
-
-    if (!user) {
-      toast.show('Email atau kata sandi salah.');
+    if (!email || !password) {
+      toast.show('Isi email dan kata sandi Anda.');
       return;
     }
 
-    setCurrentUser(user);
-    toast.show('Selamat datang kembali!');
-    setTimeout(() => {
-      window.location.href = 'dashboard.html';
-    }, 700);
+    try {
+      await ensureSupabase();
+    } catch (error) {
+      console.error('Supabase belum siap.', error);
+      toast.show('Supabase belum dikonfigurasi. Hubungi administrator.');
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('is-loading');
+    }
+
+    try {
+      const user = await fetchUserByEmail(email);
+      if (!user) {
+        toast.show('Email atau kata sandi salah.');
+        return;
+      }
+
+      const hashed = await hashPassword(password);
+      if (!user.passwordHash || user.passwordHash !== hashed) {
+        toast.show('Email atau kata sandi salah.');
+        return;
+      }
+
+      setCurrentUser(user);
+      toast.show('Selamat datang kembali!');
+      setTimeout(() => {
+        window.location.href = 'dashboard.html';
+      }, 700);
+    } catch (error) {
+      console.error('Gagal melakukan login.', error);
+      toast.show('Gagal masuk, coba lagi.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('is-loading');
+      }
+    }
   });
 }
 
@@ -1715,13 +2282,35 @@ function handleGuestAccess() {
   });
 }
 
-function ensureAuthenticatedPage() {
+async function ensureAuthenticatedPage() {
   const page = document.body.dataset.page;
-  if (['dashboard', 'add-product', 'categories'].includes(page)) {
-    const user = getCurrentUser();
-    return user ?? getGuestUser();
+  if (!['dashboard', 'add-product', 'categories'].includes(page)) {
+    return null;
   }
-  return null;
+
+  const sessionUser = getCurrentUser();
+  if (!sessionUser) {
+    return getGuestUser();
+  }
+
+  try {
+    await ensureSupabase();
+    const remoteUser = await fetchUserById(sessionUser.id);
+    if (remoteUser) {
+      setCurrentUser(remoteUser);
+      return sanitizeSessionUser(remoteUser);
+    }
+    setCurrentUser(null);
+  } catch (error) {
+    const supabaseError = getSupabaseInitializationError();
+    if (supabaseError) {
+      console.error('Supabase belum siap.', supabaseError);
+    }
+    console.error('Gagal memuat data pengguna.', error);
+    return sessionUser;
+  }
+
+  return getGuestUser();
 }
 
 function renderCategories(filterText = '') {
@@ -1813,27 +2402,36 @@ function renderProducts(filterText = '') {
   const tbody = document.getElementById('product-table-body');
   if (!tbody) return;
 
-  const products = getData(STORAGE_KEYS.products, []);
-  const filtered = products.filter(product =>
-    product.name.toLowerCase().includes(filterText) ||
-    product.brand.toLowerCase().includes(filterText)
-  );
+  const products = getProductsFromCache();
+  const normalizedFilter = (filterText ?? '').toString().trim().toLowerCase();
+
+  const filtered = products.filter(product => {
+    if (!normalizedFilter) {
+      return true;
+    }
+    const name = (product.name ?? '').toString().toLowerCase();
+    const brand = (product.brand ?? '').toString().toLowerCase();
+    return name.includes(normalizedFilter) || brand.includes(normalizedFilter);
+  });
 
   tbody.innerHTML = '';
 
   filtered.forEach(product => {
     const row = document.createElement('tr');
+    const firstPhoto = Array.isArray(product.photos) && product.photos.length ? product.photos[0] : null;
+    const safeName = escapeHtml(product.name ?? '');
+    const safeBrand = product.brand ? escapeHtml(product.brand) : '';
 
     row.innerHTML = `
       <td>
         <div class="photo-preview">
-          ${product.photos?.length ? `<img src="${product.photos[0]}" alt="${product.name}">` : 'No Photo'}
+          ${firstPhoto ? `<img src="${firstPhoto}" alt="${safeName}">` : 'No Photo'}
         </div>
       </td>
       <td>
         <div class="product-cell">
-          <strong>${product.name}</strong>
-          ${product.brand ? `<span class="product-meta">${product.brand}</span>` : ''}
+          <strong>${safeName}</strong>
+          ${safeBrand ? `<span class="product-meta">${safeBrand}</span>` : ''}
         </div>
       </td>
       <td>
@@ -1869,12 +2467,19 @@ function handleProductActions() {
   const tbody = document.getElementById('product-table-body');
   if (!tbody) return;
 
-  tbody.addEventListener('click', event => {
+  const getCurrentFilter = () => {
+    const searchInput = document.getElementById('search-input');
+    return (searchInput?.value ?? '').toString().trim().toLowerCase();
+  };
+
+  tbody.addEventListener('click', async event => {
     const target = event.target.closest('button');
     if (!target) return;
 
     const id = target.dataset.id;
-    const products = getData(STORAGE_KEYS.products, []);
+    if (!id) return;
+
+    const products = getProductsFromCache();
     const productIndex = products.findIndex(p => p.id === id);
     if (productIndex === -1) return;
 
@@ -1884,12 +2489,19 @@ function handleProductActions() {
     }
 
     if (target.dataset.action === 'delete') {
-      if (confirm('Hapus produk ini?')) {
-        products.splice(productIndex, 1);
-        setData(STORAGE_KEYS.products, products);
-        toast.show('Produk berhasil dihapus.');
-        renderProducts(document.getElementById('search-input')?.value.toLowerCase() ?? '');
+      if (!confirm('Hapus produk ini?')) {
+        return;
       }
+      try {
+        await deleteProductFromSupabase(id);
+        await refreshProductsFromSupabase();
+        toast.show('Produk berhasil dihapus.');
+        renderProducts(getCurrentFilter());
+      } catch (error) {
+        console.error('Gagal menghapus produk.', error);
+        toast.show('Gagal menghapus produk, coba lagi.');
+      }
+      return;
     }
 
     if (target.dataset.action === 'view-variants') {
@@ -1902,18 +2514,32 @@ function handleProductActions() {
     }
   });
 
-  tbody.addEventListener('change', event => {
+  tbody.addEventListener('change', async event => {
     const input = event.target.closest('input[data-action="toggle-trade"]');
     if (!input) return;
 
     const id = input.dataset.id;
-    const products = getData(STORAGE_KEYS.products, []);
-    const productIndex = products.findIndex(p => p.id === id);
-    if (productIndex === -1) return;
+    const products = getProductsFromCache();
+    const product = products.find(p => p.id === id);
+    if (!product) {
+      return;
+    }
 
-    products[productIndex].tradeIn = input.checked;
-    setData(STORAGE_KEYS.products, products);
-    toast.show(input.checked ? 'Trade-in diaktifkan.' : 'Trade-in dimatikan.');
+    input.disabled = true;
+
+    try {
+      const updated = { ...product, tradeIn: input.checked, updatedAt: Date.now() };
+      await upsertProductToSupabase(updated);
+      await refreshProductsFromSupabase();
+      toast.show(input.checked ? 'Trade-in diaktifkan.' : 'Trade-in dimatikan.');
+      renderProducts(getCurrentFilter());
+    } catch (error) {
+      console.error('Gagal memperbarui status trade-in.', error);
+      input.checked = !input.checked;
+      toast.show('Gagal memperbarui status trade-in. Coba lagi.');
+    } finally {
+      input.disabled = false;
+    }
   });
 }
 
@@ -2011,7 +2637,7 @@ function handleCategoryActions() {
     }
   });
 
-  tableBody.addEventListener('click', event => {
+  tableBody.addEventListener('click', async event => {
     const button = event.target.closest('[data-category-action]');
     if (!button) return;
 
@@ -2034,15 +2660,19 @@ function handleCategoryActions() {
       if (!confirm('Hapus kategori ini?')) {
         return;
       }
-      const categories = getCategories();
-      const updated = categories.filter(item => item.id !== id);
-      saveCategories(updated);
-      toast.show('Kategori berhasil dihapus.');
-      renderCategories(getCurrentFilter());
+      try {
+        await deleteCategoryFromSupabase(id);
+        await refreshCategoriesFromSupabase();
+        toast.show('Kategori berhasil dihapus.');
+        renderCategories(getCurrentFilter());
+      } catch (error) {
+        console.error('Gagal menghapus kategori.', error);
+        toast.show('Gagal menghapus kategori. Coba lagi.');
+      }
     }
   });
 
-  form.addEventListener('submit', event => {
+  form.addEventListener('submit', async event => {
     event.preventDefault();
 
     const formData = new FormData(form);
@@ -2092,27 +2722,41 @@ function handleCategoryActions() {
       bonus: bonus || null
     };
 
+    const timestamp = Date.now();
     if (editingId) {
-      const index = categories.findIndex(category => category.id === editingId);
-      if (index === -1) {
+      const existing = categories.find(category => category.id === editingId);
+      if (!existing) {
         toast.show('Kategori tidak ditemukan.');
-        closeModal();
+        await refreshCategoriesFromSupabase();
         renderCategories(getCurrentFilter());
         return;
       }
-      payload.createdAt = categories[index].createdAt ?? Date.now();
-      payload.updatedAt = Date.now();
-      categories[index] = payload;
-      toast.show('Kategori berhasil diperbarui.');
+      payload.createdAt = existing.createdAt ?? timestamp;
+      payload.updatedAt = timestamp;
     } else {
-      payload.createdAt = Date.now();
-      categories.push(payload);
-      toast.show('Kategori berhasil ditambahkan.');
+      payload.createdAt = timestamp;
     }
 
-    saveCategories(categories);
-    closeModal();
-    renderCategories(getCurrentFilter());
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('is-loading');
+    }
+
+    try {
+      await upsertCategoryToSupabase(payload);
+      await refreshCategoriesFromSupabase();
+      toast.show(editingId ? 'Kategori berhasil diperbarui.' : 'Kategori berhasil ditambahkan.');
+      closeModal();
+      renderCategories(getCurrentFilter());
+    } catch (error) {
+      console.error('Gagal menyimpan kategori.', error);
+      toast.show('Gagal menyimpan kategori. Coba lagi.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('is-loading');
+      }
+    }
   });
 }
 
@@ -2239,7 +2883,7 @@ function populateCategorySelect(select, { selectedValue, helperEl } = {}) {
   }
 }
 
-function handleAddProductForm() {
+async function handleAddProductForm() {
   const form = document.getElementById('add-product-form');
   if (!form) return;
 
@@ -2257,6 +2901,14 @@ function handleAddProductForm() {
   const params = new URLSearchParams(window.location.search);
   const editingId = params.get('id');
   let suppressPricingRefresh = false;
+
+  try {
+    await ensureSeeded();
+    await Promise.all([refreshCategoriesFromSupabase(), refreshProductsFromSupabase()]);
+  } catch (error) {
+    console.error('Gagal menyiapkan data produk.', error);
+    toast.show('Gagal memuat data produk. Pastikan Supabase tersambung.');
+  }
 
   const exchangeRateState = {
     rates: new Map(),
@@ -2484,10 +3136,16 @@ function handleAddProductForm() {
   });
 
   populateCategorySelect(categorySelect, { helperEl: categoryHelper });
+  if (categorySelect) {
+    categorySelect.disabled = !getCategories().length;
+  }
 
   document.addEventListener('categories:changed', () => {
     const selectedValue = categorySelect?.value ?? '';
     populateCategorySelect(categorySelect, { selectedValue, helperEl: categoryHelper });
+    if (categorySelect) {
+      categorySelect.disabled = !getCategories().length;
+    }
   });
 
   const clearPreview = (container, preview, input) => {
@@ -3167,7 +3825,7 @@ function handleAddProductForm() {
   });
 
   if (editingId) {
-    const products = getData(STORAGE_KEYS.products, []);
+    const products = getProductsFromCache();
     const product = products.find(p => p.id === editingId);
 
     if (!product) {
@@ -3268,28 +3926,23 @@ function handleAddProductForm() {
     refreshPricingTableStructure();
   }
 
-  form.addEventListener('submit', event => {
+  form.addEventListener('submit', async event => {
     event.preventDefault();
     if (categorySelect && categorySelect.disabled) {
       toast.show('Tambahkan kategori terlebih dahulu di halaman Kategori.');
       categorySelect.focus();
       return;
     }
-      const formData = new FormData(form);
-      const products = getData(STORAGE_KEYS.products, []);
-      const categoryValue = (formData.get('category') ?? '').toString().trim();
-      const inventoryData = {
-        initialStockPrediction: (formData.get('initialStockPrediction') ?? '').toString().trim(),
-        dailyAverageSales: (formData.get('dailyAverageSales') ?? '').toString().trim(),
-        leadTime: (formData.get('leadTime') ?? '').toString().trim(),
-        reorderPoint: (formData.get('reorderPoint') ?? '').toString().trim()
-      };
-      const hasInventoryData = Object.entries(inventoryData).some(([key, value]) => {
-        if (!value) {
-          return false;
-        }
-        return true;
-      });
+
+    const formData = new FormData(form);
+    const categoryValue = (formData.get('category') ?? '').toString().trim();
+    const inventoryData = {
+      initialStockPrediction: (formData.get('initialStockPrediction') ?? '').toString().trim(),
+      dailyAverageSales: (formData.get('dailyAverageSales') ?? '').toString().trim(),
+      leadTime: (formData.get('leadTime') ?? '').toString().trim(),
+      reorderPoint: (formData.get('reorderPoint') ?? '').toString().trim()
+    };
+    const hasInventoryData = Object.values(inventoryData).some(value => (value ?? '').toString().trim());
 
     if (!categoryValue) {
       toast.show('Pilih kategori produk.');
@@ -3395,11 +4048,12 @@ function handleAddProductForm() {
     const isEditing = Boolean(form.dataset.editingId);
     const timestamp = Date.now();
     const productId = isEditing ? form.dataset.editingId : crypto.randomUUID();
-    let productIndex = -1;
 
+    let existingProduct = null;
     if (isEditing) {
-      productIndex = products.findIndex(p => p.id === productId);
-      if (productIndex === -1) {
+      const products = getProductsFromCache();
+      existingProduct = products.find(p => p.id === productId) ?? null;
+      if (!existingProduct) {
         toast.show('Produk tidak ditemukan.');
         return;
       }
@@ -3419,40 +4073,93 @@ function handleAddProductForm() {
     };
 
     if (isEditing) {
-      const existing = products[productIndex];
-      productPayload.createdAt = existing?.createdAt ?? timestamp;
+      productPayload.createdAt = existingProduct?.createdAt ?? timestamp;
       productPayload.updatedAt = timestamp;
-      products[productIndex] = productPayload;
     } else {
       productPayload.createdAt = timestamp;
-      products.push(productPayload);
+      productPayload.updatedAt = timestamp;
     }
 
-    setData(STORAGE_KEYS.products, products);
-    toast.show(isEditing ? 'Produk berhasil diperbarui.' : 'Produk berhasil disimpan.');
-    setTimeout(() => {
-      window.location.href = 'dashboard.html';
-    }, 800);
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('is-loading');
+    }
+
+    try {
+      await upsertProductToSupabase(productPayload);
+      await refreshProductsFromSupabase();
+      toast.show(isEditing ? 'Produk berhasil diperbarui.' : 'Produk berhasil disimpan.');
+      setTimeout(() => {
+        window.location.href = 'dashboard.html';
+      }, 800);
+    } catch (error) {
+      console.error('Gagal menyimpan produk.', error);
+      toast.show('Gagal menyimpan produk. Coba lagi.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('is-loading');
+      }
+    }
   });
 }
 
-function initDashboard() {
-  ensureSeeded();
+async function initDashboard() {
+  let supabaseReady = true;
+
+  try {
+    await ensureSeeded();
+  } catch (error) {
+    supabaseReady = false;
+    console.error('Gagal menyiapkan data dashboard.', error);
+    toast.show('Gagal memuat data dashboard. Pastikan Supabase tersambung.');
+  }
+
+  if (supabaseReady) {
+    try {
+      await Promise.all([
+        refreshProductsFromSupabase(),
+        refreshCategoriesFromSupabase()
+      ]);
+    } catch (error) {
+      console.error('Gagal memperbarui data dashboard.', error);
+      toast.show('Data dashboard mungkin tidak terbaru.');
+    }
+  }
+
   renderProducts();
   handleProductActions();
   handleSearch(value => renderProducts(value));
   handleSync();
 }
 
-function initCategories() {
-  ensureSeeded();
+async function initCategories() {
+  let supabaseReady = true;
+
+  try {
+    await ensureSeeded();
+  } catch (error) {
+    supabaseReady = false;
+    console.error('Gagal menyiapkan data kategori.', error);
+    toast.show('Gagal memuat data kategori. Pastikan Supabase tersambung.');
+  }
+
+  if (supabaseReady) {
+    try {
+      await refreshCategoriesFromSupabase();
+    } catch (error) {
+      console.error('Gagal memperbarui data kategori.', error);
+      toast.show('Data kategori mungkin tidak terbaru.');
+    }
+  }
+
   renderCategories();
   handleSearch(value => renderCategories(value));
   handleCategoryActions();
 }
 
 function initPage() {
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     const page = document.body.dataset.page;
     handleLogout();
     setupThemeControls();
@@ -3474,7 +4181,7 @@ function initPage() {
     if (['dashboard', 'add-product', 'categories'].includes(page)) {
       setupSidebarToggle();
       setupSidebarCollapse();
-      const user = ensureAuthenticatedPage();
+      const user = await ensureAuthenticatedPage();
       if (!user) return;
       document.querySelectorAll('.avatar').forEach(el => {
         el.textContent = user.name
@@ -3487,16 +4194,15 @@ function initPage() {
     }
 
     if (page === 'dashboard') {
-      initDashboard();
+      await initDashboard();
     }
 
     if (page === 'add-product') {
-      ensureSeeded();
       handleAddProductForm();
     }
 
     if (page === 'categories') {
-      initCategories();
+      await initCategories();
     }
   });
 }
