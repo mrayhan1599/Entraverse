@@ -13,6 +13,8 @@ const GUEST_USER = Object.freeze({
   email: 'guest@entraverse.local'
 });
 
+let activeSessionUser = null;
+
 const DEFAULT_PRODUCTS = [
   {
     id: crypto.randomUUID(),
@@ -1579,6 +1581,14 @@ initializeTheme();
 
 const toast = createToast();
 
+function requireCatalogManager(message = 'Silakan login untuk mengelola katalog.') {
+  if (canManageCatalog()) {
+    return true;
+  }
+  toast.show(message);
+  return false;
+}
+
 function clone(value) {
   if (value === null || value === undefined) {
     return value;
@@ -1645,6 +1655,31 @@ function getGuestUser() {
 
 function isGuestUser(user) {
   return !user || user.id === GUEST_USER.id;
+}
+
+function getActiveUser() {
+  if (!activeSessionUser) {
+    activeSessionUser = getGuestUser();
+  }
+  return activeSessionUser;
+}
+
+function setActiveSessionUser(user) {
+  const sanitized = user && !isGuestUser(user) ? sanitizeSessionUser(user) : getGuestUser();
+  activeSessionUser = sanitized;
+
+  if (typeof document !== 'undefined' && document.body) {
+    const isGuest = isGuestUser(activeSessionUser);
+    document.body.dataset.sessionRole = isGuest ? 'guest' : 'user';
+    const event = new CustomEvent('entraverse:session-change', {
+      detail: { user: activeSessionUser, isGuest }
+    });
+    document.dispatchEvent(event);
+  }
+}
+
+function canManageCatalog() {
+  return !isGuestUser(getActiveUser());
 }
 
 function getNameInitials(name) {
@@ -2520,6 +2555,7 @@ function renderCategories(filterText = '') {
   if (!tbody) return;
 
   const categories = getCategories();
+  const canManage = canManageCatalog();
   const normalized = (filterText ?? '').toString().trim().toLowerCase();
   const filtered = categories.filter(category => {
     if (!normalized) return true;
@@ -2555,6 +2591,9 @@ function renderCategories(filterText = '') {
       const marginNote = hasMarginNote ? `${trendSymbol} ${marginNoteRaw}` : '';
 
       row.dataset.categoryId = category.id ?? '';
+      const manageDisabledAttr = canManage ? '' : 'disabled aria-disabled="true"';
+      const editTitle = canManage ? 'Edit kategori' : 'Login untuk mengedit kategori';
+      const deleteTitle = canManage ? 'Hapus kategori' : 'Login untuk menghapus kategori';
       row.innerHTML = `
         <td>
           <div class="category-cell">
@@ -2578,8 +2617,8 @@ function renderCategories(filterText = '') {
         </td>
         <td>
           <div class="table-actions">
-            <button class="icon-btn small" type="button" data-category-action="edit" data-id="${safeId}" title="Edit kategori">✏️</button>
-            <button class="icon-btn danger small" type="button" data-category-action="delete" data-id="${safeId}" title="Hapus kategori">🗑️</button>
+            <button class="icon-btn small" type="button" data-category-action="edit" data-id="${safeId}" title="${editTitle}" ${manageDisabledAttr}>✏️</button>
+            <button class="icon-btn danger small" type="button" data-category-action="delete" data-id="${safeId}" title="${deleteTitle}" ${manageDisabledAttr}>🗑️</button>
           </div>
         </td>
       `;
@@ -2605,6 +2644,7 @@ function renderProducts(filterText = '') {
   if (!tbody) return;
 
   const products = getProductsFromCache();
+  const canManage = canManageCatalog();
   const normalizedFilter = (filterText ?? '').toString().trim().toLowerCase();
 
   const filtered = products.filter(product => {
@@ -2624,6 +2664,10 @@ function renderProducts(filterText = '') {
     const safeName = escapeHtml(product.name ?? '');
     const safeBrand = product.brand ? escapeHtml(product.brand) : '';
 
+    const manageDisabledAttr = canManage ? '' : 'disabled aria-disabled="true"';
+    const editTitle = canManage ? 'Edit' : 'Login untuk mengedit produk';
+    const deleteTitle = canManage ? 'Hapus' : 'Login untuk menghapus produk';
+
     row.innerHTML = `
       <td>
         <div class="photo-preview">
@@ -2638,15 +2682,15 @@ function renderProducts(filterText = '') {
       </td>
       <td>
         <label class="switch">
-          <input type="checkbox" ${product.tradeIn ? 'checked' : ''} data-action="toggle-trade" data-id="${product.id}">
+          <input type="checkbox" ${product.tradeIn ? 'checked' : ''} data-action="toggle-trade" data-id="${product.id}" ${canManage ? '' : 'disabled'}>
           <span class="slider"></span>
         </label>
       </td>
       <td>
         <div class="table-actions">
-          <button class="icon-btn small" type="button" data-action="edit" data-id="${product.id}" title="Edit">✏️</button>
+          <button class="icon-btn small" type="button" data-action="edit" data-id="${product.id}" title="${editTitle}" ${manageDisabledAttr}>✏️</button>
           <button class="icon-btn small" type="button" data-action="view-variants" data-id="${product.id}" title="Lihat varian">👁️</button>
-          <button class="icon-btn danger small" type="button" data-action="delete" data-id="${product.id}" title="Hapus">🗑️</button>
+          <button class="icon-btn danger small" type="button" data-action="delete" data-id="${product.id}" title="${deleteTitle}" ${manageDisabledAttr}>🗑️</button>
         </div>
       </td>
     `;
@@ -2686,11 +2730,17 @@ function handleProductActions() {
     if (productIndex === -1) return;
 
     if (target.dataset.action === 'edit') {
+      if (!requireCatalogManager('Silakan login untuk mengedit produk.')) {
+        return;
+      }
       window.location.href = `add-product.html?id=${id}`;
       return;
     }
 
     if (target.dataset.action === 'delete') {
+      if (!requireCatalogManager('Silakan login untuk menghapus produk.')) {
+        return;
+      }
       if (!confirm('Hapus produk ini?')) {
         return;
       }
@@ -2719,6 +2769,11 @@ function handleProductActions() {
   tbody.addEventListener('change', async event => {
     const input = event.target.closest('input[data-action="toggle-trade"]');
     if (!input) return;
+
+    if (!requireCatalogManager('Silakan login untuk memperbarui status trade-in.')) {
+      input.checked = !input.checked;
+      return;
+    }
 
     const id = input.dataset.id;
     const products = getProductsFromCache();
@@ -2767,6 +2822,19 @@ function handleCategoryActions() {
   const searchInput = document.getElementById('search-input');
 
   const getCurrentFilter = () => (searchInput?.value ?? '').toString();
+
+  const updateAddButtonState = () => {
+    const canManage = canManageCatalog();
+    if (canManage) {
+      addButton.classList.remove('is-disabled');
+      addButton.removeAttribute('aria-disabled');
+      addButton.removeAttribute('tabindex');
+    } else {
+      addButton.classList.add('is-disabled');
+      addButton.setAttribute('aria-disabled', 'true');
+      addButton.setAttribute('tabindex', '-1');
+    }
+  };
 
   const closeModal = () => {
     modal.hidden = true;
@@ -2830,7 +2898,12 @@ function handleCategoryActions() {
     }
   };
 
-  addButton.addEventListener('click', () => openModal());
+  addButton.addEventListener('click', () => {
+    if (!requireCatalogManager('Silakan login untuk menambah kategori.')) {
+      return;
+    }
+    openModal();
+  });
   closeButtons.forEach(button => button.addEventListener('click', closeModal));
   document.addEventListener('keydown', handleEscape);
   modal.addEventListener('click', event => {
@@ -2845,6 +2918,10 @@ function handleCategoryActions() {
 
     const id = button.dataset.id;
     if (!id) return;
+
+    if (!requireCatalogManager('Silakan login untuk mengelola kategori.')) {
+      return;
+    }
 
     if (button.dataset.categoryAction === 'edit') {
       const categories = getCategories();
@@ -2876,6 +2953,10 @@ function handleCategoryActions() {
 
   form.addEventListener('submit', async event => {
     event.preventDefault();
+
+    if (!requireCatalogManager('Silakan login untuk menyimpan kategori.')) {
+      return;
+    }
 
     const formData = new FormData(form);
     const name = (formData.get('name') ?? '').toString().trim();
@@ -2959,6 +3040,12 @@ function handleCategoryActions() {
         submitBtn.classList.remove('is-loading');
       }
     }
+  });
+
+  updateAddButtonState();
+  document.addEventListener('entraverse:session-change', () => {
+    updateAddButtonState();
+    renderCategories(getCurrentFilter());
   });
 }
 
@@ -3079,6 +3166,8 @@ function initTopbarAuth() {
     const activeUser = user && !isGuest ? user : guest;
     const shouldCloseDropdown = isGuest || activeUser?.id !== lastUserId;
 
+    setActiveSessionUser(activeUser);
+
     if (shouldCloseDropdown) {
       closeDropdown();
     }
@@ -3171,6 +3260,14 @@ function populateCategorySelect(select, { selectedValue, helperEl } = {}) {
 async function handleAddProductForm() {
   const form = document.getElementById('add-product-form');
   if (!form) return;
+
+  if (!canManageCatalog()) {
+    toast.show('Silakan login untuk menambah atau mengedit produk.');
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 600);
+    return;
+  }
 
   const variantBody = document.getElementById('variant-body');
   const pricingBody = document.getElementById('variant-pricing-body');
@@ -4561,6 +4658,37 @@ async function initDashboard() {
   handleProductActions();
   handleSearch(value => renderProducts(value));
   handleSync();
+
+  const addProductLink = document.querySelector('[data-add-product-link]');
+  const updateAddProductLinkState = () => {
+    if (!addProductLink) return;
+    const canManage = canManageCatalog();
+    if (canManage) {
+      addProductLink.classList.remove('is-disabled');
+      addProductLink.removeAttribute('aria-disabled');
+      addProductLink.removeAttribute('tabindex');
+    } else {
+      addProductLink.classList.add('is-disabled');
+      addProductLink.setAttribute('aria-disabled', 'true');
+      addProductLink.setAttribute('tabindex', '-1');
+    }
+  };
+
+  if (addProductLink) {
+    addProductLink.addEventListener('click', event => {
+      if (!requireCatalogManager('Silakan login untuk menambah produk.')) {
+        event.preventDefault();
+      }
+    });
+  }
+
+  updateAddProductLinkState();
+
+  document.addEventListener('entraverse:session-change', () => {
+    updateAddProductLinkState();
+    const filter = document.getElementById('search-input')?.value ?? '';
+    renderProducts(filter);
+  });
 }
 
 async function initCategories() {
