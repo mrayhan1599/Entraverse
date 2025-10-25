@@ -2511,13 +2511,15 @@ function handleGuestAccess() {
 
 async function ensureAuthenticatedPage() {
   const page = document.body.dataset.page;
+  const guest = getGuestUser();
+
   if (!['dashboard', 'add-product', 'categories'].includes(page)) {
-    return null;
+    return { user: guest, status: 'guest' };
   }
 
   const sessionUser = getCurrentUser();
   if (!sessionUser) {
-    return null;
+    return { user: guest, status: 'guest' };
   }
 
   try {
@@ -2525,19 +2527,18 @@ async function ensureAuthenticatedPage() {
     const remoteUser = await fetchUserById(sessionUser.id);
     if (remoteUser) {
       setCurrentUser(remoteUser);
-      return sanitizeSessionUser(remoteUser);
+      return { user: sanitizeSessionUser(remoteUser), status: 'authenticated' };
     }
     setCurrentUser(null);
+    return { user: guest, status: 'expired' };
   } catch (error) {
     const supabaseError = getSupabaseInitializationError();
     if (supabaseError) {
       console.error('Supabase belum siap.', supabaseError);
     }
     console.error('Gagal memuat data pengguna.', error);
-    return sessionUser;
+    return { user: sessionUser, status: 'authenticated' };
   }
-
-  return null;
 }
 
 function renderCategories(filterText = '') {
@@ -2566,32 +2567,17 @@ function renderCategories(filterText = '') {
     filtered.forEach(category => {
       const row = document.createElement('tr');
       const safeId = escapeHtml(category.id ?? '');
-      const noteText = category.note ?? '';
-      const hasNote = noteText !== null && noteText !== undefined && noteText.toString().trim() !== '';
-      const marginNoteRaw = category.margin?.note ?? '';
-      const hasMarginNote = marginNoteRaw !== null && marginNoteRaw !== undefined && marginNoteRaw.toString().trim() !== '';
-      const marginNote = hasMarginNote ? marginNoteRaw.toString().trim() : '';
-
       row.dataset.categoryId = category.id ?? '';
+
       const manageDisabledAttr = canManage ? '' : 'disabled aria-disabled="true"';
       const editTitle = canManage ? 'Edit kategori' : 'Login untuk mengedit kategori';
       const deleteTitle = canManage ? 'Hapus kategori' : 'Login untuk menghapus kategori';
       row.innerHTML = `
-        <td>
-          <div class="category-cell">
-            <strong>${escapeHtml(category.name ?? '')}</strong>
-            ${hasNote ? `<span class="category-note">${escapeHtml(noteText)}</span>` : ''}
-          </div>
-        </td>
+        <td><strong>${escapeHtml(category.name ?? '')}</strong></td>
         <td><span class="fee-chip">${escapeHtml(category.fees?.marketplace ?? '-')}</span></td>
         <td><span class="fee-chip">${escapeHtml(category.fees?.shopee ?? '-')}</span></td>
         <td><span class="fee-chip">${escapeHtml(category.fees?.entraverse ?? '-')}</span></td>
-        <td>
-          <div class="margin-cell">
-            <span class="fee-chip fee-chip--highlight">${escapeHtml(category.margin?.value ?? '-')}</span>
-            ${hasMarginNote ? `<span class="margin-note">${escapeHtml(marginNote)}</span>` : ''}
-          </div>
-        </td>
+        <td class="category-margin"><span class="fee-chip fee-chip--highlight">${escapeHtml(category.margin?.value ?? '-')}</span></td>
         <td>
           <div class="table-actions">
             <button class="icon-btn small" type="button" data-category-action="edit" data-id="${safeId}" title="${editTitle}" ${manageDisabledAttr}>✏️</button>
@@ -3227,7 +3213,7 @@ async function handleAddProductForm() {
   if (!canManageCatalog()) {
     toast.show('Silakan login untuk menambah atau mengedit produk.');
     setTimeout(() => {
-      window.location.href = 'index.html';
+      window.location.href = 'login.html';
     }, 600);
     return;
   }
@@ -4704,13 +4690,9 @@ function initPage() {
     if (['dashboard', 'add-product', 'categories'].includes(page)) {
       setupSidebarToggle();
       setupSidebarCollapse();
-      const user = await ensureAuthenticatedPage();
-      if (!user) {
+      const { user, status } = await ensureAuthenticatedPage();
+      if (status === 'expired') {
         toast.show('Sesi Anda telah berakhir. Silakan login kembali.');
-        setTimeout(() => {
-          window.location.href = 'index.html';
-        }, 600);
-        return;
       }
       topbarAuth.update(user);
     }

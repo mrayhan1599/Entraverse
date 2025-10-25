@@ -49,7 +49,7 @@ Halaman admin Entraverse kini menggunakan Supabase sebagai basis data untuk aute
 
 ### Konfigurasi aplikasi
 
-1. Buka salah satu berkas HTML (`index.html`, `register.html`, `dashboard.html`, `add-product.html`, atau `categories.html`).
+1. Buka salah satu berkas HTML (`index.html`, `login.html`, `register.html`, `dashboard.html`, `add-product.html`, atau `categories.html`).
 2. Ubah nilai pada blok konfigurasi berikut agar sesuai dengan kredensial Supabase Anda:
 
    ```html
