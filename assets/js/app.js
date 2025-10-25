@@ -1460,42 +1460,36 @@ function setupThemeControls() {
   }
 
   const currentMode = document.body.dataset.themeMode || DEFAULT_THEME_MODE;
+  let hasMenuControl = false;
 
   themeControls.forEach(control => {
-    const trigger = control.querySelector('[data-theme-trigger]');
+    const trigger = control.querySelector('[data-theme-trigger]') || control.querySelector('button');
     const options = Array.from(control.querySelectorAll('[data-theme-option]'));
 
-    if (trigger) {
-      trigger.setAttribute('aria-expanded', 'false');
-    }
+    if (options.length) {
+      hasMenuControl = true;
 
-    options.forEach(option => {
-      option.tabIndex = -1;
-      const icon = option.querySelector('[data-theme-option-icon]');
-      const optionMode = option.dataset.themeOption;
-      if (icon && optionMode && THEME_ICON_MARKUP[optionMode]) {
-        icon.innerHTML = THEME_ICON_MARKUP[optionMode];
+      if (trigger) {
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.setAttribute('aria-haspopup', 'listbox');
       }
-    });
 
-    const openMenu = () => {
-      closeThemeControls(control);
-      setThemeControlOpen(control, true);
-      options[0]?.focus();
-    };
+      options.forEach(option => {
+        option.tabIndex = -1;
+        const icon = option.querySelector('[data-theme-option-icon]');
+        const optionMode = option.dataset.themeOption;
+        if (icon && optionMode && THEME_ICON_MARKUP[optionMode]) {
+          icon.innerHTML = THEME_ICON_MARKUP[optionMode];
+        }
+      });
 
-    trigger?.addEventListener('click', event => {
-      event.preventDefault();
-      const isOpen = control.classList.contains('open');
-      if (isOpen) {
-        setThemeControlOpen(control, false);
-      } else {
-        openMenu();
-      }
-    });
+      const openMenu = () => {
+        closeThemeControls(control);
+        setThemeControlOpen(control, true);
+        options[0]?.focus();
+      };
 
-    trigger?.addEventListener('keydown', event => {
-      if (event.key === 'Enter' || event.key === ' ') {
+      trigger?.addEventListener('click', event => {
         event.preventDefault();
         const isOpen = control.classList.contains('open');
         if (isOpen) {
@@ -1503,50 +1497,95 @@ function setupThemeControls() {
         } else {
           openMenu();
         }
-      }
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        if (!control.classList.contains('open')) {
-          openMenu();
-        } else {
-          options[0]?.focus();
-        }
-      }
-    });
+      });
 
-    options.forEach((option, index) => {
-      const selectOption = () => {
-        applyTheme(option.dataset.themeOption);
-        closeThemeControls();
-        setThemeControlOpen(control, false);
-        trigger?.focus();
-      };
-
-      option.addEventListener('click', selectOption);
-
-      option.addEventListener('keydown', event => {
+      trigger?.addEventListener('keydown', event => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          selectOption();
-        }
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          setThemeControlOpen(control, false);
-          trigger?.focus();
+          const isOpen = control.classList.contains('open');
+          if (isOpen) {
+            setThemeControlOpen(control, false);
+          } else {
+            openMenu();
+          }
         }
         if (event.key === 'ArrowDown') {
           event.preventDefault();
-          options[(index + 1) % options.length]?.focus();
-        }
-        if (event.key === 'ArrowUp') {
-          event.preventDefault();
-          options[(index - 1 + options.length) % options.length]?.focus();
+          if (!control.classList.contains('open')) {
+            openMenu();
+          } else {
+            options[0]?.focus();
+          }
         }
       });
+
+      options.forEach((option, index) => {
+        const selectOption = () => {
+          applyTheme(option.dataset.themeOption);
+          closeThemeControls();
+          setThemeControlOpen(control, false);
+          trigger?.focus();
+        };
+
+        option.addEventListener('click', selectOption);
+
+        option.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            selectOption();
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            setThemeControlOpen(control, false);
+            trigger?.focus();
+          }
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            options[(index + 1) % options.length]?.focus();
+          }
+          if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            options[(index - 1 + options.length) % options.length]?.focus();
+          }
+        });
+      });
+      return;
+    }
+
+    if (!trigger) {
+      return;
+    }
+
+    const cycleAttr = control.dataset.themeCycle;
+    const cycleModes = (cycleAttr ? cycleAttr.split(',') : THEME_MODES)
+      .map(mode => mode.trim())
+      .filter(Boolean)
+      .filter(isValidThemeMode);
+
+    const cycleOrder = Array.from(new Set(cycleModes));
+    const modesToUse = cycleOrder.length ? cycleOrder : [...THEME_MODES];
+
+    const cycleTheme = () => {
+      const activeMode = document.body.dataset.themeMode || DEFAULT_THEME_MODE;
+      const currentIndex = modesToUse.indexOf(activeMode);
+      const nextMode = modesToUse[(currentIndex + 1) % modesToUse.length] || DEFAULT_THEME_MODE;
+      applyTheme(nextMode);
+    };
+
+    trigger.addEventListener('click', event => {
+      event.preventDefault();
+      cycleTheme();
+    });
+
+    trigger.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        cycleTheme();
+      }
     });
   });
 
-  if (!themeListenersAttached) {
+  if (hasMenuControl && !themeListenersAttached) {
     document.addEventListener('click', handleThemeControlDocumentClick);
     document.addEventListener('keydown', handleThemeControlEscape);
     window.addEventListener('focus', refreshSystemTheme);
