@@ -36,11 +36,10 @@ const DEFAULT_PRODUCTS = [
           { name: 'Garansi', value: '1 Tahun' },
           { name: 'Kapasitas', value: '128 GB' }
         ],
-        supplierPrice: '9000000',
         offlinePrice: '9555000',
         entraversePrice: '9700000',
         tokopediaPrice: '9750000',
-        skuSeller: 'MQ3S-GRN-128',
+        shopeePrice: '9650000',
         skuEntraverse: 'MQ3S-GRN-128-ENT',
         stock: '25',
         weight: '2000'
@@ -52,11 +51,10 @@ const DEFAULT_PRODUCTS = [
           { name: 'Garansi', value: 'Tanpa Garansi' },
           { name: 'Kapasitas', value: '256 GB' }
         ],
-        supplierPrice: '9250000',
         offlinePrice: '9799000',
         entraversePrice: '9899000',
         tokopediaPrice: '10000000',
-        skuSeller: 'MQ3S-DBL-256',
+        shopeePrice: '9950000',
         skuEntraverse: 'MQ3S-DBL-256-ENT',
         stock: '18',
         weight: '2050'
@@ -87,11 +85,10 @@ const DEFAULT_PRODUCTS = [
           { name: 'Garansi', value: '1 Tahun' },
           { name: 'Kapasitas', value: '256 GB' }
         ],
-        supplierPrice: '9800000',
         offlinePrice: '10350000',
         entraversePrice: '10499000',
         tokopediaPrice: '10699000',
-        skuSeller: 'MQ3S-GPH-256',
+        shopeePrice: '10550000',
         skuEntraverse: 'MQ3S-GPH-256-ENT',
         stock: '12',
         weight: '2100'
@@ -103,11 +100,10 @@ const DEFAULT_PRODUCTS = [
           { name: 'Garansi', value: '2 Tahun' },
           { name: 'Kapasitas', value: '256 GB' }
         ],
-        supplierPrice: '10250000',
         offlinePrice: '10899000',
         entraversePrice: '10999000',
         tokopediaPrice: '11150000',
-        skuSeller: 'MQ3S-PRL-256',
+        shopeePrice: '11050000',
         skuEntraverse: 'MQ3S-PRL-256-ENT',
         stock: '9',
         weight: '2100'
@@ -3342,11 +3338,10 @@ async function handleAddProductForm() {
         purchaseCurrency: getValue('[data-field="purchaseCurrency"]'),
         exchangeRate: getValue('[data-field="exchangeRate"]'),
         purchasePriceIdr: getValue('[data-field="purchasePriceIdr"]'),
-        supplierPrice: getValue('[data-field="supplierPrice"]'),
         offlinePrice: getValue('[data-field="offlinePrice"]'),
         entraversePrice: getValue('[data-field="entraversePrice"]'),
         tokopediaPrice: getValue('[data-field="tokopediaPrice"]'),
-        skuSeller: getValue('[data-field="skuSeller"]'),
+        shopeePrice: getValue('[data-field="shopeePrice"]'),
         skuEntraverse: getValue('[data-field="skuEntraverse"]'),
         stock: getValue('[data-field="stock"]'),
         weight: getValue('[data-field="weight"]')
@@ -3425,11 +3420,10 @@ async function handleAddProductForm() {
       'purchasePrice',
       'exchangeRate',
       'purchasePriceIdr',
-      'supplierPrice',
       'offlinePrice',
       'entraversePrice',
       'tokopediaPrice',
-      'skuSeller',
+      'shopeePrice',
       'skuEntraverse',
       'stock',
       'weight'
@@ -3547,7 +3541,7 @@ async function handleAddProductForm() {
       input.type = type;
       input.placeholder = placeholder;
       input.dataset.field = field;
-      if (['supplierPrice', 'offlinePrice', 'entraversePrice', 'tokopediaPrice'].includes(field)) {
+      if (['offlinePrice', 'entraversePrice', 'tokopediaPrice', 'shopeePrice'].includes(field)) {
         input.inputMode = 'numeric';
         input.classList.add('numeric-input');
       }
@@ -3559,11 +3553,10 @@ async function handleAddProductForm() {
       row.appendChild(cell);
     };
 
-    buildInputCell('supplierPrice', 'Rp 0');
     buildInputCell('offlinePrice', 'Rp 0');
     buildInputCell('entraversePrice', 'Rp 0');
     buildInputCell('tokopediaPrice', 'Rp 0');
-    buildInputCell('skuSeller', 'SKU Penjual');
+    buildInputCell('shopeePrice', 'Rp 0');
     buildInputCell('skuEntraverse', 'SKU Entraverse');
     buildInputCell('stock', 'Stok');
     buildInputCell('weight', 'Gram');
@@ -3635,11 +3628,10 @@ async function handleAddProductForm() {
       'Mata Uang',
       'Kurs',
       'Harga Beli (Rp)',
-      'Harga Supplier',
       'Harga Jual Offline',
       'Harga Jual Entraverse.id',
       'Harga Jual Tokopedia',
-      'SKU Penjual',
+      'Harga Jual Shopee',
       'SKU Entraverse',
       'Stok',
       'Berat Barang',
@@ -3982,11 +3974,10 @@ async function handleAddProductForm() {
     const rawPricingRows = collectPricingRows(variantDefs);
     const normalizedPricing = rawPricingRows.map(row => {
       const normalized = {
-        supplierPrice: (row.supplierPrice ?? '').toString().trim(),
         offlinePrice: (row.offlinePrice ?? '').toString().trim(),
         entraversePrice: (row.entraversePrice ?? '').toString().trim(),
         tokopediaPrice: (row.tokopediaPrice ?? '').toString().trim(),
-        skuSeller: (row.skuSeller ?? '').toString().trim(),
+        shopeePrice: (row.shopeePrice ?? '').toString().trim(),
         skuEntraverse: (row.skuEntraverse ?? '').toString().trim(),
         stock: (row.stock ?? '').toString().trim(),
         weight: (row.weight ?? '').toString().trim()
@@ -4012,11 +4003,10 @@ async function handleAddProductForm() {
 
     const filteredPricing = normalizedPricing.filter(row => {
       const detailValues = [
-        row.supplierPrice,
         row.offlinePrice,
         row.entraversePrice,
         row.tokopediaPrice,
-        row.skuSeller,
+        row.shopeePrice,
         row.skuEntraverse,
         row.stock,
         row.weight
