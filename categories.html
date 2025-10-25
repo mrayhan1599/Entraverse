@@ -205,6 +205,14 @@
       </div>
     </div>
   </div>
+  <script>
+    window.entraverseConfig = window.entraverseConfig || {};
+    window.entraverseConfig.supabase = window.entraverseConfig.supabase || {
+      url: 'https://your-project.supabase.co',
+      anonKey: 'public-anon-key'
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>
