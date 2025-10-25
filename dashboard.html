@@ -71,9 +71,6 @@
             </ul>
           </div>
         </div>
-        <div class="nav-footer">
-          <button id="logout-btn" class="btn ghost-btn full-width">Keluar</button>
-        </div>
       </nav>
     </aside>
     <button class="sidebar-collapse-toggle" type="button" aria-label="Sembunyikan navigasi" aria-expanded="true" data-sidebar-collapse>
@@ -96,7 +93,19 @@
           </form>
         </div>
         <div class="topbar-actions">
-          <div class="avatar">AM</div>
+          <div class="auth-buttons" data-guest-actions hidden>
+            <a class="btn ghost-btn" href="index.html">Login</a>
+            <a class="btn primary-btn" href="register.html">Register</a>
+          </div>
+          <div class="profile-menu" data-profile-menu hidden>
+            <button class="avatar-button" type="button" data-profile-toggle aria-haspopup="true" aria-expanded="false">
+              <span class="avatar" data-avatar-initials>AM</span>
+            </button>
+            <div class="profile-dropdown" data-profile-dropdown role="menu" hidden>
+              <p class="profile-greeting">Hai, <span data-profile-name>Pengguna</span></p>
+              <button type="button" class="btn ghost-btn full-width" data-logout>Keluar</button>
+            </div>
+          </div>
         </div>
       </header>
       <section class="content-header">
