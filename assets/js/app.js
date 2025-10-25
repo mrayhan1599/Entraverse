@@ -134,72 +134,63 @@ const DEFAULT_CATEGORIES = [
     name: 'Virtual Reality',
     note: 'Headset, controller, dan aksesoris AR/VR',
     fees: { marketplace: '10.3%', shopee: '8.0%', entraverse: '8.00%' },
-    margin: { value: '10.00%', trend: 'up', note: '+1.2% vs bulan lalu' },
-    bonus: null
+    margin: { value: '10.00%', note: '+1.2% vs bulan lalu' }
   },
   {
     id: 'cat-konsol-game',
     name: 'Konsol Game',
     note: 'PlayStation, Xbox, dan Nintendo resmi',
     fees: { marketplace: '10.3%', shopee: '8.0%', entraverse: '8.00%' },
-    margin: { value: '9.40%', trend: 'up', note: '+0.5% dibanding Q1' },
-    bonus: 'Campaign Flash Sale'
+    margin: { value: '9.40%', note: '+0.5% dibanding Q1' }
   },
   {
     id: 'cat-handphone',
     name: 'Handphone',
     note: 'Smartphone flagship & mid-range',
     fees: { marketplace: '9.5%', shopee: '7.5%', entraverse: '7.40%' },
-    margin: { value: '8.20%', trend: 'down', note: '-0.3% vs bulan lalu' },
-    bonus: null
+    margin: { value: '8.20%', note: '-0.3% vs bulan lalu' }
   },
   {
     id: 'cat-laptop',
     name: 'Laptop',
     note: 'Laptop consumer dan bisnis',
     fees: { marketplace: '10.0%', shopee: '8.0%', entraverse: '8.25%' },
-    margin: { value: '11.40%', trend: 'up', note: '+0.8% vs bulan lalu' },
-    bonus: 'Subsidi ongkir'
+    margin: { value: '11.40%', note: '+0.8% vs bulan lalu' }
   },
   {
     id: 'cat-tablet',
     name: 'Tablet',
     note: 'Tablet Android & iPad',
     fees: { marketplace: '9.8%', shopee: '7.8%', entraverse: '7.90%' },
-    margin: { value: '9.75%', trend: 'up', note: '+0.2% vs bulan lalu' },
-    bonus: null
+    margin: { value: '9.75%', note: '+0.2% vs bulan lalu' }
   },
   {
     id: 'cat-audio',
     name: 'Audio',
     note: 'Headphone, speaker, dan audio pro',
     fees: { marketplace: '8.5%', shopee: '7.0%', entraverse: '7.10%' },
-    margin: { value: '12.60%', trend: 'up', note: '+1.0% dibanding Q1' },
-    bonus: 'Bundling voucher'
+    margin: { value: '12.60%', note: '+1.0% dibanding Q1' }
   },
   {
     id: 'cat-smart-home',
     name: 'Smart Home',
     note: 'Perangkat IoT & otomasi rumah',
     fees: { marketplace: '8.0%', shopee: '6.5%', entraverse: '6.75%' },
-    margin: { value: '13.20%', trend: 'up', note: '+1.8% vs bulan lalu' },
-    bonus: null
+    margin: { value: '13.20%', note: '+1.8% vs bulan lalu' }
   },
   {
     id: 'cat-outdoor-outtam',
     name: 'Outdoor - Outtam',
     note: 'Peralatan outdoor & travelling',
     fees: { marketplace: '7.5%', shopee: '6.2%', entraverse: '6.40%' },
-    margin: { value: '10.80%', trend: 'up', note: '+0.6% dibanding Q1' },
-    bonus: 'Bonus katalog'
+    margin: { value: '10.80%', note: '+0.6% dibanding Q1' }
   },
   {
     id: 'cat-aksesoris',
     name: 'Aksesoris',
     note: 'Aksesoris gadget & lifestyle',
     fees: { marketplace: '8.8%', shopee: '6.9%', entraverse: '7.10%' },
-    margin: { value: '9.10%', trend: 'down', note: '-0.2% vs bulan lalu' },
-    bonus: null
+    margin: { value: '9.10%', note: '-0.2% vs bulan lalu' }
   }
 ];
 
@@ -364,6 +355,8 @@ function mapSupabaseCategory(record) {
 
   const fees = typeof record.fees === 'object' && record.fees ? record.fees : {};
   const margin = typeof record.margin === 'object' && record.margin ? record.margin : {};
+  const marginNote =
+    margin.note ?? margin.margin_note ?? (typeof record.margin_note === 'string' ? record.margin_note : '');
 
   return {
     id: record.id,
@@ -376,10 +369,8 @@ function mapSupabaseCategory(record) {
     },
     margin: {
       value: margin.value ?? '',
-      trend: margin.trend === 'down' ? 'down' : 'up',
-      note: margin.note ?? ''
+      note: marginNote ?? ''
     },
-    bonus: typeof record.bonus === 'string' && record.bonus.trim() ? record.bonus : null,
     createdAt: record.created_at ? new Date(record.created_at).getTime() : Date.now(),
     updatedAt: record.updated_at ? new Date(record.updated_at).getTime() : null
   };
@@ -400,10 +391,9 @@ function mapCategoryToRecord(category) {
     },
     margin: {
       value: margin.value ?? '',
-      trend: margin.trend === 'down' ? 'down' : 'up',
       note: margin.note ?? ''
     },
-    bonus: category.bonus || null,
+    bonus: null,
     created_at: toIsoTimestamp(category.createdAt) ?? new Date().toISOString(),
     updated_at: toIsoTimestamp(category.updatedAt)
   };
@@ -2570,25 +2560,17 @@ function renderCategories(filterText = '') {
   if (!filtered.length) {
     const emptyRow = document.createElement('tr');
     emptyRow.className = 'empty-state';
-    emptyRow.innerHTML = '<td colspan="7">Tidak ada kategori ditemukan.</td>';
+    emptyRow.innerHTML = '<td colspan="6">Tidak ada kategori ditemukan.</td>';
     tbody.appendChild(emptyRow);
   } else {
     filtered.forEach(category => {
       const row = document.createElement('tr');
       const safeId = escapeHtml(category.id ?? '');
-      const hasBonus = typeof category.bonus === 'string'
-        ? category.bonus.trim().toLowerCase() !== 'tidak ada' && category.bonus.trim() !== ''
-        : Boolean(category.bonus);
-      const bonusLabel = hasBonus
-        ? (typeof category.bonus === 'string' ? category.bonus : 'Bonus aktif')
-        : 'Tidak Ada';
-      const trendClass = category.margin?.trend === 'down' ? 'is-down' : 'is-up';
-      const trendSymbol = category.margin?.trend === 'down' ? '↓' : '↑';
       const noteText = category.note ?? '';
       const hasNote = noteText !== null && noteText !== undefined && noteText.toString().trim() !== '';
       const marginNoteRaw = category.margin?.note ?? '';
       const hasMarginNote = marginNoteRaw !== null && marginNoteRaw !== undefined && marginNoteRaw.toString().trim() !== '';
-      const marginNote = hasMarginNote ? `${trendSymbol} ${marginNoteRaw}` : '';
+      const marginNote = hasMarginNote ? marginNoteRaw.toString().trim() : '';
 
       row.dataset.categoryId = category.id ?? '';
       const manageDisabledAttr = canManage ? '' : 'disabled aria-disabled="true"';
@@ -2607,13 +2589,8 @@ function renderCategories(filterText = '') {
         <td>
           <div class="margin-cell">
             <span class="fee-chip fee-chip--highlight">${escapeHtml(category.margin?.value ?? '-')}</span>
-            ${hasMarginNote ? `<span class="trend-indicator ${trendClass}">${escapeHtml(marginNote)}</span>` : ''}
+            ${hasMarginNote ? `<span class="margin-note">${escapeHtml(marginNote)}</span>` : ''}
           </div>
-        </td>
-        <td>
-          <span class="status-pill ${hasBonus ? 'is-active' : 'is-muted'}">
-            ${hasBonus ? '🎯' : '—'} ${escapeHtml(typeof bonusLabel === 'string' ? bonusLabel : '')}
-          </span>
         </td>
         <td>
           <div class="table-actions">
@@ -2814,9 +2791,7 @@ function handleCategoryActions() {
   const marketplaceInput = form.querySelector('#category-fee-marketplace');
   const shopeeInput = form.querySelector('#category-fee-shopee');
   const entraverseInput = form.querySelector('#category-fee-entraverse');
-  const bonusInput = form.querySelector('#category-bonus');
   const marginValueInput = form.querySelector('#category-margin-value');
-  const marginTrendInput = form.querySelector('#category-margin-trend');
   const marginNoteInput = form.querySelector('#category-margin-note');
   const submitBtn = form.querySelector('button[type="submit"]');
   const searchInput = document.getElementById('search-input');
@@ -2846,9 +2821,6 @@ function handleCategoryActions() {
   const fillForm = category => {
     if (!category) {
       form.reset();
-      if (marginTrendInput) {
-        marginTrendInput.value = 'up';
-      }
       return;
     }
 
@@ -2857,9 +2829,7 @@ function handleCategoryActions() {
     if (marketplaceInput) marketplaceInput.value = category.fees?.marketplace ?? '';
     if (shopeeInput) shopeeInput.value = category.fees?.shopee ?? '';
     if (entraverseInput) entraverseInput.value = category.fees?.entraverse ?? '';
-    if (bonusInput) bonusInput.value = typeof category.bonus === 'string' ? category.bonus : '';
     if (marginValueInput) marginValueInput.value = category.margin?.value ?? '';
-    if (marginTrendInput) marginTrendInput.value = category.margin?.trend === 'down' ? 'down' : 'up';
     if (marginNoteInput) marginNoteInput.value = category.margin?.note ?? '';
   };
 
@@ -2874,9 +2844,6 @@ function handleCategoryActions() {
   const openModal = category => {
     const isEditing = Boolean(category);
     form.reset();
-    if (marginTrendInput) {
-      marginTrendInput.value = 'up';
-    }
     if (isEditing) {
       form.dataset.editingId = category.id;
       modalTitle.textContent = 'Edit Kategori';
@@ -2964,9 +2931,7 @@ function handleCategoryActions() {
     const feeMarketplace = (formData.get('feeMarketplace') ?? '').toString().trim();
     const feeShopee = (formData.get('feeShopee') ?? '').toString().trim();
     const feeEntraverse = (formData.get('feeEntraverse') ?? '').toString().trim();
-    const bonus = (formData.get('bonus') ?? '').toString().trim();
     const marginValue = (formData.get('marginValue') ?? '').toString().trim();
-    const marginTrend = (formData.get('marginTrend') ?? 'up').toString();
     const marginNote = (formData.get('marginNote') ?? '').toString().trim();
 
     if (!name) {
@@ -2999,10 +2964,8 @@ function handleCategoryActions() {
       },
       margin: {
         value: marginValue,
-        trend: marginTrend === 'down' ? 'down' : 'up',
         note: marginNote
-      },
-      bonus: bonus || null
+      }
     };
 
     const timestamp = Date.now();

@@ -24,7 +24,6 @@ Halaman admin Entraverse kini menggunakan Supabase sebagai basis data untuk aute
      note text,
      fees jsonb default '{}'::jsonb,
      margin jsonb default '{}'::jsonb,
-     bonus text,
      created_at timestamptz not null default timezone('utc', now()),
      updated_at timestamptz
    );

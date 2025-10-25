@@ -370,7 +370,7 @@ body.sidebar-open .sidebar-backdrop {
   color: var(--color-sidebar-text);
   display: flex;
   flex-direction: column;
-  padding: 32px 24px;
+  padding: 32px 24px 16px;
   gap: 24px;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -1216,45 +1216,10 @@ a.action-icon {
   align-items: flex-start;
 }
 
-.trend-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.margin-note {
   font-size: 12px;
   font-weight: 500;
   color: var(--color-muted);
-}
-
-.trend-indicator.is-up {
-  color: var(--color-success);
-}
-
-.trend-indicator.is-down {
-  color: var(--color-danger);
-}
-
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 500;
-  background: var(--color-icon-bg);
-  border: 1px solid var(--color-icon-border);
-  color: var(--color-muted);
-}
-
-.status-pill.is-active {
-  background: rgba(16, 185, 129, 0.16);
-  border-color: rgba(16, 185, 129, 0.4);
-  color: var(--color-success);
-}
-
-.status-pill.is-muted {
-  background: transparent;
-  border-color: var(--color-border);
 }
 
 .card-subtitle {
