@@ -623,6 +623,41 @@ body[data-theme="dark"] .menu-toggle:focus-visible {
   gap: 16px;
 }
 
+.auth-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.auth-buttons .btn {
+  white-space: nowrap;
+}
+
+.profile-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.avatar-button {
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+
+.avatar-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+
 .avatar {
   width: 40px;
   height: 40px;
@@ -632,6 +667,67 @@ body[data-theme="dark"] .menu-toggle:focus-visible {
   display: grid;
   place-items: center;
   font-weight: 600;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.avatar-button:hover .avatar,
+.avatar-button:focus-visible .avatar {
+  background: var(--color-icon-hover);
+  transform: translateY(-1px);
+}
+
+.profile-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 12px);
+  min-width: 220px;
+  padding: 16px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 20;
+}
+
+.profile-dropdown::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  right: 18px;
+  width: 14px;
+  height: 14px;
+  background: inherit;
+  border-left: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-border);
+  transform: rotate(45deg);
+  border-top-left-radius: 4px;
+}
+
+.profile-greeting {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.profile-greeting span {
+  color: var(--color-primary);
+}
+
+.profile-dropdown .btn {
+  width: 100%;
+}
+
+body[data-theme="dark"] .profile-dropdown {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.5);
+}
+
+body[data-theme="dark"] .profile-dropdown::before {
+  border-color: var(--color-border);
 }
 
 .content-header {

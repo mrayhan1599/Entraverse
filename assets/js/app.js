@@ -1643,6 +1643,26 @@ function getGuestUser() {
   return { ...GUEST_USER };
 }
 
+function isGuestUser(user) {
+  return !user || user.id === GUEST_USER.id;
+}
+
+function getNameInitials(name) {
+  if (!name) {
+    return '??';
+  }
+
+  return name
+    .toString()
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(part => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || '??';
+}
+
 function getCurrentUser() {
   const session = getData(STORAGE_KEYS.session, null);
   if (!session || !session.user) {
@@ -2990,23 +3010,102 @@ function handleSync() {
   });
 }
 
-function handleLogout() {
-  const button = document.getElementById('logout-btn');
-  if (!button) return;
+function initTopbarAuth() {
+  const profileMenu = document.querySelector('[data-profile-menu]');
+  const profileToggle = document.querySelector('[data-profile-toggle]');
+  const profileDropdown = document.querySelector('[data-profile-dropdown]');
+  const profileName = profileDropdown?.querySelector('[data-profile-name]') || null;
+  const guestActions = document.querySelector('[data-guest-actions]');
+  const logoutButton = document.querySelector('[data-logout]');
 
-  button.addEventListener('click', () => {
-    setCurrentUser(null);
-    const guest = getGuestUser();
-    document.querySelectorAll('.avatar').forEach(el => {
-      el.textContent = guest.name
-        .split(' ')
-        .map(part => part[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
+  if (!profileMenu && !guestActions) {
+    return { update() {} };
+  }
+
+  let dropdownOpen = false;
+
+  const setHidden = (element, hidden) => {
+    if (!element) return;
+    element.hidden = hidden;
+    if (hidden) {
+      element.setAttribute('aria-hidden', 'true');
+    } else {
+      element.removeAttribute('aria-hidden');
+    }
+  };
+
+  const closeDropdown = () => {
+    if (!profileDropdown) return;
+    setHidden(profileDropdown, true);
+    dropdownOpen = false;
+    profileToggle?.setAttribute('aria-expanded', 'false');
+  };
+
+  const openDropdown = () => {
+    if (!profileDropdown) return;
+    setHidden(profileDropdown, false);
+    dropdownOpen = true;
+    profileToggle?.setAttribute('aria-expanded', 'true');
+  };
+
+  if (profileToggle && profileDropdown) {
+    profileToggle.addEventListener('click', () => {
+      if (dropdownOpen) {
+        closeDropdown();
+      } else {
+        openDropdown();
+      }
     });
-    toast.show('Anda sekarang menjelajah sebagai tamu.');
+  }
+
+  document.addEventListener('click', event => {
+    if (!dropdownOpen) return;
+    if (!profileMenu) return;
+    if (profileMenu.contains(event.target)) return;
+    closeDropdown();
   });
+
+  document.addEventListener('keydown', event => {
+    if (!dropdownOpen) return;
+    if (event.key !== 'Escape') return;
+    closeDropdown();
+    profileToggle?.focus();
+  });
+
+  const updateTopbarUser = user => {
+    const guest = getGuestUser();
+    const activeUser = user && !isGuestUser(user) ? user : guest;
+    const isGuest = isGuestUser(user);
+
+    if (isGuest) {
+      closeDropdown();
+    }
+
+    setHidden(profileMenu, isGuest);
+    setHidden(guestActions, !isGuest);
+
+    const name = (activeUser.name || '').toString().trim() || guest.name;
+    const initials = getNameInitials(name);
+
+    document.querySelectorAll('[data-avatar-initials]').forEach(el => {
+      el.textContent = initials;
+    });
+
+    if (profileName) {
+      profileName.textContent = name;
+    }
+  };
+
+  if (logoutButton) {
+    logoutButton.addEventListener('click', () => {
+      setCurrentUser(null);
+      updateTopbarUser(getGuestUser());
+      closeDropdown();
+      toast.show('Anda sekarang menjelajah sebagai tamu.');
+    });
+  }
+
+  return { update: updateTopbarUser };
 }
 
 function populateCategorySelect(select, { selectedValue, helperEl } = {}) {
@@ -4488,7 +4587,8 @@ async function initCategories() {
 function initPage() {
   document.addEventListener('DOMContentLoaded', async () => {
     const page = document.body.dataset.page;
-    handleLogout();
+    const topbarAuth = initTopbarAuth();
+    topbarAuth.update(getGuestUser());
     setupThemeControls();
 
     if (page === 'login') {
@@ -4509,15 +4609,11 @@ function initPage() {
       setupSidebarToggle();
       setupSidebarCollapse();
       const user = await ensureAuthenticatedPage();
-      if (!user) return;
-      document.querySelectorAll('.avatar').forEach(el => {
-        el.textContent = user.name
-          .split(' ')
-          .map(part => part[0])
-          .join('')
-          .slice(0, 2)
-          .toUpperCase();
-      });
+      if (!user) {
+        topbarAuth.update(getGuestUser());
+        return;
+      }
+      topbarAuth.update(user);
     }
 
     if (page === 'dashboard') {
