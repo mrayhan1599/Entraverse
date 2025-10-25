@@ -157,6 +157,9 @@
               <p class="field-hint" id="exchange-rate-info" aria-live="polite">Pilih mata uang untuk memuat kurs Bank Indonesia.</p>
               <label class="visually-hidden" for="exchange-rate">Nilai kurs Bank Indonesia</label>
               <input type="number" id="exchange-rate" name="exchangeRate" placeholder="Otomatis dari Bank Indonesia" min="0" step="0.01" inputmode="decimal" aria-describedby="exchange-rate-info">
+              <label class="visually-hidden" for="exchange-rate-total">Harga beli dikalikan kurs</label>
+              <input type="text" id="exchange-rate-total" placeholder="Hasil harga beli × kurs" readonly aria-describedby="exchange-rate-info">
+              <p class="field-hint">Nilai ini dihitung otomatis dari Harga Beli dikalikan Kurs dan tidak dapat diedit.</p>
             </div>
           </div>
           <div class="form-row">

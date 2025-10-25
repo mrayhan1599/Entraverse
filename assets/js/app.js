@@ -2257,6 +2257,8 @@ function handleAddProductForm() {
   const exchangeRateSelect = form.querySelector('#exchange-rate-currency');
   const exchangeRateInput = form.querySelector('#exchange-rate');
   const exchangeRateInfo = document.getElementById('exchange-rate-info');
+  const purchasePriceInput = form.querySelector('#purchase-price');
+  const exchangeRateTotalInput = form.querySelector('#exchange-rate-total');
   const params = new URLSearchParams(window.location.search);
   const editingId = params.get('id');
   let suppressPricingRefresh = false;
@@ -2295,18 +2297,31 @@ function handleAddProductForm() {
     }).format(value);
   };
 
+  const updatePurchasePriceConversion = () => {
+    if (!exchangeRateTotalInput) {
+      return;
+    }
+
+    const purchasePriceValue = parseNumericValue(purchasePriceInput?.value);
+    const exchangeRateValue = parseNumericValue(exchangeRateInput?.value);
+
+    if (Number.isFinite(purchasePriceValue) && Number.isFinite(exchangeRateValue)) {
+      const totalValue = purchasePriceValue * exchangeRateValue;
+      const formatted = formatRateForDisplay(totalValue);
+      exchangeRateTotalInput.value = formatted ?? totalValue.toString();
+    } else {
+      exchangeRateTotalInput.value = '';
+    }
+  };
+
   const updateExchangeRateInfo = ({ force = false } = {}) => {
     if (exchangeRateInput) {
       const currency = getSelectedCurrency();
       const shouldSyncInput = force || exchangeRateInput.dataset.userEdited !== 'true';
-      if (currency === 'IDR') {
-        exchangeRateInput.setAttribute('readonly', 'readonly');
-        if (shouldSyncInput) {
+      if (shouldSyncInput) {
+        if (currency === 'IDR') {
           exchangeRateInput.value = '1';
-        }
-      } else {
-        exchangeRateInput.removeAttribute('readonly');
-        if (shouldSyncInput) {
+        } else {
           const entry = exchangeRateState.rates.get(currency);
           if (entry && Number.isFinite(entry.rate)) {
             exchangeRateInput.value = entry.rate.toString();
@@ -2316,6 +2331,8 @@ function handleAddProductForm() {
         }
       }
     }
+
+    updatePurchasePriceConversion();
 
     if (!exchangeRateInfo) {
       return;
@@ -2533,6 +2550,12 @@ function handleAddProductForm() {
     exchangeRateInput.addEventListener('input', () => {
       exchangeRateInput.dataset.userEdited = 'true';
       updateExchangeRateInfo();
+    });
+  }
+
+  if (purchasePriceInput) {
+    purchasePriceInput.addEventListener('input', () => {
+      updatePurchasePriceConversion();
     });
   }
 
