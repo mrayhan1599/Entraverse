@@ -190,7 +190,7 @@ const DEFAULT_CATEGORIES = [
     margin: { value: '9.10%', trend: 'down', note: '-0.2% vs bulan lalu' },
     bonus: null
   }
-
+];
 
 const SUPABASE_TABLES = Object.freeze({
   users: 'users',
