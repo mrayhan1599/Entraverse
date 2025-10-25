@@ -3023,6 +3023,7 @@ function initTopbarAuth() {
   }
 
   let dropdownOpen = false;
+  let lastUserId = null;
 
   const setHidden = (element, hidden) => {
     if (!element) return;
@@ -3074,10 +3075,11 @@ function initTopbarAuth() {
 
   const updateTopbarUser = user => {
     const guest = getGuestUser();
-    const activeUser = user && !isGuestUser(user) ? user : guest;
     const isGuest = isGuestUser(user);
+    const activeUser = user && !isGuest ? user : guest;
+    const shouldCloseDropdown = isGuest || activeUser?.id !== lastUserId;
 
-    if (isGuest) {
+    if (shouldCloseDropdown) {
       closeDropdown();
     }
 
@@ -3094,6 +3096,8 @@ function initTopbarAuth() {
     if (profileName) {
       profileName.textContent = name;
     }
+
+    lastUserId = activeUser?.id ?? null;
   };
 
   if (logoutButton) {
@@ -4588,7 +4592,8 @@ function initPage() {
   document.addEventListener('DOMContentLoaded', async () => {
     const page = document.body.dataset.page;
     const topbarAuth = initTopbarAuth();
-    topbarAuth.update(getGuestUser());
+    const initialUser = getCurrentUser();
+    topbarAuth.update(initialUser ?? getGuestUser());
     setupThemeControls();
 
     if (page === 'login') {
