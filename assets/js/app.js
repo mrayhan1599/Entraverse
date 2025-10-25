@@ -3362,10 +3362,35 @@ async function handleAddProductForm() {
     }
 
     if (exchangeRateInput) {
-      if (Number.isFinite(appliedRate) && appliedRate > 0) {
-        setExchangeRateInputValue(exchangeRateInput, appliedRate);
-      } else {
-        setExchangeRateInputValue(exchangeRateInput, '');
+      const overrideCurrency = (exchangeRateInput.dataset.overrideCurrency || '').toUpperCase();
+      const hasManualValue = Number.isFinite(parseNumericValue(exchangeRateInput.dataset.numericValue));
+      const shouldPreserveManual =
+        exchangeRateInput.dataset.userOverride === 'true' &&
+        hasManualValue &&
+        (overrideCurrency === normalizedCurrency || (!overrideCurrency && !normalizedCurrency));
+
+      if (!shouldPreserveManual) {
+        if (Number.isFinite(appliedRate) && appliedRate > 0) {
+          setExchangeRateInputValue(exchangeRateInput, appliedRate);
+          exchangeRateInput.dataset.rateSource = 'auto';
+          if (normalizedCurrency) {
+            exchangeRateInput.dataset.appliedCurrency = normalizedCurrency;
+          } else {
+            delete exchangeRateInput.dataset.appliedCurrency;
+          }
+          delete exchangeRateInput.dataset.userOverride;
+          delete exchangeRateInput.dataset.overrideCurrency;
+        } else {
+          setExchangeRateInputValue(exchangeRateInput, '');
+          delete exchangeRateInput.dataset.rateSource;
+          if (normalizedCurrency) {
+            exchangeRateInput.dataset.appliedCurrency = normalizedCurrency;
+          } else {
+            delete exchangeRateInput.dataset.appliedCurrency;
+          }
+          delete exchangeRateInput.dataset.userOverride;
+          delete exchangeRateInput.dataset.overrideCurrency;
+        }
       }
     }
 
@@ -3869,10 +3894,30 @@ async function handleAddProductForm() {
       syncExchangeRateDatasetFromInput(exchangeRateInput);
       exchangeRateInput.addEventListener('input', () => {
         syncExchangeRateDatasetFromInput(exchangeRateInput);
+        if (exchangeRateInput.value?.toString().trim()) {
+          const activeCurrency = currencySelect?.value?.toString().trim().toUpperCase() || '';
+          exchangeRateInput.dataset.userOverride = 'true';
+          exchangeRateInput.dataset.rateSource = 'manual';
+          if (activeCurrency) {
+            exchangeRateInput.dataset.overrideCurrency = activeCurrency;
+          } else {
+            delete exchangeRateInput.dataset.overrideCurrency;
+          }
+        } else {
+          delete exchangeRateInput.dataset.userOverride;
+          delete exchangeRateInput.dataset.rateSource;
+          delete exchangeRateInput.dataset.overrideCurrency;
+        }
         recalculatePurchasePriceIdr(row);
       });
       exchangeRateInput.addEventListener('blur', () => {
         syncExchangeRateDatasetFromInput(exchangeRateInput);
+        const numericValue = parseNumericValue(exchangeRateInput.dataset.numericValue || '');
+        if (!Number.isFinite(numericValue) || numericValue <= 0) {
+          delete exchangeRateInput.dataset.userOverride;
+          delete exchangeRateInput.dataset.rateSource;
+          delete exchangeRateInput.dataset.overrideCurrency;
+        }
       });
     }
 
