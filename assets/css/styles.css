@@ -1369,7 +1369,7 @@ input:checked + .slider:before {
 .variant-pricing-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 960px;
+  min-width: 1280px;
 }
 
 .variant-table th,
@@ -1401,7 +1401,7 @@ input:checked + .slider:before {
 .variant-pricing-table input,
 .variant-pricing-table select {
   width: 100%;
-  min-width: 150px;
+  min-width: 120px;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
@@ -1445,7 +1445,7 @@ input:checked + .slider:before {
 }
 
 .variant-pricing-table .numeric-input {
-  min-width: 120px;
+  min-width: 110px;
 }
 
 .variant-pricing-table select:disabled {
@@ -1751,7 +1751,7 @@ body.modal-open {
   }
 
   .variant-pricing-table {
-    min-width: 760px;
+    min-width: 1000px;
   }
 
   .variant-pricing-table input,
@@ -1838,7 +1838,7 @@ body.modal-open {
   .variant-table,
   .variant-pricing-table,
   .product-table {
-    min-width: 520px;
+    min-width: 680px;
   }
 
   .auth-form,
