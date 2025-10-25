@@ -24,7 +24,6 @@ Halaman admin Entraverse kini menggunakan Supabase sebagai basis data untuk aute
      note text,
      fees jsonb default '{}'::jsonb,
      margin jsonb default '{}'::jsonb,
-     bonus text,
      created_at timestamptz not null default timezone('utc', now()),
      updated_at timestamptz
    );
@@ -66,6 +65,16 @@ Halaman admin Entraverse kini menggunakan Supabase sebagai basis data untuk aute
    Anda dapat menaruh konfigurasi ini di satu file terpisah dan memuatnya sebelum `assets/js/app.js` bila diperlukan.
 
 3. Setelah konfigurasi benar, aplikasi akan otomatis melakukan seeding data awal (produk dan kategori contoh) saat pertama kali dijalankan.
+
+> **Catatan migrasi:** Jika Anda sebelumnya sudah memiliki data kategori lama (dengan kolom *Bonus* atau *Tren Margin*), versi aplikasi ini akan otomatis menormalkan ulang setiap baris kategori pada saat startup. Tidak ada langkah manual yang wajib dilakukan. Apabila Anda ingin merapikan skema tabel, Anda dapat menjalankan perintah berikut di SQL Editor Supabase setelah memastikan semua data sudah tersinkron:
+
+```sql
+alter table public.categories drop column if exists bonus;
+alter table public.categories drop column if exists margin_trend;
+alter table public.categories drop column if exists margin_note;
+```
+
+Perintah di atas bersifat opsional; aplikasi akan tetap berjalan tanpa perlu dijalankan.
 
 ### Pengembangan lokal
 
