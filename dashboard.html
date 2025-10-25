@@ -47,28 +47,11 @@
           </a>
         </div>
         <div class="sidebar-theme">
-          <div class="theme-switcher theme-switcher--sidebar" data-theme-control>
-            <button class="theme-switcher__button" type="button" aria-haspopup="listbox" aria-expanded="false" data-theme-trigger>
+          <div class="theme-switcher theme-switcher--sidebar" data-theme-control data-theme-cycle="system,light,dark">
+            <button class="theme-switcher__button" type="button" data-theme-trigger aria-label="Ganti mode tampilan">
               <span class="theme-switcher__icon" aria-hidden="true" data-theme-icon></span>
-              <span class="theme-switcher__label" data-theme-label>Auto (System)</span>
-              <svg class="theme-switcher__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="m8.5 10 3.5 4 3.5-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-              </svg>
+              <span class="theme-switcher__label" data-theme-label aria-live="polite">Auto (System)</span>
             </button>
-            <ul class="theme-switcher__menu" role="listbox" aria-label="Pilih mode tampilan">
-              <li class="theme-switcher__option" role="option" tabindex="-1" aria-selected="false" data-theme-option="system">
-                <span class="theme-switcher__option-icon" aria-hidden="true" data-theme-option-icon></span>
-                <span>Auto (System)</span>
-              </li>
-              <li class="theme-switcher__option" role="option" tabindex="-1" aria-selected="false" data-theme-option="light">
-                <span class="theme-switcher__option-icon" aria-hidden="true" data-theme-option-icon></span>
-                <span>Light Mode</span>
-              </li>
-              <li class="theme-switcher__option" role="option" tabindex="-1" aria-selected="false" data-theme-option="dark">
-                <span class="theme-switcher__option-icon" aria-hidden="true" data-theme-option-icon></span>
-                <span>Dark Mode</span>
-              </li>
-            </ul>
           </div>
         </div>
       </nav>
