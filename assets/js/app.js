@@ -2527,7 +2527,7 @@ async function ensureAuthenticatedPage() {
 
   const sessionUser = getCurrentUser();
   if (!sessionUser) {
-    return getGuestUser();
+    return null;
   }
 
   try {
@@ -2547,7 +2547,7 @@ async function ensureAuthenticatedPage() {
     return sessionUser;
   }
 
-  return getGuestUser();
+  return null;
 }
 
 function renderCategories(filterText = '') {
@@ -4743,7 +4743,10 @@ function initPage() {
       setupSidebarCollapse();
       const user = await ensureAuthenticatedPage();
       if (!user) {
-        topbarAuth.update(getGuestUser());
+        toast.show('Sesi Anda telah berakhir. Silakan login kembali.');
+        setTimeout(() => {
+          window.location.href = 'index.html';
+        }, 600);
         return;
       }
       topbarAuth.update(user);
