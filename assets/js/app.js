@@ -2254,11 +2254,6 @@ function handleAddProductForm() {
   const submitBtn = form.querySelector('.primary-btn');
   const categorySelect = form.querySelector('#product-category');
   const categoryHelper = document.getElementById('category-helper-text');
-  const exchangeRateSelect = form.querySelector('#exchange-rate-currency');
-  const exchangeRateInput = form.querySelector('#exchange-rate');
-  const exchangeRateInfo = document.getElementById('exchange-rate-info');
-  const purchasePriceInput = form.querySelector('#purchase-price');
-  const exchangeRateTotalInput = form.querySelector('#exchange-rate-total');
   const params = new URLSearchParams(window.location.search);
   const editingId = params.get('id');
   let suppressPricingRefresh = false;
@@ -2272,19 +2267,6 @@ function handleAddProductForm() {
   };
   let exchangeRateRefreshTimerId = null;
 
-  const getSelectedCurrency = () => {
-    const value = exchangeRateSelect?.value ?? 'IDR';
-    return BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(value) ? value : 'IDR';
-  };
-
-  const getInputRateValue = () => {
-    if (!exchangeRateInput) {
-      return null;
-    }
-    const value = parseNumericValue(exchangeRateInput.value);
-    return Number.isFinite(value) ? value : null;
-  };
-
   const formatRateForDisplay = value => {
     if (!Number.isFinite(value)) {
       return null;
@@ -2297,93 +2279,64 @@ function handleAddProductForm() {
     }).format(value);
   };
 
-  const updatePurchasePriceConversion = () => {
-    if (!exchangeRateTotalInput) {
-      return;
-    }
+  const getPricingRows = () => Array.from(pricingBody?.querySelectorAll('.pricing-row') ?? []);
 
-    const purchasePriceValue = parseNumericValue(purchasePriceInput?.value);
-    const exchangeRateValue = parseNumericValue(exchangeRateInput?.value);
+  const getSelectedCurrency = select => {
+    const value = select?.value ?? 'IDR';
+    return BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(value) ? value : 'IDR';
+  };
 
-    if (Number.isFinite(purchasePriceValue) && Number.isFinite(exchangeRateValue)) {
-      const totalValue = purchasePriceValue * exchangeRateValue;
+  const updateRowPurchaseConversion = row => {
+    if (!row) return;
+    const purchaseInput = row.querySelector('[data-field="purchasePrice"]');
+    const rateInput = row.querySelector('[data-field="exchangeRate"]');
+    const totalInput = row.querySelector('[data-field="purchasePriceIdr"]');
+    if (!totalInput) return;
+
+    const purchaseValue = parseNumericValue(purchaseInput?.value);
+    const rateValue = parseNumericValue(rateInput?.value);
+
+    if (Number.isFinite(purchaseValue) && Number.isFinite(rateValue)) {
+      const totalValue = purchaseValue * rateValue;
       const formatted = formatRateForDisplay(totalValue);
-      exchangeRateTotalInput.value = formatted ?? totalValue.toString();
+      totalInput.value = formatted ?? totalValue.toString();
     } else {
-      exchangeRateTotalInput.value = '';
+      totalInput.value = '';
     }
   };
 
-  const updateExchangeRateInfo = ({ force = false } = {}) => {
-    if (exchangeRateInput) {
-      const currency = getSelectedCurrency();
-      const shouldSyncInput = force || exchangeRateInput.dataset.userEdited !== 'true';
-      if (shouldSyncInput) {
-        if (currency === 'IDR') {
-          exchangeRateInput.value = '1';
-        } else {
-          const entry = exchangeRateState.rates.get(currency);
-          if (entry && Number.isFinite(entry.rate)) {
-            exchangeRateInput.value = entry.rate.toString();
-          } else {
-            exchangeRateInput.value = '';
-          }
+  const syncRowExchangeRate = (row, { force = false } = {}) => {
+    if (!row) return;
+    const currencySelect = row.querySelector('[data-field="purchaseCurrency"]');
+    const rateInput = row.querySelector('[data-field="exchangeRate"]');
+    if (!currencySelect || !rateInput) {
+      updateRowPurchaseConversion(row);
+      return;
+    }
+
+    const currency = getSelectedCurrency(currencySelect);
+    const shouldSync = force || rateInput.dataset.userEdited !== 'true';
+
+    if (shouldSync) {
+      if (currency === 'IDR') {
+        rateInput.value = '1';
+        delete rateInput.dataset.userEdited;
+      } else {
+        const entry = exchangeRateState.rates.get(currency);
+        if (entry && Number.isFinite(entry.rate)) {
+          rateInput.value = entry.rate.toString();
+          delete rateInput.dataset.userEdited;
+        } else if (!exchangeRateState.loading) {
+          rateInput.value = '';
         }
       }
     }
 
-    updatePurchasePriceConversion();
+    updateRowPurchaseConversion(row);
+  };
 
-    if (!exchangeRateInfo) {
-      return;
-    }
-
-    if (exchangeRateState.loading) {
-      exchangeRateInfo.textContent = 'Memuat kurs Bank Indonesia...';
-      return;
-    }
-
-    const currency = getSelectedCurrency();
-    if (currency === 'IDR') {
-      exchangeRateInfo.textContent = 'Kurs Bank Indonesia: 1 IDR = Rp 1';
-      return;
-    }
-
-    const entry = exchangeRateState.rates.get(currency);
-    const inputRate = getInputRateValue();
-
-    if (entry && Number.isFinite(entry.rate)) {
-      const formattedRate = formatRateForDisplay(inputRate ?? entry.rate);
-      const effectiveDate = entry.date || exchangeRateState.lastUpdated;
-      const dateText = effectiveDate
-        ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(effectiveDate)
-        : '';
-      const rateLabel = BANK_INDONESIA_RATE_TYPE_LABELS[entry.rateType] ?? BANK_INDONESIA_RATE_TYPE_LABELS.sell;
-      if (formattedRate) {
-        const detailParts = [];
-        if (rateLabel) {
-          detailParts.push(rateLabel);
-        }
-        if (dateText) {
-          detailParts.push(dateText);
-        }
-        const detail = detailParts.length ? ` (${detailParts.join(', ')})` : '';
-        exchangeRateInfo.textContent = `Kurs Bank Indonesia: 1 ${currency} = ${formattedRate}${detail}.`;
-        return;
-      }
-    }
-
-    if (Number.isFinite(inputRate)) {
-      const formattedManualRate = formatRateForDisplay(inputRate);
-      if (formattedManualRate) {
-        exchangeRateInfo.textContent = `Kurs ${currency} diisi manual: 1 ${currency} = ${formattedManualRate}.`;
-        return;
-      }
-    }
-
-    exchangeRateInfo.textContent = exchangeRateState.error
-      ? exchangeRateState.error
-      : `Kurs Bank Indonesia untuk ${currency} belum tersedia. Isi nilai kurs secara manual jika diperlukan.`;
+  const updateAllPricingRows = ({ force = false } = {}) => {
+    getPricingRows().forEach(row => syncRowExchangeRate(row, { force }));
   };
 
   const scheduleNextExchangeRateRefresh = targetTime => {
@@ -2412,10 +2365,6 @@ function handleAddProductForm() {
   };
 
   const loadBankIndonesiaRates = async ({ ignoreCache = false } = {}) => {
-    if (!exchangeRateSelect) {
-      return;
-    }
-
     if (!ignoreCache) {
       const cached = readBankIndonesiaRatesCache();
       if (cached) {
@@ -2425,8 +2374,7 @@ function handleAddProductForm() {
         exchangeRateState.error = null;
         exchangeRateState.loading = false;
         scheduleNextExchangeRateRefresh(cached.expiresAt);
-        const forceUpdate = exchangeRateInput?.dataset.userEdited !== 'true';
-        updateExchangeRateInfo({ force: forceUpdate });
+        updateAllPricingRows();
         return;
       }
     }
@@ -2434,7 +2382,6 @@ function handleAddProductForm() {
     exchangeRateState.loading = true;
     exchangeRateState.error = null;
     exchangeRateState.source = null;
-    updateExchangeRateInfo();
 
     let nextRefreshTime = null;
 
@@ -2527,37 +2474,10 @@ function handleAddProductForm() {
       exchangeRateState.error = 'Gagal memuat kurs Bank Indonesia. Masukkan nilai kurs secara manual bila diperlukan.';
     } finally {
       exchangeRateState.loading = false;
-      const forceUpdate = exchangeRateInput?.dataset.userEdited !== 'true';
-      updateExchangeRateInfo({ force: forceUpdate });
+      updateAllPricingRows();
       scheduleNextExchangeRateRefresh(nextRefreshTime);
     }
   };
-
-  if (exchangeRateInfo) {
-    exchangeRateInfo.textContent = 'Pilih mata uang untuk memuat kurs Bank Indonesia.';
-  }
-
-  if (exchangeRateSelect) {
-    exchangeRateSelect.addEventListener('change', () => {
-      if (exchangeRateInput) {
-        delete exchangeRateInput.dataset.userEdited;
-      }
-      updateExchangeRateInfo({ force: true });
-    });
-  }
-
-  if (exchangeRateInput) {
-    exchangeRateInput.addEventListener('input', () => {
-      exchangeRateInput.dataset.userEdited = 'true';
-      updateExchangeRateInfo();
-    });
-  }
-
-  if (purchasePriceInput) {
-    purchasePriceInput.addEventListener('input', () => {
-      updatePurchasePriceConversion();
-    });
-  }
 
   loadBankIndonesiaRates().catch(error => {
     console.error('Tidak dapat memuat kurs Bank Indonesia', error);
@@ -2760,6 +2680,10 @@ function handleAddProductForm() {
 
       const data = {
         id: row.dataset.pricingId || null,
+        purchasePrice: getValue('[data-field="purchasePrice"]'),
+        purchaseCurrency: getValue('[data-field="purchaseCurrency"]'),
+        exchangeRate: getValue('[data-field="exchangeRate"]'),
+        purchasePriceIdr: getValue('[data-field="purchasePriceIdr"]'),
         supplierPrice: getValue('[data-field="supplierPrice"]'),
         offlinePrice: getValue('[data-field="offlinePrice"]'),
         entraversePrice: getValue('[data-field="entraversePrice"]'),
@@ -2840,6 +2764,9 @@ function handleAddProductForm() {
     }
 
     [
+      'purchasePrice',
+      'exchangeRate',
+      'purchasePriceIdr',
       'supplierPrice',
       'offlinePrice',
       'entraversePrice',
@@ -2852,8 +2779,28 @@ function handleAddProductForm() {
       const input = row.querySelector(`[data-field="${field}"]`);
       if (input && initialData[field] !== undefined && initialData[field] !== null) {
         input.value = initialData[field];
+        if (field === 'exchangeRate') {
+          input.dataset.userEdited = 'true';
+        }
       }
     });
+
+    const currencyInput = row.querySelector('[data-field="purchaseCurrency"]');
+    if (currencyInput) {
+      const rawValue = (initialData.purchaseCurrency ?? 'IDR').toString().trim().toUpperCase();
+      const finalValue = BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(rawValue) ? rawValue : 'IDR';
+      currencyInput.value = finalValue;
+      if (currencyInput.value !== finalValue) {
+        const option = document.createElement('option');
+        option.value = finalValue;
+        option.textContent = finalValue;
+        option.dataset.temporaryOption = 'true';
+        currencyInput.appendChild(option);
+        currencyInput.value = finalValue;
+      }
+    }
+
+    updateRowPurchaseConversion(row);
   }
 
   function createPricingRow(initialData = {}, variantDefs = getVariantDefinitions(), options = {}) {
@@ -2884,6 +2831,57 @@ function handleAddProductForm() {
         row.appendChild(cell);
       });
     }
+
+    const purchaseCell = document.createElement('td');
+    const purchaseInput = document.createElement('input');
+    purchaseInput.type = 'number';
+    purchaseInput.placeholder = '0';
+    purchaseInput.min = '0';
+    purchaseInput.step = '0.01';
+    purchaseInput.inputMode = 'decimal';
+    purchaseInput.classList.add('numeric-input');
+    purchaseInput.dataset.field = 'purchasePrice';
+    purchaseCell.appendChild(purchaseInput);
+    row.appendChild(purchaseCell);
+
+    const currencyCell = document.createElement('td');
+    const currencySelect = document.createElement('select');
+    currencySelect.dataset.field = 'purchaseCurrency';
+    const currencyOptions = [
+      { value: 'IDR', label: 'IDR - Rupiah' },
+      { value: 'USD', label: 'USD - Dolar Amerika Serikat' },
+      { value: 'SGD', label: 'SGD - Dolar Singapura' },
+      { value: 'EUR', label: 'EUR - Euro' }
+    ];
+    currencyOptions.forEach(option => {
+      const opt = document.createElement('option');
+      opt.value = option.value;
+      opt.textContent = option.label;
+      currencySelect.appendChild(opt);
+    });
+    currencyCell.appendChild(currencySelect);
+    row.appendChild(currencyCell);
+
+    const rateCell = document.createElement('td');
+    const rateInput = document.createElement('input');
+    rateInput.type = 'number';
+    rateInput.placeholder = 'Kurs';
+    rateInput.min = '0';
+    rateInput.step = '0.01';
+    rateInput.inputMode = 'decimal';
+    rateInput.dataset.field = 'exchangeRate';
+    rateCell.appendChild(rateInput);
+    row.appendChild(rateCell);
+
+    const totalCell = document.createElement('td');
+    const totalInput = document.createElement('input');
+    totalInput.type = 'text';
+    totalInput.placeholder = 'Rp 0';
+    totalInput.readOnly = true;
+    totalInput.dataset.field = 'purchasePriceIdr';
+    totalInput.classList.add('numeric-input');
+    totalCell.appendChild(totalInput);
+    row.appendChild(totalCell);
 
     const buildInputCell = (field, placeholder, type = 'text') => {
       const cell = document.createElement('td');
@@ -2928,6 +2926,31 @@ function handleAddProductForm() {
 
     pricingBody.appendChild(row);
     hydratePricingRow(row, initialData, variantDefs);
+
+    if (purchaseInput) {
+      purchaseInput.addEventListener('input', () => {
+        updateRowPurchaseConversion(row);
+      });
+    }
+
+    if (rateInput) {
+      rateInput.addEventListener('input', () => {
+        rateInput.dataset.userEdited = 'true';
+        updateRowPurchaseConversion(row);
+      });
+    }
+
+    if (currencySelect) {
+      currencySelect.addEventListener('change', () => {
+        if (rateInput) {
+          delete rateInput.dataset.userEdited;
+        }
+        syncRowExchangeRate(row, { force: true });
+      });
+    }
+
+    const hasInitialRate = Boolean(initialData && initialData.exchangeRate);
+    syncRowExchangeRate(row, { force: !hasInitialRate });
     return row;
   }
 
@@ -2962,6 +2985,10 @@ function handleAddProductForm() {
     }
 
     [
+      'Harga Beli',
+      'Mata Uang',
+      'Kurs',
+      'Harga Beli (Rp)',
       'Harga Supplier',
       'Harga Jual Offline',
       'Harga Jual Entraverse.id',
@@ -3230,10 +3257,7 @@ function handleAddProductForm() {
       tradeToggle.checked = Boolean(product.tradeIn);
     }
     const inventoryFields = {
-      currency: form.querySelector('#exchange-rate-currency'),
       initialStockPrediction: form.querySelector('#initial-stock-prediction'),
-      purchasePrice: form.querySelector('#purchase-price'),
-      exchangeRate: form.querySelector('#exchange-rate'),
       dailyAverageSales: form.querySelector('#daily-average-sales'),
       leadTime: form.querySelector('#lead-time'),
       reorderPoint: form.querySelector('#reorder-point')
@@ -3243,35 +3267,12 @@ function handleAddProductForm() {
       if (!input) return;
       let value = inventory?.[key] ?? '';
 
-      if (key === 'currency') {
-        const normalized = (value ?? '').toString().trim().toUpperCase();
-        const finalValue = BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(normalized)
-          ? normalized
-          : 'IDR';
-        input.value = finalValue;
-        if (input.value !== finalValue) {
-          const option = document.createElement('option');
-          option.value = finalValue;
-          option.textContent = finalValue;
-          option.dataset.temporaryOption = 'true';
-          input.appendChild(option);
-          input.value = finalValue;
-        }
-        return;
-      }
-
       if (value === null || typeof value === 'undefined') {
         value = '';
       }
 
       input.value = value;
-
-      if (input === exchangeRateInput && value) {
-        exchangeRateInput.dataset.userEdited = 'true';
-      }
     });
-
-    updateExchangeRateInfo();
 
     if (Array.isArray(product.photos)) {
       product.photos.slice(0, photoInputs.length).forEach((photo, index) => {
@@ -3320,13 +3321,8 @@ function handleAddProductForm() {
       const formData = new FormData(form);
       const products = getData(STORAGE_KEYS.products, []);
       const categoryValue = (formData.get('category') ?? '').toString().trim();
-      const rawCurrency = (formData.get('currency') ?? 'IDR').toString().trim().toUpperCase();
-      const currencyValue = BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(rawCurrency) ? rawCurrency : 'IDR';
       const inventoryData = {
-        currency: currencyValue,
         initialStockPrediction: (formData.get('initialStockPrediction') ?? '').toString().trim(),
-        purchasePrice: (formData.get('purchasePrice') ?? '').toString().trim(),
-        exchangeRate: (formData.get('exchangeRate') ?? '').toString().trim(),
         dailyAverageSales: (formData.get('dailyAverageSales') ?? '').toString().trim(),
         leadTime: (formData.get('leadTime') ?? '').toString().trim(),
         reorderPoint: (formData.get('reorderPoint') ?? '').toString().trim()
@@ -3334,19 +3330,6 @@ function handleAddProductForm() {
       const hasInventoryData = Object.entries(inventoryData).some(([key, value]) => {
         if (!value) {
           return false;
-        }
-        if (key === 'currency') {
-          return value !== 'IDR';
-        }
-        if (key === 'exchangeRate') {
-          const numeric = parseNumericValue(value);
-          if (!Number.isFinite(numeric)) {
-            return false;
-          }
-          if (currencyValue === 'IDR') {
-            return numeric !== 1;
-          }
-          return true;
         }
         return true;
       });
