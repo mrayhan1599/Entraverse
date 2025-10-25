@@ -1448,6 +1448,12 @@ input:checked + .slider:before {
   min-width: 110px;
 }
 
+.variant-pricing-table .readonly-input {
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
 .variant-pricing-table select:disabled {
   background: var(--color-surface);
   color: var(--color-text);
