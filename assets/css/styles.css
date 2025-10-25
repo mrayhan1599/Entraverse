@@ -250,6 +250,16 @@ textarea {
   transform: none;
 }
 
+.btn.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn.is-disabled:hover {
+  transform: none;
+}
+
 .primary-btn {
   background: var(--color-primary);
   color: var(--color-on-primary);
@@ -1001,6 +1011,16 @@ a.action-icon {
 .action-icon:disabled {
   opacity: 0.6;
   pointer-events: none;
+}
+
+.action-icon.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--color-surface);
+}
+
+.action-icon.is-disabled:hover {
+  background: var(--color-surface);
 }
 
 .action-icon svg {
