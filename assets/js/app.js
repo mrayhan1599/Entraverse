@@ -3237,6 +3237,19 @@ async function handleAddProductForm() {
     return rounded;
   };
 
+  const syncExchangeRateDatasetFromInput = input => {
+    if (!input) {
+      return;
+    }
+
+    const numeric = parseNumericValue(input.value ?? '');
+    if (Number.isFinite(numeric) && numeric > 0) {
+      input.dataset.numericValue = numeric.toString();
+    } else {
+      delete input.dataset.numericValue;
+    }
+  };
+
   const populateCurrencySelectOptions = (select, selectedValue = '') => {
     if (!select) {
       return;
@@ -3790,11 +3803,17 @@ async function handleAddProductForm() {
         input.pattern = '[0-9]*';
       }
 
-      if (field === 'exchangeRate' || field === 'purchasePriceIdr') {
+      if (field === 'purchasePriceIdr') {
         input.readOnly = true;
         input.tabIndex = -1;
         input.setAttribute('aria-readonly', 'true');
         input.classList.add('readonly-input');
+      }
+
+      if (field === 'exchangeRate') {
+        input.inputMode = 'decimal';
+        input.autocomplete = 'off';
+        input.step = 'any';
       }
 
       if (RUPIAH_PRICING_FIELDS.has(field)) {
@@ -3847,8 +3866,13 @@ async function handleAddProductForm() {
     }
 
     if (exchangeRateInput) {
+      syncExchangeRateDatasetFromInput(exchangeRateInput);
       exchangeRateInput.addEventListener('input', () => {
+        syncExchangeRateDatasetFromInput(exchangeRateInput);
         recalculatePurchasePriceIdr(row);
+      });
+      exchangeRateInput.addEventListener('blur', () => {
+        syncExchangeRateDatasetFromInput(exchangeRateInput);
       });
     }
 
