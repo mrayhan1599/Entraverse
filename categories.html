@@ -94,8 +94,14 @@
         </div>
         <div class="topbar-actions">
           <div class="auth-buttons" data-guest-actions hidden>
-            <a class="btn ghost-btn" href="index.html">Login</a>
-            <a class="btn primary-btn" href="register.html">Register</a>
+            <a class="btn ghost-btn auth-button auth-button--login" href="login.html" aria-label="Login">
+              <span class="auth-button__icon" aria-hidden="true">🔑</span>
+              <span class="auth-button__label">Login</span>
+            </a>
+            <a class="btn primary-btn auth-button auth-button--register" href="register.html" aria-label="Register">
+              <span class="auth-button__icon" aria-hidden="true">📝</span>
+              <span class="auth-button__label">Register</span>
+            </a>
           </div>
           <div class="profile-menu" data-profile-menu hidden>
             <button class="avatar-button" type="button" data-profile-toggle aria-haspopup="true" aria-expanded="false">
@@ -135,7 +141,7 @@
                 <th>Fee Tokopedia &amp; Tiktok</th>
                 <th>Fee Shopee</th>
                 <th>Fee Entraverse ID</th>
-                <th>Margin Keuntungan</th>
+                <th class="category-margin">Margin Keuntungan</th>
                 <th>Aksi</th>
               </tr>
             </thead>
