@@ -523,6 +523,7 @@ body.sidebar-collapsed .sidebar-collapse-toggle svg {
   align-items: center;
   gap: 16px;
   flex: 1;
+  min-width: 0;
 }
 
 .back-link {
@@ -631,6 +632,7 @@ body[data-theme="dark"] .menu-toggle:focus-visible {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-shrink: 0;
 }
 
 .auth-buttons {
@@ -821,7 +823,7 @@ body[data-theme="dark"] .profile-dropdown::before {
   gap: 12px;
   width: 100%;
   min-width: 168px;
-  padding: 11px 16px;
+  padding: 10px 16px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -855,6 +857,7 @@ body[data-theme="dark"] .profile-dropdown::before {
   border-color: rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.08);
   color: var(--color-sidebar-text);
+  min-width: 0;
 }
 
 body[data-theme="dark"] .theme-switcher--sidebar .theme-switcher__button {
@@ -988,7 +991,7 @@ body[data-theme="dark"] .theme-switcher--sidebar .theme-switcher__button {
 
 .sidebar-theme {
   margin-top: auto;
-  padding: 16px 0 8px;
+  padding: 12px 0 0;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
@@ -1885,6 +1888,10 @@ body.modal-open {
     border-radius: 12px;
   }
 
+  .topbar-actions {
+    gap: 12px;
+  }
+
   .topbar-left .search-bar input {
     font-size: 14px;
   }
@@ -1923,12 +1930,13 @@ body.modal-open {
 
   .auth-buttons {
     gap: 8px;
+    flex-wrap: nowrap;
   }
 
   .auth-button {
-    padding: 10px;
-    width: 44px;
-    height: 44px;
+    padding: 8px;
+    width: 40px;
+    height: 40px;
     border-radius: 12px;
   }
 
@@ -1937,7 +1945,7 @@ body.modal-open {
   }
 
   .auth-button__icon {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .variant-table,
