@@ -40,7 +40,6 @@ const DEFAULT_PRODUCTS = [
         entraversePrice: '9700000',
         tokopediaPrice: '9750000',
         shopeePrice: '9650000',
-        skuEntraverse: 'MQ3S-GRN-128-ENT',
         stock: '25',
         weight: '2000'
       },
@@ -55,7 +54,6 @@ const DEFAULT_PRODUCTS = [
         entraversePrice: '9899000',
         tokopediaPrice: '10000000',
         shopeePrice: '9950000',
-        skuEntraverse: 'MQ3S-DBL-256-ENT',
         stock: '18',
         weight: '2050'
       }
@@ -89,7 +87,6 @@ const DEFAULT_PRODUCTS = [
         entraversePrice: '10499000',
         tokopediaPrice: '10699000',
         shopeePrice: '10550000',
-        skuEntraverse: 'MQ3S-GPH-256-ENT',
         stock: '12',
         weight: '2100'
       },
@@ -104,7 +101,6 @@ const DEFAULT_PRODUCTS = [
         entraversePrice: '10999000',
         tokopediaPrice: '11150000',
         shopeePrice: '11050000',
-        skuEntraverse: 'MQ3S-PRL-256-ENT',
         stock: '9',
         weight: '2100'
       }
@@ -2897,6 +2893,21 @@ async function handleAddProductForm() {
   const params = new URLSearchParams(window.location.search);
   const editingId = params.get('id');
   let suppressPricingRefresh = false;
+  const PRESERVED_PURCHASE_FIELDS = ['purchasePrice', 'purchaseCurrency', 'exchangeRate', 'purchasePriceIdr'];
+
+  const applyPurchaseMetadataToRow = (row, data = {}) => {
+    if (!row) return;
+    PRESERVED_PURCHASE_FIELDS.forEach(field => {
+      const hasField = Object.prototype.hasOwnProperty.call(data, field);
+      if (!hasField) {
+        delete row.dataset[field];
+        return;
+      }
+
+      const value = data[field];
+      row.dataset[field] = value == null ? '' : value.toString();
+    });
+  };
 
   try {
     await ensureSeeded();
@@ -2906,230 +2917,7 @@ async function handleAddProductForm() {
     toast.show('Gagal memuat data produk. Pastikan Supabase tersambung.');
   }
 
-  const exchangeRateState = {
-    rates: new Map(),
-    lastUpdated: null,
-    loading: false,
-    error: null,
-    source: null
-  };
-  let exchangeRateRefreshTimerId = null;
-
-  const formatRateForDisplay = value => {
-    if (!Number.isFinite(value)) {
-      return null;
-    }
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2
-    }).format(value);
-  };
-
   const getPricingRows = () => Array.from(pricingBody?.querySelectorAll('.pricing-row') ?? []);
-
-  const getSelectedCurrency = select => {
-    const value = select?.value ?? 'IDR';
-    return BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(value) ? value : 'IDR';
-  };
-
-  const updateRowPurchaseConversion = row => {
-    if (!row) return;
-    const purchaseInput = row.querySelector('[data-field="purchasePrice"]');
-    const rateInput = row.querySelector('[data-field="exchangeRate"]');
-    const totalInput = row.querySelector('[data-field="purchasePriceIdr"]');
-    if (!totalInput) return;
-
-    const purchaseValue = parseNumericValue(purchaseInput?.value);
-    const rateValue = parseNumericValue(rateInput?.value);
-
-    if (Number.isFinite(purchaseValue) && Number.isFinite(rateValue)) {
-      const totalValue = purchaseValue * rateValue;
-      const formatted = formatRateForDisplay(totalValue);
-      totalInput.value = formatted ?? totalValue.toString();
-    } else {
-      totalInput.value = '';
-    }
-  };
-
-  const syncRowExchangeRate = (row, { force = false } = {}) => {
-    if (!row) return;
-    const currencySelect = row.querySelector('[data-field="purchaseCurrency"]');
-    const rateInput = row.querySelector('[data-field="exchangeRate"]');
-    if (!currencySelect || !rateInput) {
-      updateRowPurchaseConversion(row);
-      return;
-    }
-
-    const currency = getSelectedCurrency(currencySelect);
-    const shouldSync = force || rateInput.dataset.userEdited !== 'true';
-
-    if (shouldSync) {
-      if (currency === 'IDR') {
-        rateInput.value = '1';
-        delete rateInput.dataset.userEdited;
-      } else {
-        const entry = exchangeRateState.rates.get(currency);
-        if (entry && Number.isFinite(entry.rate)) {
-          rateInput.value = entry.rate.toString();
-          delete rateInput.dataset.userEdited;
-        } else if (!exchangeRateState.loading) {
-          rateInput.value = '';
-        }
-      }
-    }
-
-    updateRowPurchaseConversion(row);
-  };
-
-  const updateAllPricingRows = ({ force = false } = {}) => {
-    getPricingRows().forEach(row => syncRowExchangeRate(row, { force }));
-  };
-
-  const scheduleNextExchangeRateRefresh = targetTime => {
-    if (typeof window === 'undefined' || typeof window.setTimeout !== 'function') {
-      return;
-    }
-
-    if (exchangeRateRefreshTimerId) {
-      window.clearTimeout(exchangeRateRefreshTimerId);
-      exchangeRateRefreshTimerId = null;
-    }
-
-    const now = Date.now();
-    const nextRefresh = Number.isFinite(targetTime) ? targetTime : getNextBankIndonesiaRefreshTime(now);
-    let delay = nextRefresh - now;
-    if (!Number.isFinite(delay) || delay <= 0) {
-      delay = 60 * 1000;
-    }
-
-    exchangeRateRefreshTimerId = window.setTimeout(() => {
-      exchangeRateRefreshTimerId = null;
-      loadBankIndonesiaRates({ ignoreCache: true }).catch(error => {
-        console.error('Tidak dapat menyegarkan kurs Bank Indonesia secara otomatis', error);
-      });
-    }, delay);
-  };
-
-  const loadBankIndonesiaRates = async ({ ignoreCache = false } = {}) => {
-    if (!ignoreCache) {
-      const cached = readBankIndonesiaRatesCache();
-      if (cached) {
-        exchangeRateState.rates = cached.rates;
-        exchangeRateState.lastUpdated = cached.lastUpdated;
-        exchangeRateState.source = cached.source;
-        exchangeRateState.error = null;
-        exchangeRateState.loading = false;
-        scheduleNextExchangeRateRefresh(cached.expiresAt);
-        updateAllPricingRows();
-        return;
-      }
-    }
-
-    exchangeRateState.loading = true;
-    exchangeRateState.error = null;
-    exchangeRateState.source = null;
-
-    let nextRefreshTime = null;
-
-    try {
-      const sources = Array.isArray(BANK_INDONESIA_EXCHANGE_SOURCES)
-        ? BANK_INDONESIA_EXCHANGE_SOURCES
-        : [BANK_INDONESIA_EXCHANGE_SOURCES].filter(Boolean);
-
-      if (sources.length === 0) {
-        throw new Error('Sumber kurs Bank Indonesia tidak tersedia.');
-      }
-
-      let lastError = null;
-      let result = null;
-
-      for (const source of sources) {
-        if (!source || !source.url) {
-          continue;
-        }
-
-        try {
-          const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-          const timeout = Number.isFinite(source.timeout) ? source.timeout : 10000;
-          const timer = controller ? setTimeout(() => controller.abort(), timeout) : null;
-
-          let response;
-          try {
-            response = await fetch(source.url, {
-              mode: 'cors',
-              cache: 'no-store',
-              credentials: 'omit',
-              signal: controller?.signal,
-              headers: {
-                Accept:
-                  source.type === BANK_INDONESIA_SOURCE_TYPES.JSON
-                    ? 'application/json, text/plain, */*'
-                    : source.type === BANK_INDONESIA_SOURCE_TYPES.EXCEL
-                      ? 'application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv, text/plain, */*'
-                      : 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-              }
-            });
-          } finally {
-            if (timer) {
-              clearTimeout(timer);
-            }
-          }
-
-          if (!response?.ok) {
-            throw new Error(`HTTP ${response?.status ?? 'unknown'}`);
-          }
-
-          if (source.type === BANK_INDONESIA_SOURCE_TYPES.JSON) {
-            const payload = await response.json();
-            result = parseBankIndonesiaJsonPayload(payload);
-          } else if (source.type === BANK_INDONESIA_SOURCE_TYPES.EXCEL) {
-            const payload = await response.arrayBuffer();
-            const contentType = response.headers?.get('content-type') ?? '';
-            result = parseBankIndonesiaExcelPayload(payload, contentType);
-          } else if (source.type === BANK_INDONESIA_SOURCE_TYPES.HTML) {
-            const payload = await response.text();
-            result = parseBankIndonesiaHtmlPayload(payload);
-          } else {
-            throw new Error(`Tipe sumber tidak dikenal: ${source.type}`);
-          }
-
-          if (result && result.rates?.size) {
-            exchangeRateState.rates = result.rates;
-            exchangeRateState.lastUpdated = result.latestDate ?? null;
-            exchangeRateState.source = source;
-            nextRefreshTime = writeBankIndonesiaRatesCache({
-              rates: exchangeRateState.rates,
-              lastUpdated: exchangeRateState.lastUpdated,
-              source
-            });
-            break;
-          }
-
-          result = null;
-        } catch (sourceError) {
-          lastError = sourceError;
-          console.warn(`Tidak dapat mengambil kurs Bank Indonesia dari ${source.url}`, sourceError);
-        }
-      }
-
-      if (!result || !result.rates?.size) {
-        throw lastError || new Error('Gagal memuat data kurs Bank Indonesia.');
-      }
-    } catch (error) {
-      console.error('Gagal memuat kurs Bank Indonesia', error);
-      exchangeRateState.error = 'Gagal memuat kurs Bank Indonesia. Masukkan nilai kurs secara manual bila diperlukan.';
-    } finally {
-      exchangeRateState.loading = false;
-      updateAllPricingRows();
-      scheduleNextExchangeRateRefresh(nextRefreshTime);
-    }
-  };
-
-  loadBankIndonesiaRates().catch(error => {
-    console.error('Tidak dapat memuat kurs Bank Indonesia', error);
-  });
 
   populateCategorySelect(categorySelect, { helperEl: categoryHelper });
   if (categorySelect) {
@@ -3334,18 +3122,19 @@ async function handleAddProductForm() {
 
       const data = {
         id: row.dataset.pricingId || null,
-        purchasePrice: getValue('[data-field="purchasePrice"]'),
-        purchaseCurrency: getValue('[data-field="purchaseCurrency"]'),
-        exchangeRate: getValue('[data-field="exchangeRate"]'),
-        purchasePriceIdr: getValue('[data-field="purchasePriceIdr"]'),
         offlinePrice: getValue('[data-field="offlinePrice"]'),
         entraversePrice: getValue('[data-field="entraversePrice"]'),
         tokopediaPrice: getValue('[data-field="tokopediaPrice"]'),
         shopeePrice: getValue('[data-field="shopeePrice"]'),
-        skuEntraverse: getValue('[data-field="skuEntraverse"]'),
         stock: getValue('[data-field="stock"]'),
         weight: getValue('[data-field="weight"]')
       };
+
+      PRESERVED_PURCHASE_FIELDS.forEach(field => {
+        if (Object.prototype.hasOwnProperty.call(row.dataset, field)) {
+          data[field] = row.dataset[field];
+        }
+      });
 
       if (variantDefs.length) {
         data.variants = variantDefs.map((variant, index) => {
@@ -3417,42 +3206,20 @@ async function handleAddProductForm() {
     }
 
     [
-      'purchasePrice',
-      'exchangeRate',
-      'purchasePriceIdr',
       'offlinePrice',
       'entraversePrice',
       'tokopediaPrice',
       'shopeePrice',
-      'skuEntraverse',
       'stock',
       'weight'
     ].forEach(field => {
       const input = row.querySelector(`[data-field="${field}"]`);
       if (input && initialData[field] !== undefined && initialData[field] !== null) {
         input.value = initialData[field];
-        if (field === 'exchangeRate') {
-          input.dataset.userEdited = 'true';
-        }
       }
     });
 
-    const currencyInput = row.querySelector('[data-field="purchaseCurrency"]');
-    if (currencyInput) {
-      const rawValue = (initialData.purchaseCurrency ?? 'IDR').toString().trim().toUpperCase();
-      const finalValue = BANK_INDONESIA_SUPPORTED_CURRENCIES.includes(rawValue) ? rawValue : 'IDR';
-      currencyInput.value = finalValue;
-      if (currencyInput.value !== finalValue) {
-        const option = document.createElement('option');
-        option.value = finalValue;
-        option.textContent = finalValue;
-        option.dataset.temporaryOption = 'true';
-        currencyInput.appendChild(option);
-        currencyInput.value = finalValue;
-      }
-    }
-
-    updateRowPurchaseConversion(row);
+    applyPurchaseMetadataToRow(row, initialData);
   }
 
   function createPricingRow(initialData = {}, variantDefs = getVariantDefinitions(), options = {}) {
@@ -3484,56 +3251,15 @@ async function handleAddProductForm() {
       });
     }
 
-    const purchaseCell = document.createElement('td');
-    const purchaseInput = document.createElement('input');
-    purchaseInput.type = 'number';
-    purchaseInput.placeholder = '0';
-    purchaseInput.min = '0';
-    purchaseInput.step = '0.01';
-    purchaseInput.inputMode = 'decimal';
-    purchaseInput.classList.add('numeric-input');
-    purchaseInput.dataset.field = 'purchasePrice';
-    purchaseCell.appendChild(purchaseInput);
-    row.appendChild(purchaseCell);
-
-    const currencyCell = document.createElement('td');
-    const currencySelect = document.createElement('select');
-    currencySelect.dataset.field = 'purchaseCurrency';
-    const currencyOptions = [
-      { value: 'IDR', label: 'IDR - Rupiah' },
-      { value: 'USD', label: 'USD - Dolar Amerika Serikat' },
-      { value: 'SGD', label: 'SGD - Dolar Singapura' },
-      { value: 'EUR', label: 'EUR - Euro' }
-    ];
-    currencyOptions.forEach(option => {
-      const opt = document.createElement('option');
-      opt.value = option.value;
-      opt.textContent = option.label;
-      currencySelect.appendChild(opt);
-    });
-    currencyCell.appendChild(currencySelect);
-    row.appendChild(currencyCell);
-
-    const rateCell = document.createElement('td');
-    const rateInput = document.createElement('input');
-    rateInput.type = 'number';
-    rateInput.placeholder = 'Kurs';
-    rateInput.min = '0';
-    rateInput.step = '0.01';
-    rateInput.inputMode = 'decimal';
-    rateInput.dataset.field = 'exchangeRate';
-    rateCell.appendChild(rateInput);
-    row.appendChild(rateCell);
-
-    const totalCell = document.createElement('td');
-    const totalInput = document.createElement('input');
-    totalInput.type = 'text';
-    totalInput.placeholder = 'Rp 0';
-    totalInput.readOnly = true;
-    totalInput.dataset.field = 'purchasePriceIdr';
-    totalInput.classList.add('numeric-input');
-    totalCell.appendChild(totalInput);
-    row.appendChild(totalCell);
+    if (!variantDefs.length) {
+      const cell = document.createElement('td');
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Nama Varian';
+      input.dataset.field = 'variantLabel';
+      cell.appendChild(input);
+      row.appendChild(cell);
+    }
 
     const buildInputCell = (field, placeholder, type = 'text') => {
       const cell = document.createElement('td');
@@ -3557,7 +3283,6 @@ async function handleAddProductForm() {
     buildInputCell('entraversePrice', 'Rp 0');
     buildInputCell('tokopediaPrice', 'Rp 0');
     buildInputCell('shopeePrice', 'Rp 0');
-    buildInputCell('skuEntraverse', 'SKU Entraverse');
     buildInputCell('stock', 'Stok');
     buildInputCell('weight', 'Gram');
 
@@ -3570,31 +3295,6 @@ async function handleAddProductForm() {
 
     pricingBody.appendChild(row);
     hydratePricingRow(row, initialData, variantDefs);
-
-    if (purchaseInput) {
-      purchaseInput.addEventListener('input', () => {
-        updateRowPurchaseConversion(row);
-      });
-    }
-
-    if (rateInput) {
-      rateInput.addEventListener('input', () => {
-        rateInput.dataset.userEdited = 'true';
-        updateRowPurchaseConversion(row);
-      });
-    }
-
-    if (currencySelect) {
-      currencySelect.addEventListener('change', () => {
-        if (rateInput) {
-          delete rateInput.dataset.userEdited;
-        }
-        syncRowExchangeRate(row, { force: true });
-      });
-    }
-
-    const hasInitialRate = Boolean(initialData && initialData.exchangeRate);
-    syncRowExchangeRate(row, { force: !hasInitialRate });
     return row;
   }
 
@@ -3623,20 +3323,21 @@ async function handleAddProductForm() {
       });
     }
 
-    [
-      'Harga Beli',
-      'Mata Uang',
-      'Kurs',
-      'Harga Beli (Rp)',
+    const staticHeaders = [
       'Harga Jual Offline',
       'Harga Jual Entraverse.id',
       'Harga Jual Tokopedia',
       'Harga Jual Shopee',
-      'SKU Entraverse',
       'Stok',
       'Berat Barang',
       ''
-    ].forEach(label => {
+    ];
+
+    if (!variantDefs.length) {
+      staticHeaders.unshift('Varian');
+    }
+
+    staticHeaders.forEach(label => {
       const th = document.createElement('th');
       th.textContent = label;
       if (!label) {
@@ -3978,10 +3679,15 @@ async function handleAddProductForm() {
         entraversePrice: (row.entraversePrice ?? '').toString().trim(),
         tokopediaPrice: (row.tokopediaPrice ?? '').toString().trim(),
         shopeePrice: (row.shopeePrice ?? '').toString().trim(),
-        skuEntraverse: (row.skuEntraverse ?? '').toString().trim(),
         stock: (row.stock ?? '').toString().trim(),
         weight: (row.weight ?? '').toString().trim()
       };
+
+      PRESERVED_PURCHASE_FIELDS.forEach(field => {
+        if (Object.prototype.hasOwnProperty.call(row, field)) {
+          normalized[field] = (row[field] ?? '').toString().trim();
+        }
+      });
 
       if (row.id) {
         normalized.id = row.id;
@@ -4002,12 +3708,13 @@ async function handleAddProductForm() {
     });
 
     const filteredPricing = normalizedPricing.filter(row => {
+      const purchaseValues = PRESERVED_PURCHASE_FIELDS.map(field => (row[field] ?? '').toString().trim());
       const detailValues = [
+        ...purchaseValues,
         row.offlinePrice,
         row.entraversePrice,
         row.tokopediaPrice,
         row.shopeePrice,
-        row.skuEntraverse,
         row.stock,
         row.weight
       ].map(value => (value ?? '').toString().trim());
