@@ -2883,14 +2883,6 @@ function handleAddProductForm() {
         cell.appendChild(select);
         row.appendChild(cell);
       });
-    } else {
-      const cell = document.createElement('td');
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.placeholder = 'Contoh: Varian Utama';
-      input.dataset.field = 'variantLabel';
-      cell.appendChild(input);
-      row.appendChild(cell);
     }
 
     const buildInputCell = (field, placeholder, type = 'text') => {
@@ -2967,10 +2959,6 @@ function handleAddProductForm() {
         th.textContent = variant.name;
         pricingHeaderRow.appendChild(th);
       });
-    } else {
-      const th = document.createElement('th');
-      th.textContent = 'Varian';
-      pricingHeaderRow.appendChild(th);
     }
 
     [
