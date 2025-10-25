@@ -2,7 +2,8 @@ const STORAGE_KEYS = {
   users: 'entraverse_users',
   session: 'entraverse_session',
   products: 'entraverse_products',
-  categories: 'entraverse_categories'
+  categories: 'entraverse_categories',
+  exchangeRates: 'entraverse_exchange_rates'
 };
 
 const GUEST_USER = Object.freeze({
@@ -200,10 +201,44 @@ const DEFAULT_CATEGORIES = [
   }
 ];
 
+const DEFAULT_EXCHANGE_RATES = [
+  {
+    id: 'rate-idr',
+    currency: 'IDR',
+    label: 'Indonesian Rupiah',
+    rate: 1
+  },
+  {
+    id: 'rate-usd',
+    currency: 'USD',
+    label: 'United States Dollar',
+    rate: 15500
+  },
+  {
+    id: 'rate-sgd',
+    currency: 'SGD',
+    label: 'Singapore Dollar',
+    rate: 11700
+  },
+  {
+    id: 'rate-eur',
+    currency: 'EUR',
+    label: 'Euro',
+    rate: 16900
+  },
+  {
+    id: 'rate-aud',
+    currency: 'AUD',
+    label: 'Australian Dollar',
+    rate: 10300
+  }
+];
+
 const SUPABASE_TABLES = Object.freeze({
   users: 'users',
   products: 'products',
-  categories: 'categories'
+  categories: 'categories',
+  exchangeRates: 'exchange_rates'
 });
 
 let supabaseClient = null;
@@ -213,7 +248,8 @@ let supabaseInitializationError = null;
 const remoteCache = {
   [STORAGE_KEYS.users]: [],
   [STORAGE_KEYS.products]: [],
-  [STORAGE_KEYS.categories]: []
+  [STORAGE_KEYS.categories]: [],
+  [STORAGE_KEYS.exchangeRates]: []
 };
 
 let seedingPromise = null;
@@ -369,6 +405,143 @@ function mapCategoryToRecord(category) {
     created_at: toIsoTimestamp(category.createdAt) ?? new Date().toISOString(),
     updated_at: toIsoTimestamp(category.updatedAt)
   };
+}
+
+function mapSupabaseExchangeRate(record) {
+  if (!record) {
+    return null;
+  }
+
+  const rawCurrency =
+    record.currency ?? record.currency_code ?? record.code ?? record.kurs ?? '';
+  const currency = rawCurrency.toString().trim().toUpperCase();
+  if (!currency) {
+    return null;
+  }
+
+  const rateValue = parseNumericValue(
+    record.rate ?? record.to_idr ?? record.value ?? record.exchange_rate ?? record.mid_rate
+  );
+
+  if (!Number.isFinite(rateValue) || rateValue <= 0) {
+    return null;
+  }
+
+  const rawLabel = record.label ?? record.name ?? record.description ?? '';
+  const label = rawLabel ? rawLabel.toString().trim() : currency;
+
+  return {
+    id: record.id ?? null,
+    currency,
+    label: label || currency,
+    rate: Number(rateValue)
+  };
+}
+
+function normalizeExchangeRates(rates) {
+  if (!Array.isArray(rates)) {
+    return [];
+  }
+
+  return rates
+    .map(entry => {
+      if (!entry) return null;
+      const currency = (entry.currency ?? '').toString().trim().toUpperCase();
+      if (!currency) return null;
+      const rateValue = parseNumericValue(entry.rate);
+      if (!Number.isFinite(rateValue) || rateValue <= 0) return null;
+      const label = (entry.label ?? '').toString().trim() || currency;
+      return {
+        id: entry.id ?? null,
+        currency,
+        label,
+        rate: Number(rateValue)
+      };
+    })
+    .filter(Boolean);
+}
+
+function setExchangeRateCache(rates) {
+  const normalized = normalizeExchangeRates(rates);
+  if (!normalized.length) {
+    setRemoteCache(STORAGE_KEYS.exchangeRates, []);
+  } else {
+    setRemoteCache(STORAGE_KEYS.exchangeRates, normalized);
+  }
+
+  document.dispatchEvent(
+    new CustomEvent('exchangeRates:changed', {
+      detail: { exchangeRates: getExchangeRates() }
+    })
+  );
+}
+
+function getExchangeRatesFromCache() {
+  return getRemoteCache(STORAGE_KEYS.exchangeRates, []);
+}
+
+function getExchangeRates() {
+  const cached = getExchangeRatesFromCache();
+  if (Array.isArray(cached) && cached.length) {
+    return cached;
+  }
+  return normalizeExchangeRates(DEFAULT_EXCHANGE_RATES);
+}
+
+function findExchangeRateByCurrency(currency) {
+  if (!currency) {
+    return null;
+  }
+
+  const normalized = currency.toString().trim().toUpperCase();
+  if (!normalized) {
+    return null;
+  }
+
+  return getExchangeRates().find(rate => rate.currency === normalized) ?? null;
+}
+
+async function refreshExchangeRatesFromSupabase() {
+  const config = getSupabaseConfig();
+  if (!config) {
+    const fallback = normalizeExchangeRates(DEFAULT_EXCHANGE_RATES);
+    setExchangeRateCache(fallback);
+    return fallback;
+  }
+
+  await ensureSupabase();
+  const client = getSupabaseClient();
+
+  try {
+    const { data, error } = await client
+      .from(SUPABASE_TABLES.exchangeRates)
+      .select('*')
+      .order('currency', { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    const mapped = normalizeExchangeRates((data ?? []).map(mapSupabaseExchangeRate));
+
+    if (!mapped.length) {
+      const fallback = normalizeExchangeRates(DEFAULT_EXCHANGE_RATES);
+      setExchangeRateCache(fallback);
+      return fallback;
+    }
+
+    setExchangeRateCache(mapped);
+    return mapped;
+  } catch (error) {
+    if (error?.code === '42P01') {
+      console.warn('Tabel exchange_rates belum tersedia di Supabase.', error);
+    } else {
+      console.error('Gagal memuat data kurs dari Supabase.', error);
+    }
+    const fallback = normalizeExchangeRates(DEFAULT_EXCHANGE_RATES);
+    setExchangeRateCache(fallback);
+    return fallback;
+  }
 }
 
 function setCategoryCache(categories) {
@@ -692,6 +865,7 @@ async function ensureSeeded() {
 
       await refreshCategoriesFromSupabase();
       await refreshProductsFromSupabase();
+      await refreshExchangeRatesFromSupabase();
     })().catch(error => {
       console.error('Gagal melakukan seeding awal Supabase.', error);
       throw error;
@@ -2912,13 +3086,278 @@ async function handleAddProductForm() {
 
   try {
     await ensureSeeded();
-    await Promise.all([refreshCategoriesFromSupabase(), refreshProductsFromSupabase()]);
+    await Promise.all([
+      refreshCategoriesFromSupabase(),
+      refreshProductsFromSupabase(),
+      refreshExchangeRatesFromSupabase()
+    ]);
   } catch (error) {
     console.error('Gagal menyiapkan data produk.', error);
     toast.show('Gagal memuat data produk. Pastikan Supabase tersambung.');
   }
 
   const getPricingRows = () => Array.from(pricingBody?.querySelectorAll('.pricing-row') ?? []);
+
+  const RUPIAH_PRICING_FIELDS = new Set([
+    'purchasePriceIdr',
+    'offlinePrice',
+    'entraversePrice',
+    'tokopediaPrice',
+    'shopeePrice'
+  ]);
+
+  const sanitizeCurrencyDigits = value => {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.round(value).toString();
+    }
+
+    const text = value.toString();
+    const digits = text.replace(/[^0-9]/g, '');
+    if (!digits) {
+      return '';
+    }
+
+    const normalized = digits.replace(/^0+(?=\d)/, '');
+    return normalized || '0';
+  };
+
+  const formatRupiahDigits = digits => digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+  const setRupiahInputValue = (input, value) => {
+    if (!input) {
+      return '';
+    }
+
+    const sanitized = sanitizeCurrencyDigits(value);
+    if (!sanitized) {
+      delete input.dataset.numericValue;
+      input.value = '';
+      return '';
+    }
+
+    input.dataset.numericValue = sanitized;
+    input.value = `Rp ${formatRupiahDigits(sanitized)}`;
+    return sanitized;
+  };
+
+  const countDigitsBeforePosition = (value, position) => {
+    if (!value) {
+      return 0;
+    }
+    const slice = value.slice(0, Math.max(0, position));
+    return slice.replace(/[^0-9]/g, '').length;
+  };
+
+  const findCaretPositionForDigitCount = (value, digitCount) => {
+    if (!value) {
+      return 0;
+    }
+
+    if (digitCount <= 0) {
+      return value.startsWith('Rp ') ? 3 : 0;
+    }
+
+    let digitsSeen = 0;
+    for (let index = 0; index < value.length; index += 1) {
+      if (/\d/.test(value[index])) {
+        digitsSeen += 1;
+        if (digitsSeen === digitCount) {
+          return index + 1;
+        }
+      }
+    }
+
+    return value.length;
+  };
+
+  const formatRupiahInputValue = input => {
+    if (!input) {
+      return { sanitized: '', caret: 0 };
+    }
+
+    const selectionStart = input.selectionStart ?? input.value.length;
+    const digitsBefore = countDigitsBeforePosition(input.value, selectionStart);
+    const sanitized = sanitizeCurrencyDigits(input.value);
+
+    if (!sanitized) {
+      delete input.dataset.numericValue;
+      input.value = '';
+      return { sanitized: '', caret: 0 };
+    }
+
+    const formatted = `Rp ${formatRupiahDigits(sanitized)}`;
+    input.dataset.numericValue = sanitized;
+    input.value = formatted;
+
+    const caret = findCaretPositionForDigitCount(formatted, digitsBefore);
+    return { sanitized, caret };
+  };
+
+  const attachRupiahFormatter = input => {
+    if (!input || input.readOnly) {
+      return;
+    }
+
+    const handler = () => {
+      const { caret } = formatRupiahInputValue(input);
+      requestAnimationFrame(() => {
+        const nextCaret = typeof caret === 'number' ? caret : input.value.length;
+        try {
+          input.setSelectionRange(nextCaret, nextCaret);
+        } catch (error) {
+          // Ignore selection errors on unfocused inputs.
+        }
+      });
+    };
+
+    input.addEventListener('input', handler);
+    input.addEventListener('blur', handler);
+  };
+
+  const setExchangeRateInputValue = (input, value) => {
+    if (!input) {
+      return null;
+    }
+
+    const numeric = parseNumericValue(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      delete input.dataset.numericValue;
+      input.value = '';
+      return null;
+    }
+
+    const rounded = Number.isInteger(numeric) ? numeric : Number(numeric.toFixed(6));
+    const display = rounded.toString();
+    input.dataset.numericValue = display;
+    input.value = display;
+    return rounded;
+  };
+
+  const populateCurrencySelectOptions = (select, selectedValue = '') => {
+    if (!select) {
+      return;
+    }
+
+    const placeholder = select.dataset.placeholder || 'Pilih mata uang';
+    const normalizedSelected = selectedValue?.toString().trim().toUpperCase() || '';
+    const previousValue = select.value?.toString().trim().toUpperCase() || '';
+    const targetValue = normalizedSelected || previousValue;
+
+    select.innerHTML = '';
+
+    const placeholderOption = document.createElement('option');
+    placeholderOption.value = '';
+    placeholderOption.textContent = placeholder;
+    select.appendChild(placeholderOption);
+
+    const seen = new Set();
+    getExchangeRates().forEach(rate => {
+      if (!rate) return;
+      const option = document.createElement('option');
+      option.value = rate.currency;
+      option.textContent =
+        rate.label && rate.label !== rate.currency
+          ? `${rate.currency} - ${rate.label}`
+          : rate.currency;
+      select.appendChild(option);
+      seen.add(rate.currency);
+    });
+
+    if (targetValue && !seen.has(targetValue)) {
+      const fallbackOption = document.createElement('option');
+      fallbackOption.value = targetValue;
+      fallbackOption.textContent = targetValue;
+      fallbackOption.dataset.temporaryOption = 'true';
+      select.appendChild(fallbackOption);
+    }
+
+    if (targetValue) {
+      select.value = targetValue;
+      if (select.value !== targetValue) {
+        select.value = '';
+      }
+    } else {
+      select.value = '';
+    }
+  };
+
+  const recalculatePurchasePriceIdr = row => {
+    if (!row) {
+      return;
+    }
+
+    const purchasePriceInput = row.querySelector('[data-field="purchasePrice"]');
+    const exchangeRateInput = row.querySelector('[data-field="exchangeRate"]');
+    const idrInput = row.querySelector('[data-field="purchasePriceIdr"]');
+
+    if (!idrInput) {
+      return;
+    }
+
+    const price = parseNumericValue(purchasePriceInput?.value ?? '');
+    let rate = null;
+
+    if (exchangeRateInput?.dataset.numericValue) {
+      rate = parseNumericValue(exchangeRateInput.dataset.numericValue);
+    }
+
+    if (!Number.isFinite(rate)) {
+      rate = parseNumericValue(exchangeRateInput?.value ?? '');
+    }
+
+    if (!Number.isFinite(price) || !Number.isFinite(rate)) {
+      setRupiahInputValue(idrInput, '');
+      return;
+    }
+
+    const total = Math.round(price * rate);
+    if (!Number.isFinite(total)) {
+      setRupiahInputValue(idrInput, '');
+      return;
+    }
+
+    setRupiahInputValue(idrInput, total);
+  };
+
+  const syncCurrencyForRow = (row, { currency, fallbackRate } = {}) => {
+    if (!row) {
+      return;
+    }
+
+    const select = row.querySelector('select[data-field="purchaseCurrency"]');
+    const exchangeRateInput = row.querySelector('[data-field="exchangeRate"]');
+    const normalizedCurrency = currency?.toString().trim().toUpperCase() || select?.value?.toString().trim().toUpperCase() || '';
+
+    if (select) {
+      populateCurrencySelectOptions(select, normalizedCurrency);
+    }
+
+    let appliedRate = null;
+    if (normalizedCurrency) {
+      const record = findExchangeRateByCurrency(normalizedCurrency);
+      if (record) {
+        appliedRate = record.rate;
+      }
+    }
+
+    if (!Number.isFinite(appliedRate) && Number.isFinite(parseNumericValue(fallbackRate))) {
+      appliedRate = parseNumericValue(fallbackRate);
+    }
+
+    if (exchangeRateInput) {
+      if (Number.isFinite(appliedRate) && appliedRate > 0) {
+        setExchangeRateInputValue(exchangeRateInput, appliedRate);
+      } else {
+        setExchangeRateInputValue(exchangeRateInput, '');
+      }
+    }
+
+    recalculatePurchasePriceIdr(row);
+  };
 
   populateCategorySelect(categorySelect, { helperEl: categoryHelper });
   if (categorySelect) {
@@ -2931,6 +3370,18 @@ async function handleAddProductForm() {
     if (categorySelect) {
       categorySelect.disabled = !getCategories().length;
     }
+  });
+
+  document.addEventListener('exchangeRates:changed', () => {
+    getPricingRows().forEach(row => {
+      const select = row.querySelector('select[data-field="purchaseCurrency"]');
+      if (!select) {
+        return;
+      }
+      const currentValue = select.value ?? '';
+      populateCurrencySelectOptions(select, currentValue);
+      syncCurrencyForRow(row, { currency: select.value });
+    });
   });
 
   const clearPreview = (container, preview, input) => {
@@ -3115,9 +3566,19 @@ async function handleAddProductForm() {
   function collectPricingRows(variantDefs = getVariantDefinitions()) {
     if (!pricingBody) return [];
     return Array.from(pricingBody.querySelectorAll('.pricing-row')).map(row => {
-      const getValue = selector => {
+      const getValue = (selector, options = {}) => {
         const field = row.querySelector(selector);
         if (!field) return '';
+        const { asRupiah = false, useDataset = false } = options;
+        if (asRupiah) {
+          if (Object.prototype.hasOwnProperty.call(field.dataset, 'numericValue')) {
+            return field.dataset.numericValue;
+          }
+          return sanitizeCurrencyDigits(field.value ?? '');
+        }
+        if (useDataset && Object.prototype.hasOwnProperty.call(field.dataset, 'numericValue')) {
+          return field.dataset.numericValue;
+        }
         return (field.value ?? '').toString().trim();
       };
 
@@ -3125,12 +3586,12 @@ async function handleAddProductForm() {
         id: row.dataset.pricingId || null,
         purchasePrice: getValue('[data-field="purchasePrice"]'),
         purchaseCurrency: getValue('[data-field="purchaseCurrency"]'),
-        exchangeRate: getValue('[data-field="exchangeRate"]'),
-        purchasePriceIdr: getValue('[data-field="purchasePriceIdr"]'),
-        offlinePrice: getValue('[data-field="offlinePrice"]'),
-        entraversePrice: getValue('[data-field="entraversePrice"]'),
-        tokopediaPrice: getValue('[data-field="tokopediaPrice"]'),
-        shopeePrice: getValue('[data-field="shopeePrice"]'),
+        exchangeRate: getValue('[data-field="exchangeRate"]', { useDataset: true }),
+        purchasePriceIdr: getValue('[data-field="purchasePriceIdr"]', { asRupiah: true }),
+        offlinePrice: getValue('[data-field="offlinePrice"]', { asRupiah: true }),
+        entraversePrice: getValue('[data-field="entraversePrice"]', { asRupiah: true }),
+        tokopediaPrice: getValue('[data-field="tokopediaPrice"]', { asRupiah: true }),
+        shopeePrice: getValue('[data-field="shopeePrice"]', { asRupiah: true }),
         stock: getValue('[data-field="stock"]'),
         weight: getValue('[data-field="weight"]')
       };
@@ -3204,10 +3665,33 @@ async function handleAddProductForm() {
       }
     }
 
+    const currencySelect = row.querySelector('select[data-field="purchaseCurrency"]');
+    const initialCurrency = (initialData.purchaseCurrency ?? '').toString().trim().toUpperCase();
+    if (currencySelect) {
+      populateCurrencySelectOptions(currencySelect, initialCurrency);
+    }
+
+    const applyFieldValue = (field, value) => {
+      const input = row.querySelector(`[data-field="${field}"]`);
+      if (!input) {
+        return;
+      }
+
+      if (RUPIAH_PRICING_FIELDS.has(field)) {
+        setRupiahInputValue(input, value ?? '');
+        return;
+      }
+
+      if (value === undefined || value === null) {
+        input.value = '';
+        return;
+      }
+
+      input.value = value;
+    };
+
     [
       'purchasePrice',
-      'purchaseCurrency',
-      'exchangeRate',
       'purchasePriceIdr',
       'offlinePrice',
       'entraversePrice',
@@ -3216,10 +3700,13 @@ async function handleAddProductForm() {
       'stock',
       'weight'
     ].forEach(field => {
-      const input = row.querySelector(`[data-field="${field}"]`);
-      if (input && initialData[field] !== undefined && initialData[field] !== null) {
-        input.value = initialData[field];
-      }
+      applyFieldValue(field, initialData[field]);
+    });
+
+    const fallbackRate = initialData.exchangeRate;
+    syncCurrencyForRow(row, {
+      currency: currencySelect?.value || initialCurrency,
+      fallbackRate
     });
   }
 
@@ -3229,6 +3716,9 @@ async function handleAddProductForm() {
     const row = document.createElement('tr');
     row.className = 'pricing-row';
     const { lockVariantSelection = false } = options;
+    let purchasePriceInput = null;
+    let currencySelect = null;
+    let exchangeRateInput = null;
 
     if (variantDefs.length) {
       variantDefs.forEach((variant, index) => {
@@ -3264,10 +3754,22 @@ async function handleAddProductForm() {
 
     const buildInputCell = (field, placeholder, type = 'text') => {
       const cell = document.createElement('td');
+      if (field === 'purchaseCurrency') {
+        const select = document.createElement('select');
+        select.dataset.field = field;
+        select.dataset.placeholder = placeholder;
+        select.setAttribute('aria-label', placeholder || 'Pilih mata uang');
+        cell.appendChild(select);
+        row.appendChild(cell);
+        currencySelect = select;
+        return select;
+      }
+
       const input = document.createElement('input');
       input.type = type;
       input.placeholder = placeholder;
       input.dataset.field = field;
+
       if (
         [
           'purchasePrice',
@@ -3282,16 +3784,37 @@ async function handleAddProductForm() {
         input.inputMode = 'numeric';
         input.classList.add('numeric-input');
       }
+
       if (field === 'stock' || field === 'weight') {
         input.inputMode = 'numeric';
         input.pattern = '[0-9]*';
       }
+
+      if (field === 'exchangeRate' || field === 'purchasePriceIdr') {
+        input.readOnly = true;
+        input.tabIndex = -1;
+        input.setAttribute('aria-readonly', 'true');
+        input.classList.add('readonly-input');
+      }
+
+      if (RUPIAH_PRICING_FIELDS.has(field)) {
+        attachRupiahFormatter(input);
+      }
+
+      if (field === 'purchasePrice') {
+        purchasePriceInput = input;
+      }
+      if (field === 'exchangeRate') {
+        exchangeRateInput = input;
+      }
+
       cell.appendChild(input);
       row.appendChild(cell);
+      return input;
     };
 
     buildInputCell('purchasePrice', '0');
-    buildInputCell('purchaseCurrency', 'Contoh: USD');
+    buildInputCell('purchaseCurrency', 'Pilih mata uang');
     buildInputCell('exchangeRate', '0');
     buildInputCell('purchasePriceIdr', 'Rp 0');
     buildInputCell('offlinePrice', 'Rp 0');
@@ -3310,6 +3833,25 @@ async function handleAddProductForm() {
 
     pricingBody.appendChild(row);
     hydratePricingRow(row, initialData, variantDefs);
+
+    if (currencySelect) {
+      currencySelect.addEventListener('change', () => {
+        syncCurrencyForRow(row, { currency: currencySelect.value });
+      });
+    }
+
+    if (purchasePriceInput) {
+      purchasePriceInput.addEventListener('input', () => {
+        recalculatePurchasePriceIdr(row);
+      });
+    }
+
+    if (exchangeRateInput) {
+      exchangeRateInput.addEventListener('input', () => {
+        recalculatePurchasePriceIdr(row);
+      });
+    }
+
     return row;
   }
 
