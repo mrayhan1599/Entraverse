@@ -2914,13 +2914,6 @@ function handleAddProductForm() {
     actionsCell.className = 'variant-actions';
     if (lockVariantSelection) {
       actionsCell.classList.add('locked');
-    } else {
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'icon-btn danger small remove-pricing-row';
-      removeBtn.setAttribute('aria-label', 'Hapus baris harga');
-      removeBtn.textContent = '🗑️';
-      actionsCell.appendChild(removeBtn);
     }
     row.appendChild(actionsCell);
 
@@ -2966,13 +2959,8 @@ function handleAddProductForm() {
     const hasAutoCombinations = combinations.length > 0;
 
     if (addPricingRowBtn) {
-      if (hasAutoCombinations) {
-        addPricingRowBtn.classList.add('is-hidden');
-        addPricingRowBtn.disabled = true;
-      } else {
-        addPricingRowBtn.classList.remove('is-hidden');
-        addPricingRowBtn.disabled = false;
-      }
+      addPricingRowBtn.classList.add('is-hidden');
+      addPricingRowBtn.disabled = true;
     }
 
     pricingHeaderRow.innerHTML = '';
@@ -3154,11 +3142,6 @@ function handleAddProductForm() {
 
     const button = event.target.closest('.remove-variant');
     if (!button) return;
-    const rows = Array.from(variantBody.querySelectorAll('.variant-row'));
-    if (rows.length <= 1) {
-      toast.show('Minimal satu varian diperlukan.');
-      return;
-    }
     button.closest('tr')?.remove();
     if (!suppressPricingRefresh) {
       refreshPricingTableStructure();
@@ -3180,31 +3163,7 @@ function handleAddProductForm() {
   });
 
   addPricingRowBtn?.addEventListener('click', () => {
-    const variantDefs = getVariantDefinitions();
-    const hasAutoCombinations = generateVariantCombinations(variantDefs).length > 0;
-    if (hasAutoCombinations) {
-      toast.show('Daftar harga dibuat otomatis untuk setiap kombinasi varian.');
-      return;
-    }
-    createPricingRow({}, variantDefs);
-  });
-
-  pricingBody?.addEventListener('click', event => {
-    const button = event.target.closest('.remove-pricing-row');
-    if (!button) return;
-    const rows = Array.from(pricingBody.querySelectorAll('.pricing-row'));
-    if (rows.length <= 1) {
-      const fields = rows[0]?.querySelectorAll('input, select');
-      fields?.forEach(field => {
-        if (field.tagName === 'SELECT') {
-          field.value = '';
-        } else {
-          field.value = '';
-        }
-      });
-      return;
-    }
-    button.closest('tr')?.remove();
+    toast.show('Daftar harga dibuat otomatis dari varian yang tersedia.');
   });
 
   if (editingId) {
@@ -3294,8 +3253,6 @@ function handleAddProductForm() {
       variantBody.innerHTML = '';
       if (Array.isArray(product.variants) && product.variants.length) {
         product.variants.forEach(variant => createVariantRow(variant));
-      } else {
-        createVariantRow();
       }
       suppressPricingRefresh = false;
       refreshPricingTableStructure();
@@ -3308,7 +3265,7 @@ function handleAddProductForm() {
       refreshPricingTableStructure({ externalData: pricingData });
     }
   } else {
-    createVariantRow();
+    refreshPricingTableStructure();
   }
 
   form.addEventListener('submit', event => {
