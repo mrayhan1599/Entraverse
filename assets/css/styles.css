@@ -635,6 +635,12 @@ body[data-theme="dark"] .menu-toggle:focus-visible {
   white-space: nowrap;
 }
 
+[data-guest-actions][hidden],
+[data-profile-menu][hidden],
+[data-profile-dropdown][hidden] {
+  display: none !important;
+}
+
 .profile-menu {
   position: relative;
   display: inline-flex;
