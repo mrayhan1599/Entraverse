@@ -3295,6 +3295,281 @@ async function handleAddProductForm() {
     'shopeePrice'
   ]);
 
+  const AUTO_COMPUTED_PRICING_FIELDS = new Set([
+    'purchasePriceIdr',
+    'offlinePrice',
+    'entraversePrice',
+    'tokopediaPrice',
+    'shopeePrice'
+  ]);
+
+  const WARRANTY_RATE = 0.03;
+  const WARRANTY_PROFIT_RATE = 1;
+  const WARRANTY_MULTIPLIER = 1 + WARRANTY_RATE * (1 + WARRANTY_PROFIT_RATE);
+  const TOKOPEDIA_FIXED_FEE = 1250;
+  const TOKOPEDIA_SERVICE_FEE = 0.018;
+  const TOKOPEDIA_DYNAMIC_COMMISSION_RATE = 0.04;
+  const TOKOPEDIA_XTRA_CASHBACK_RATE = 0.035;
+
+  const parsePercentToDecimal = (value, fallback = 0) => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      if (value >= 0 && value <= 1) {
+        return value;
+      }
+      if (Math.abs(value) > 1) {
+        return Math.max(0, value / 100);
+      }
+    }
+
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+
+    const text = value.toString().trim();
+    if (!text) {
+      return fallback;
+    }
+
+    const sanitized = text.replace(/[^0-9,.-]/g, '').replace(',', '.');
+    if (!sanitized) {
+      return fallback;
+    }
+
+    const numeric = Number.parseFloat(sanitized);
+    if (!Number.isFinite(numeric)) {
+      return fallback;
+    }
+
+    if (numeric >= 0 && numeric <= 1) {
+      return numeric;
+    }
+
+    if (numeric > 1) {
+      return Math.max(0, numeric / 100);
+    }
+
+    return fallback;
+  };
+
+  const getSelectedCategoryConfig = () => {
+    const selectedName = (categorySelect?.value ?? '').toString().trim().toLowerCase();
+    if (!selectedName) {
+      return null;
+    }
+
+    const categories = getCategories();
+    return (
+      categories.find(category => category?.name?.toString().trim().toLowerCase() === selectedName) || null
+    );
+  };
+
+  const valueMatchesWarranty = value => {
+    const normalized = (value ?? '').toString().trim().toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+
+    if (normalized === 'garansi 1 tahun' || normalized === 'toko - 1 tahun') {
+      return true;
+    }
+
+    if (normalized.includes('garansi') && normalized.includes('1') && normalized.includes('tahun')) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const hasWarrantyForRow = row => {
+    if (!row) {
+      return false;
+    }
+
+    const variantDefs = getVariantDefinitions();
+    const variantSelects = Array.from(row.querySelectorAll('select[data-variant-select]'));
+
+    const hasWarrantyVariant = variantSelects.some((select, index) => {
+      const value = (select.value ?? '').toString().trim();
+      if (valueMatchesWarranty(value)) {
+        return true;
+      }
+
+      const variantName = (variantDefs[index]?.rawName || variantDefs[index]?.name || '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+      if (variantName.includes('garansi')) {
+        const normalizedValue = value.toLowerCase();
+        if (normalizedValue.includes('1 tahun')) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    if (hasWarrantyVariant) {
+      return true;
+    }
+
+    const manualVariant = row.querySelector('[data-field="variantLabel"]');
+    if (manualVariant) {
+      const manualValue = (manualVariant.value ?? '').toString().trim();
+      if (valueMatchesWarranty(manualValue) || manualValue.toLowerCase().includes('1 tahun')) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const mround = (value, multiple) => {
+    if (!Number.isFinite(value) || !Number.isFinite(multiple) || multiple <= 0) {
+      return null;
+    }
+    return Math.round(value / multiple) * multiple;
+  };
+
+  const applyRoundingRules = value => {
+    if (!Number.isFinite(value) || value <= 0) {
+      return null;
+    }
+
+    let roundedValue = value;
+    if (value >= 500000) {
+      roundedValue = mround(value, 50000);
+      if (!Number.isFinite(roundedValue)) return null;
+      roundedValue -= 1000;
+    } else if (value >= 250000) {
+      roundedValue = mround(value, 10000);
+      if (!Number.isFinite(roundedValue)) return null;
+      roundedValue -= 1000;
+    } else if (value >= 100000) {
+      roundedValue = mround(value, 5000);
+      if (!Number.isFinite(roundedValue)) return null;
+      roundedValue -= 1000;
+    } else {
+      roundedValue = mround(value, 1000);
+      if (!Number.isFinite(roundedValue)) return null;
+      roundedValue -= 100;
+    }
+
+    if (!Number.isFinite(roundedValue)) {
+      return null;
+    }
+
+    return Math.max(0, Math.round(roundedValue));
+  };
+
+  const calculateOfflinePrice = (purchasePriceIdr, marginRate, hasWarranty) => {
+    if (!Number.isFinite(purchasePriceIdr) || purchasePriceIdr <= 0) {
+      return null;
+    }
+
+    const margin = Number.isFinite(marginRate) ? Math.max(0, marginRate) : 0;
+    if (margin >= 1) {
+      return null;
+    }
+
+    const basePrice = purchasePriceIdr / (1 - margin);
+    if (!Number.isFinite(basePrice) || basePrice <= 0) {
+      return null;
+    }
+
+    const adjustedPrice = hasWarranty ? basePrice * WARRANTY_MULTIPLIER : basePrice;
+    return applyRoundingRules(adjustedPrice);
+  };
+
+  const calculateTokopediaPrice = (purchasePriceIdr, { margin, marketplaceFee }, hasWarranty) => {
+    if (!Number.isFinite(purchasePriceIdr) || purchasePriceIdr <= 0) {
+      return null;
+    }
+
+    const marginRate = Number.isFinite(margin) ? Math.max(0, margin) : 0;
+    const marketplaceRate = Number.isFinite(marketplaceFee) ? Math.max(0, marketplaceFee) : 0;
+
+    const serviceFee = Math.min(TOKOPEDIA_SERVICE_FEE, 50000 / purchasePriceIdr);
+    const dynamicCommission = Math.min(TOKOPEDIA_DYNAMIC_COMMISSION_RATE, 40000 / purchasePriceIdr);
+    const cashback = Math.min(TOKOPEDIA_XTRA_CASHBACK_RATE, 60000 / purchasePriceIdr);
+
+    const totalPercent =
+      marginRate + marketplaceRate + serviceFee + dynamicCommission + cashback;
+
+    if (!Number.isFinite(totalPercent) || totalPercent >= 1) {
+      return null;
+    }
+
+    const base = (purchasePriceIdr + TOKOPEDIA_FIXED_FEE) / (1 - totalPercent);
+    if (!Number.isFinite(base) || base <= 0) {
+      return null;
+    }
+
+    const adjusted = hasWarranty ? base * WARRANTY_MULTIPLIER : base;
+    return applyRoundingRules(adjusted);
+  };
+
+  const clearComputedPricing = row => {
+    if (!row) {
+      return;
+    }
+
+    ['offlinePrice', 'entraversePrice', 'tokopediaPrice', 'shopeePrice'].forEach(field => {
+      const input = row.querySelector(`[data-field="${field}"]`);
+      if (input) {
+        setRupiahInputValue(input, '');
+      }
+    });
+  };
+
+  const updateComputedPricingForRow = row => {
+    if (!row) {
+      return;
+    }
+
+    const idrInput = row.querySelector('[data-field="purchasePriceIdr"]');
+    const offlineInput = row.querySelector('[data-field="offlinePrice"]');
+    const entraverseInput = row.querySelector('[data-field="entraversePrice"]');
+    const tokopediaInput = row.querySelector('[data-field="tokopediaPrice"]');
+    const shopeeInput = row.querySelector('[data-field="shopeePrice"]');
+
+    const idrValue = parseNumericValue(
+      idrInput?.dataset.numericValue ?? idrInput?.value ?? ''
+    );
+
+    if (!Number.isFinite(idrValue) || idrValue <= 0) {
+      clearComputedPricing(row);
+      return;
+    }
+
+    const category = getSelectedCategoryConfig();
+    const marginRate = parsePercentToDecimal(category?.margin?.value ?? 0, 0);
+    const marketplaceFee = parsePercentToDecimal(category?.fees?.marketplace ?? 0, 0);
+    const hasWarranty = hasWarrantyForRow(row);
+
+    const offlinePrice = calculateOfflinePrice(idrValue, marginRate, hasWarranty);
+    setRupiahInputValue(offlineInput, offlinePrice ?? '');
+
+    // Sementara gunakan harga offline untuk Entraverse hingga rumus khusus tersedia.
+    const entraversePrice = Number.isFinite(offlinePrice) ? offlinePrice : null;
+    setRupiahInputValue(entraverseInput, entraversePrice ?? '');
+
+    const tokopediaPrice = calculateTokopediaPrice(
+      idrValue,
+      { margin: marginRate, marketplaceFee },
+      hasWarranty
+    );
+    setRupiahInputValue(tokopediaInput, tokopediaPrice ?? '');
+
+    // Harga Shopee juga mengikuti harga offline sampai rumus resmi diberikan.
+    const shopeePrice = Number.isFinite(offlinePrice) ? offlinePrice : null;
+    setRupiahInputValue(shopeeInput, shopeePrice ?? '');
+  };
+
+  const updateAllPricingRows = () => {
+    getPricingRows().forEach(row => updateComputedPricingForRow(row));
+  };
+
   const sanitizeCurrencyDigits = value => {
     if (value === null || value === undefined) {
       return '';
@@ -3513,16 +3788,19 @@ async function handleAddProductForm() {
 
     if (!Number.isFinite(price) || !Number.isFinite(rate)) {
       setRupiahInputValue(idrInput, '');
+      updateComputedPricingForRow(row);
       return;
     }
 
     const total = Math.round(price * rate);
     if (!Number.isFinite(total)) {
       setRupiahInputValue(idrInput, '');
+      updateComputedPricingForRow(row);
       return;
     }
 
     setRupiahInputValue(idrInput, total);
+    updateComputedPricingForRow(row);
   };
 
   const syncCurrencyForRow = (row, { currency, fallbackRate } = {}) => {
@@ -3589,6 +3867,9 @@ async function handleAddProductForm() {
   populateCategorySelect(categorySelect, { helperEl: categoryHelper });
   if (categorySelect) {
     categorySelect.disabled = !getCategories().length;
+    categorySelect.addEventListener('change', () => {
+      updateAllPricingRows();
+    });
   }
 
   document.addEventListener('categories:changed', () => {
@@ -3597,6 +3878,7 @@ async function handleAddProductForm() {
     if (categorySelect) {
       categorySelect.disabled = !getCategories().length;
     }
+    updateAllPricingRows();
   });
 
   document.addEventListener('exchangeRates:changed', () => {
@@ -4017,7 +4299,7 @@ async function handleAddProductForm() {
         input.pattern = '[0-9]*';
       }
 
-      if (field === 'purchasePriceIdr') {
+      if (AUTO_COMPUTED_PRICING_FIELDS.has(field)) {
         input.readOnly = true;
         input.tabIndex = -1;
         input.setAttribute('aria-readonly', 'true');
@@ -4073,6 +4355,19 @@ async function handleAddProductForm() {
       });
     }
 
+    Array.from(row.querySelectorAll('select[data-variant-select]')).forEach(select => {
+      select.addEventListener('change', () => {
+        updateComputedPricingForRow(row);
+      });
+    });
+
+    const manualVariantInput = row.querySelector('[data-field="variantLabel"]');
+    if (manualVariantInput) {
+      manualVariantInput.addEventListener('input', () => {
+        updateComputedPricingForRow(row);
+      });
+    }
+
     if (purchasePriceInput) {
       purchasePriceInput.addEventListener('input', () => {
         recalculatePurchasePriceIdr(row);
@@ -4110,6 +4405,7 @@ async function handleAddProductForm() {
       });
     }
 
+    updateComputedPricingForRow(row);
     return row;
   }
 
