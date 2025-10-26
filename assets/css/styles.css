@@ -545,9 +545,10 @@ body.sidebar-collapsed .sidebar-collapse-toggle svg {
 }
 
 .topbar-left .search-bar {
-  flex: 0 1 clamp(280px, 42vw, 520px);
-  max-width: clamp(280px, 42vw, 520px);
+  flex: 1 1 auto;
+  max-width: none;
   width: 100%;
+  min-width: 280px;
 }
 
 .search-bar input {
