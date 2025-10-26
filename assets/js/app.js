@@ -413,6 +413,29 @@ function normalizeIdForQuery(value) {
   return normalized;
 }
 
+function parseJsonField(value, fallback) {
+  if (value === null || typeof value === 'undefined') {
+    return fallback;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return fallback;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      return typeof parsed === 'undefined' ? fallback : parsed;
+    } catch (error) {
+      console.warn('Gagal mengurai nilai JSON dari Supabase.', error);
+      return fallback;
+    }
+  }
+
+  return value;
+}
+
 function mapSupabaseCategory(record) {
   if (!record) {
     return null;
@@ -724,8 +747,11 @@ function mapSupabaseProduct(record) {
   }
 
   const photos = Array.isArray(record.photos) ? record.photos.filter(Boolean) : [];
-  const variants = Array.isArray(record.variants) ? record.variants : [];
-  const variantPricing = Array.isArray(record.variant_pricing) ? record.variant_pricing : [];
+  const variantsRaw = parseJsonField(record.variants, []);
+  const variantPricingRaw = parseJsonField(record.variant_pricing, []);
+  const inventoryRaw = parseJsonField(record.inventory, null);
+  const variants = Array.isArray(variantsRaw) ? variantsRaw : [];
+  const variantPricing = Array.isArray(variantPricingRaw) ? variantPricingRaw : [];
 
   return {
     id,
@@ -734,7 +760,7 @@ function mapSupabaseProduct(record) {
     brand: record.brand ?? '',
     description: record.description ?? '',
     tradeIn: Boolean(record.trade_in),
-    inventory: record.inventory ?? null,
+    inventory: typeof inventoryRaw === 'object' && inventoryRaw ? inventoryRaw : null,
     photos,
     variants,
     variantPricing,
