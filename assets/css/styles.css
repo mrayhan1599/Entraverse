@@ -9,6 +9,7 @@
   --color-text: #0f172a;
   --color-muted: #5f6b89;
   --color-border: #d7e3ff;
+  --color-warning: #f59e0b;
   --color-icon-bg: rgba(37, 99, 235, 0.08);
   --color-icon-border: rgba(37, 99, 235, 0.16);
   --color-icon-hover: rgba(37, 99, 235, 0.18);
@@ -43,6 +44,7 @@ body[data-theme="dark"] {
   --color-text: #e2e8f0;
   --color-muted: #94a3b8;
   --color-border: #1e293b;
+  --color-warning: #fbbf24;
   --color-icon-bg: rgba(148, 163, 184, 0.16);
   --color-icon-border: rgba(148, 163, 184, 0.26);
   --color-icon-hover: rgba(148, 163, 184, 0.3);
@@ -1813,6 +1815,14 @@ input:checked + .slider:before {
 
 .form-sidebar-card--status[data-status="offline"] .supabase-status-text {
   color: var(--color-danger);
+}
+
+.form-sidebar-card--status[data-status="warning"] {
+  border-color: var(--color-warning);
+}
+
+.form-sidebar-card--status[data-status="warning"] .supabase-status-text {
+  color: var(--color-warning);
 }
 
 .supabase-status-text {
