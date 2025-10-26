@@ -30,6 +30,10 @@
             <span class="nav-icon" aria-hidden="true">📂</span>
             Kategori
           </a>
+          <a class="nav-link" href="vendor.html">
+            <span class="nav-icon" aria-hidden="true">🤝</span>
+            Vendor
+          </a>
         </div>
       </nav>
     </aside>
@@ -206,6 +210,24 @@
             </div>
           </div>
         </div>
+        <div class="form-section form-section--vendor">
+          <div class="section-header">
+            <h2>Tarif Pengiriman Vendor</h2>
+            <a class="btn ghost-btn small" href="vendor.html">Kelola Vendor</a>
+          </div>
+          <p class="field-hint" data-vendor-last-updated>Tarif vendor menggunakan nilai bawaan.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="shipping-sea-rate">Ongkos Kirim Supplier - Laut (Rp per CBM)</label>
+              <input type="number" id="shipping-sea-rate" name="shippingSeaRate" placeholder="Contoh: 2500000" min="0" step="0.01" inputmode="decimal">
+            </div>
+            <div class="form-group">
+              <label for="shipping-air-rate">Ongkos Kirim Supplier - Udara (Rp per Kg)</label>
+              <input type="number" id="shipping-air-rate" name="shippingAirRate" placeholder="Contoh: 180000" min="0" step="0.01" inputmode="decimal">
+            </div>
+          </div>
+          <p class="field-hint">Perubahan tarif pada halaman Vendor akan otomatis diterapkan ke formulir produk baru.</p>
+        </div>
         <div class="form-section">
           <div class="section-header">
             <h2>Trade-In</h2>
@@ -264,22 +286,7 @@
             </table>
           </div>
         </div>
-          </div>
-          <aside class="form-side-panel" aria-labelledby="vendor-settings-title">
-            <div class="form-side-panel__header">
-              <h2 id="vendor-settings-title">Vendor</h2>
-              <p>Kelola ongkos kirim supplier agar konsisten untuk seluruh produk.</p>
-            </div>
-            <div class="form-group">
-              <label for="shipping-sea-rate">Ongkos Kirim Supplier - Laut (Rp per CBM)</label>
-              <input type="number" id="shipping-sea-rate" name="shippingSeaRate" placeholder="Contoh: 2500000" min="0" step="0.01" inputmode="decimal">
-            </div>
-            <div class="form-group">
-              <label for="shipping-air-rate">Ongkos Kirim Supplier - Udara (Rp per Kg)</label>
-              <input type="number" id="shipping-air-rate" name="shippingAirRate" placeholder="Contoh: 180000" min="0" step="0.01" inputmode="decimal">
-            </div>
-          </aside>
-        </div>
+      </div>
         <footer class="form-footer">
           <a href="dashboard.html" class="btn ghost-btn">Batalkan</a>
           <button type="submit" class="btn primary-btn">Simpan sebagai Draft</button>
