@@ -628,19 +628,45 @@ async function refreshCategoriesFromSupabase() {
     return getCategoriesFromCache();
   }
 
+  const isMissingColumnError = (error, column) => {
+    if (!error) return false;
+    if (error.code === '42703') return true;
+    const detail = [error.message, error.details, error.hint]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return detail.includes(column.toLowerCase());
+  };
+
   try {
     await ensureSupabase();
     const client = getSupabaseClient();
-    const { data, error } = await client
-      .from(SUPABASE_TABLES.categories)
-      .select('*')
-      .order('created_at', { ascending: true });
 
-    if (error) {
-      throw error;
+    const fetchCategories = async orderColumn => {
+      let query = client.from(SUPABASE_TABLES.categories).select('*');
+      if (orderColumn) {
+        query = query.order(orderColumn, { ascending: true });
+      }
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+      return data ?? [];
+    };
+
+    let rows;
+    try {
+      rows = await fetchCategories('created_at');
+    } catch (error) {
+      if (isMissingColumnError(error, 'created_at')) {
+        console.warn('Kolom created_at tidak ditemukan pada tabel categories. Mengurutkan berdasarkan nama.', error);
+        rows = await fetchCategories('name');
+      } else {
+        throw error;
+      }
     }
 
-    const categories = (data ?? []).map(mapSupabaseCategory).filter(Boolean);
+    const categories = rows.map(mapSupabaseCategory).filter(Boolean);
     setCategoryCache(categories);
     setDataSourceState('categories', 'remote');
     return categories;
@@ -808,19 +834,45 @@ async function refreshProductsFromSupabase() {
     return getProductsFromCache();
   }
 
+  const isMissingColumnError = (error, column) => {
+    if (!error) return false;
+    if (error.code === '42703') return true;
+    const detail = [error.message, error.details, error.hint]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return detail.includes(column.toLowerCase());
+  };
+
   try {
     await ensureSupabase();
     const client = getSupabaseClient();
-    const { data, error } = await client
-      .from(SUPABASE_TABLES.products)
-      .select('*')
-      .order('created_at', { ascending: true });
 
-    if (error) {
-      throw error;
+    const fetchProducts = async orderColumn => {
+      let query = client.from(SUPABASE_TABLES.products).select('*');
+      if (orderColumn) {
+        query = query.order(orderColumn, { ascending: true });
+      }
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+      return data ?? [];
+    };
+
+    let rows;
+    try {
+      rows = await fetchProducts('created_at');
+    } catch (error) {
+      if (isMissingColumnError(error, 'created_at')) {
+        console.warn('Kolom created_at tidak ditemukan pada tabel products. Mengurutkan berdasarkan nama.', error);
+        rows = await fetchProducts('name');
+      } else {
+        throw error;
+      }
     }
 
-    const products = (data ?? []).map(mapSupabaseProduct).filter(Boolean);
+    const products = rows.map(mapSupabaseProduct).filter(Boolean);
     setProductCache(products);
     setDataSourceState('products', 'remote');
     return products;
