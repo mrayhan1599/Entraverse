@@ -18,7 +18,7 @@ let activeSessionUser = null;
 
 const DEFAULT_PRODUCTS = [
   {
-    id: crypto.randomUUID(),
+    id: '19e2bd0a-6bee-4f12-9b0b-a0909669f98f',
     name: 'Meta Quest 3S 128 GB Virtual Reality Headset',
     category: 'Virtual Reality',
     brand: 'Meta',
@@ -77,7 +77,7 @@ const DEFAULT_PRODUCTS = [
     createdAt: Date.now()
   },
   {
-    id: crypto.randomUUID(),
+    id: '3c4473bf-90c0-4777-a1a5-015572947e36',
     name: 'Meta Quest 3S 256 GB Virtual Reality Headset',
     category: 'Virtual Reality',
     brand: 'Meta',
@@ -381,8 +381,45 @@ function getRemoteCache(key, fallback) {
   return clone(remoteCache[key]);
 }
 
+function normalizeId(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  return value.toString().trim();
+}
+
+function idsAreEqual(a, b) {
+  return normalizeId(a) === normalizeId(b);
+}
+
+function normalizeIdForQuery(value) {
+  const normalized = normalizeId(value);
+  if (!normalized) {
+    return normalized;
+  }
+
+  if (/^-?\d+$/.test(normalized)) {
+    const numeric = Number.parseInt(normalized, 10);
+    if (Number.isSafeInteger(numeric)) {
+      return numeric;
+    }
+  }
+
+  return normalized;
+}
+
 function mapSupabaseCategory(record) {
   if (!record) {
+    return null;
+  }
+
+  const id = normalizeId(record.id);
+  if (!id) {
     return null;
   }
 
@@ -392,7 +429,7 @@ function mapSupabaseCategory(record) {
     margin.note ?? margin.margin_note ?? (typeof record.margin_note === 'string' ? record.margin_note : '');
 
   return {
-    id: record.id,
+    id,
     name: record.name ?? '',
     note: record.note ?? '',
     fees: {
@@ -414,7 +451,7 @@ function mapCategoryToRecord(category) {
   const margin = category.margin ?? {};
 
   return {
-    id: category.id,
+    id: normalizeId(category.id) || crypto.randomUUID(),
     name: category.name,
     note: category.note || null,
     fees: {
@@ -561,7 +598,7 @@ async function refreshExchangeRatesFromSupabase() {
     setDataSourceState('exchangeRates', 'remote');
     return mapped;
   } catch (error) {
-    if (error?.code === '42P01') {
+    if (error?.code === '42P01' || error?.code === 'PGRST205') {
       console.warn('Tabel exchange_rates belum tersedia di Supabase.', error);
     } else {
       console.error('Gagal memuat data kurs dari Supabase.', error);
@@ -617,10 +654,11 @@ async function refreshCategoriesFromSupabase() {
 async function deleteCategoryFromSupabase(id) {
   await ensureSupabase();
   const client = getSupabaseClient();
+  const queryId = normalizeIdForQuery(id);
   const { error } = await client
     .from(SUPABASE_TABLES.categories)
     .delete()
-    .eq('id', id);
+    .eq('id', queryId);
 
   if (error) {
     throw error;
@@ -634,6 +672,7 @@ async function upsertCategoryToSupabase(category) {
   if (!payload.id) {
     payload.id = crypto.randomUUID();
   }
+  payload.id = normalizeId(payload.id) || crypto.randomUUID();
   if (!payload.updated_at) {
     payload.updated_at = new Date().toISOString();
   }
@@ -653,12 +692,17 @@ function mapSupabaseProduct(record) {
     return null;
   }
 
+  const id = normalizeId(record.id);
+  if (!id) {
+    return null;
+  }
+
   const photos = Array.isArray(record.photos) ? record.photos.filter(Boolean) : [];
   const variants = Array.isArray(record.variants) ? record.variants : [];
   const variantPricing = Array.isArray(record.variant_pricing) ? record.variant_pricing : [];
 
   return {
-    id: record.id,
+    id,
     name: record.name ?? '',
     category: record.category ?? '',
     brand: record.brand ?? '',
@@ -675,7 +719,7 @@ function mapSupabaseProduct(record) {
 
 function mapProductToRecord(product) {
   return {
-    id: product.id,
+    id: normalizeId(product.id),
     name: product.name,
     category: product.category,
     brand: product.brand || null,
@@ -699,7 +743,8 @@ function getProductsFromCache() {
 }
 
 async function fetchProductByIdFromSupabase(id) {
-  if (!id) {
+  const normalizedId = normalizeId(id);
+  if (!normalizedId) {
     return null;
   }
 
@@ -714,7 +759,7 @@ async function fetchProductByIdFromSupabase(id) {
     const { data, error } = await client
       .from(SUPABASE_TABLES.products)
       .select('*')
-      .eq('id', id)
+      .eq('id', normalizeIdForQuery(normalizedId))
       .maybeSingle();
 
     if (error) {
@@ -789,10 +834,11 @@ async function refreshProductsFromSupabase() {
 async function deleteProductFromSupabase(id) {
   await ensureSupabase();
   const client = getSupabaseClient();
+  const queryId = normalizeIdForQuery(id);
   const { error } = await client
     .from(SUPABASE_TABLES.products)
     .delete()
-    .eq('id', id);
+    .eq('id', queryId);
 
   if (error) {
     throw error;
@@ -806,6 +852,7 @@ async function upsertProductToSupabase(product) {
   if (!payload.id) {
     payload.id = crypto.randomUUID();
   }
+  payload.id = normalizeId(payload.id) || crypto.randomUUID();
   if (!payload.updated_at) {
     payload.updated_at = new Date().toISOString();
   }
@@ -826,7 +873,7 @@ function sanitizeSessionUser(user) {
   }
 
   return {
-    id: user.id,
+    id: normalizeId(user.id),
     name: user.name ?? '',
     company: user.company ?? '',
     email: user.email ?? ''
@@ -839,7 +886,7 @@ function mapSupabaseUser(record) {
   }
 
   return {
-    id: record.id,
+    id: normalizeId(record.id),
     name: record.name ?? '',
     company: record.company ?? '',
     email: record.email ?? '',
@@ -851,7 +898,7 @@ function mapSupabaseUser(record) {
 
 function mapUserToRecord(user) {
   return {
-    id: user.id,
+    id: normalizeId(user.id),
     name: user.name,
     company: user.company,
     email: user.email,
@@ -2962,18 +3009,18 @@ function handleProductActions() {
     const target = event.target.closest('button');
     if (!target) return;
 
-    const id = target.dataset.id;
-    if (!id) return;
+    const normalizedId = normalizeId(target.dataset.id);
+    if (!normalizedId) return;
 
     const products = getProductsFromCache();
-    const productIndex = products.findIndex(p => p.id === id);
+    const productIndex = products.findIndex(p => idsAreEqual(p.id, normalizedId));
     if (productIndex === -1) return;
 
     if (target.dataset.action === 'edit') {
       if (!requireCatalogManager('Silakan login untuk mengedit produk.')) {
         return;
       }
-      window.location.href = `add-product.html?id=${id}`;
+      window.location.href = `add-product.html?id=${encodeURIComponent(normalizedId)}`;
       return;
     }
 
@@ -2985,7 +3032,7 @@ function handleProductActions() {
         return;
       }
       try {
-        await deleteProductFromSupabase(id);
+        await deleteProductFromSupabase(normalizedId);
         await refreshProductsFromSupabase();
         toast.show('Produk berhasil dihapus.');
         renderProducts(getCurrentFilter());
@@ -3015,9 +3062,9 @@ function handleProductActions() {
       return;
     }
 
-    const id = input.dataset.id;
+    const id = normalizeId(input.dataset.id);
     const products = getProductsFromCache();
-    const product = products.find(p => p.id === id);
+    const product = products.find(p => idsAreEqual(p.id, id));
     if (!product) {
       return;
     }
@@ -3144,7 +3191,7 @@ function handleCategoryActions() {
     const button = event.target.closest('[data-category-action]');
     if (!button) return;
 
-    const id = button.dataset.id;
+    const id = normalizeId(button.dataset.id);
     if (!id) return;
 
     if (!requireCatalogManager('Silakan login untuk mengelola kategori.')) {
@@ -3153,7 +3200,7 @@ function handleCategoryActions() {
 
     if (button.dataset.categoryAction === 'edit') {
       const categories = getCategories();
-      const category = categories.find(item => item.id === id);
+      const category = categories.find(item => idsAreEqual(item.id, id));
       if (!category) {
         toast.show('Kategori tidak ditemukan.');
         renderCategories(getCurrentFilter());
@@ -3201,11 +3248,14 @@ function handleCategoryActions() {
     }
 
     const categories = getCategories();
-    const editingId = form.dataset.editingId;
+    const editingId = normalizeId(form.dataset.editingId);
     const normalizedName = name.toLowerCase();
-    const hasDuplicate = categories.some(category =>
-      category.name?.toLowerCase() === normalizedName && category.id !== editingId
-    );
+    const hasDuplicate = categories.some(category => {
+      if (category.name?.toLowerCase() !== normalizedName) {
+        return false;
+      }
+      return editingId ? !idsAreEqual(category.id, editingId) : true;
+    });
 
     if (hasDuplicate) {
       toast.show('Nama kategori sudah digunakan.');
@@ -3214,7 +3264,7 @@ function handleCategoryActions() {
     }
 
     const existingCategory = editingId
-      ? categories.find(category => category.id === editingId)
+      ? categories.find(category => idsAreEqual(category.id, editingId))
       : null;
 
     if (editingId && !existingCategory) {
@@ -3521,7 +3571,7 @@ async function handleAddProductForm() {
   const navItems = new Map();
   const scrollRoot = document.querySelector('.main-content');
   const params = new URLSearchParams(window.location.search);
-  const editingId = params.get('id');
+  const editingId = normalizeId(params.get('id'));
   let suppressPricingRefresh = false;
 
   const setSupabaseStatus = (status, message) => {
@@ -3741,18 +3791,56 @@ async function handleAddProductForm() {
       refreshExchangeRatesFromSupabase()
     ]);
     const summary = getDataSourceSummary();
-    usingFallbackData = Object.values(summary).includes('fallback');
+    const fallbackKeys = Object.entries(summary)
+      .filter(([, value]) => value === 'fallback')
+      .map(([key]) => key);
+
+    usingFallbackData = fallbackKeys.length > 0;
+
     if (usingFallbackData) {
-      setSupabaseStatus('offline', 'Supabase tidak dapat diakses. Menggunakan data contoh.');
+      const fallbackLabels = fallbackKeys
+        .map(key => {
+          if (key === 'products') return 'produk';
+          if (key === 'categories') return 'kategori';
+          if (key === 'exchangeRates') return 'kurs';
+          return key;
+        })
+        .join(', ');
+
+      const offlineMessage = fallbackKeys.length === Object.keys(summary).length
+        ? 'Supabase tidak dapat diakses. Menggunakan data contoh.'
+        : `Data ${fallbackLabels} Supabase tidak tersedia. Menggunakan data cadangan untuk bagian tersebut.`;
+
+      setSupabaseStatus('offline', offlineMessage);
     } else {
       setSupabaseStatus('online', 'Terhubung ke Supabase.');
     }
   } catch (error) {
     console.error('Gagal menyiapkan data produk.', error);
-    applyLocalFallbackData();
-    usingFallbackData = true;
-    setSupabaseStatus('offline', 'Supabase tidak dapat diakses. Menggunakan data contoh.');
-    toast.show('Tidak dapat memuat data Supabase. Menampilkan data contoh.');
+    const hasProducts = getProductsFromCache().length > 0;
+    const hasCategories = getCategoriesFromCache().length > 0;
+    const hasExchangeRates = getExchangeRatesFromCache().length > 0;
+
+    applyLocalFallbackData({
+      products: !hasProducts,
+      categories: !hasCategories,
+      exchangeRates: !hasExchangeRates,
+      vendor: false
+    });
+
+    const fallbackSummary = [];
+    if (!hasProducts) fallbackSummary.push('produk');
+    if (!hasCategories) fallbackSummary.push('kategori');
+    if (!hasExchangeRates) fallbackSummary.push('kurs');
+
+    usingFallbackData = Object.values(getDataSourceSummary()).includes('fallback');
+
+    const fallbackMessage = fallbackSummary.length
+      ? `Data ${fallbackSummary.join(', ')} Supabase tidak dapat dimuat. Menampilkan data cadangan.`
+      : 'Supabase tidak dapat diakses. Menggunakan data contoh.';
+
+    setSupabaseStatus('offline', fallbackMessage);
+    toast.show('Sebagian data Supabase tidak dapat dimuat. Menampilkan data cadangan yang tersedia.');
   }
 
   const getPricingRows = () => Array.from(pricingBody?.querySelectorAll('.pricing-row') ?? []);
@@ -5314,13 +5402,13 @@ async function handleAddProductForm() {
 
   if (editingId) {
     const products = getProductsFromCache();
-    let product = products.find(p => p.id === editingId);
+    let product = products.find(p => idsAreEqual(p.id, editingId));
 
     if (!product) {
       const remoteProduct = await fetchProductByIdFromSupabase(editingId);
       if (remoteProduct) {
         product = remoteProduct;
-        const mergedProducts = [...products.filter(p => p.id !== remoteProduct.id), remoteProduct];
+        const mergedProducts = [...products.filter(p => !idsAreEqual(p.id, remoteProduct.id)), remoteProduct];
         setProductCache(mergedProducts);
         setDataSourceState('products', 'remote');
       }
@@ -5337,7 +5425,7 @@ async function handleAddProductForm() {
       return;
     }
 
-    form.dataset.editingId = product.id;
+    form.dataset.editingId = normalizeId(product.id);
 
     if (titleEl) {
       titleEl.textContent = 'Edit Produk';
@@ -5578,14 +5666,15 @@ async function handleAddProductForm() {
       }
     });
 
-    const isEditing = Boolean(form.dataset.editingId);
+    const editingProductId = normalizeId(form.dataset.editingId);
+    const isEditing = Boolean(editingProductId);
     const timestamp = Date.now();
-    const productId = isEditing ? form.dataset.editingId : crypto.randomUUID();
+    const productId = isEditing ? editingProductId : crypto.randomUUID();
 
     let existingProduct = null;
     if (isEditing) {
       const products = getProductsFromCache();
-      existingProduct = products.find(p => p.id === productId) ?? null;
+      existingProduct = products.find(p => idsAreEqual(p.id, productId)) ?? null;
       if (!existingProduct) {
         toast.show('Produk tidak ditemukan.');
         return;
