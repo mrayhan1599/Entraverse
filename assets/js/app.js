@@ -3269,9 +3269,74 @@ async function handleAddProductForm() {
   const submitBtn = form.querySelector('.primary-btn');
   const categorySelect = form.querySelector('#product-category');
   const categoryHelper = document.getElementById('category-helper-text');
+  const weightInput = form.querySelector('#product-weight');
+  const lengthInput = form.querySelector('#product-length');
+  const widthInput = form.querySelector('#product-width');
+  const heightInput = form.querySelector('#product-height');
+  const volumeInput = form.querySelector('#product-volume');
+  const shippingSeaInput = form.querySelector('#shipping-sea-rate');
+  const shippingAirInput = form.querySelector('#shipping-air-rate');
   const params = new URLSearchParams(window.location.search);
   const editingId = params.get('id');
   let suppressPricingRefresh = false;
+
+  const formatCbmValue = value => {
+    if (!Number.isFinite(value)) {
+      return '';
+    }
+
+    const fixed = value.toFixed(4);
+    const trimmed = fixed.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+    return trimmed || '0';
+  };
+
+  const updateVolumeCbm = () => {
+    if (!lengthInput || !widthInput || !heightInput || !volumeInput) {
+      return;
+    }
+
+    const parseInputValue = input => {
+      if (!input) {
+        return Number.NaN;
+      }
+
+      const raw = (input.value ?? '').toString().trim();
+      if (!raw) {
+        return Number.NaN;
+      }
+
+      const parsed = Number.parseFloat(raw);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        return Number.NaN;
+      }
+
+      return parsed;
+    };
+
+    const lengthValue = parseInputValue(lengthInput);
+    const widthValue = parseInputValue(widthInput);
+    const heightValue = parseInputValue(heightInput);
+
+    if ([lengthValue, widthValue, heightValue].some(value => Number.isNaN(value))) {
+      volumeInput.value = '';
+      return;
+    }
+
+    const cbm = (lengthValue * widthValue * heightValue) / 1_000_000;
+
+    if (!Number.isFinite(cbm)) {
+      volumeInput.value = '';
+      return;
+    }
+
+    volumeInput.value = formatCbmValue(cbm);
+  };
+
+  [lengthInput, widthInput, heightInput].forEach(input => {
+    input?.addEventListener('input', updateVolumeCbm);
+  });
+
+  updateVolumeCbm();
 
   try {
     await ensureSeeded();
@@ -4685,7 +4750,14 @@ async function handleAddProductForm() {
       initialStockPrediction: form.querySelector('#initial-stock-prediction'),
       dailyAverageSales: form.querySelector('#daily-average-sales'),
       leadTime: form.querySelector('#lead-time'),
-      reorderPoint: form.querySelector('#reorder-point')
+      reorderPoint: form.querySelector('#reorder-point'),
+      weightGram: weightInput,
+      lengthCm: lengthInput,
+      widthCm: widthInput,
+      heightCm: heightInput,
+      volumeCbm: volumeInput,
+      shippingSeaRate: shippingSeaInput,
+      shippingAirRate: shippingAirInput
     };
     const inventory = product.inventory ?? {};
     Object.entries(inventoryFields).forEach(([key, input]) => {
@@ -4698,6 +4770,8 @@ async function handleAddProductForm() {
 
       input.value = value;
     });
+
+    updateVolumeCbm();
 
     if (Array.isArray(product.photos)) {
       product.photos.slice(0, photoInputs.length).forEach((photo, index) => {
@@ -4742,13 +4816,21 @@ async function handleAddProductForm() {
       return;
     }
 
+    updateVolumeCbm();
     const formData = new FormData(form);
     const categoryValue = (formData.get('category') ?? '').toString().trim();
     const inventoryData = {
       initialStockPrediction: (formData.get('initialStockPrediction') ?? '').toString().trim(),
       dailyAverageSales: (formData.get('dailyAverageSales') ?? '').toString().trim(),
       leadTime: (formData.get('leadTime') ?? '').toString().trim(),
-      reorderPoint: (formData.get('reorderPoint') ?? '').toString().trim()
+      reorderPoint: (formData.get('reorderPoint') ?? '').toString().trim(),
+      weightGram: (formData.get('weightGram') ?? '').toString().trim(),
+      lengthCm: (formData.get('lengthCm') ?? '').toString().trim(),
+      widthCm: (formData.get('widthCm') ?? '').toString().trim(),
+      heightCm: (formData.get('heightCm') ?? '').toString().trim(),
+      volumeCbm: (formData.get('volumeCbm') ?? '').toString().trim(),
+      shippingSeaRate: (formData.get('shippingSeaRate') ?? '').toString().trim(),
+      shippingAirRate: (formData.get('shippingAirRate') ?? '').toString().trim()
     };
     const hasInventoryData = Object.values(inventoryData).some(value => (value ?? '').toString().trim());
 
