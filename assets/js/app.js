@@ -18,7 +18,7 @@ let activeSessionUser = null;
 
 const DEFAULT_PRODUCTS = [
   {
-    id: crypto.randomUUID(),
+    id: '19e2bd0a-6bee-4f12-9b0b-a0909669f98f',
     name: 'Meta Quest 3S 128 GB Virtual Reality Headset',
     category: 'Virtual Reality',
     brand: 'Meta',
@@ -77,7 +77,7 @@ const DEFAULT_PRODUCTS = [
     createdAt: Date.now()
   },
   {
-    id: crypto.randomUUID(),
+    id: '3c4473bf-90c0-4777-a1a5-015572947e36',
     name: 'Meta Quest 3S 256 GB Virtual Reality Headset',
     category: 'Virtual Reality',
     brand: 'Meta',
@@ -598,7 +598,7 @@ async function refreshExchangeRatesFromSupabase() {
     setDataSourceState('exchangeRates', 'remote');
     return mapped;
   } catch (error) {
-    if (error?.code === '42P01') {
+    if (error?.code === '42P01' || error?.code === 'PGRST205') {
       console.warn('Tabel exchange_rates belum tersedia di Supabase.', error);
     } else {
       console.error('Gagal memuat data kurs dari Supabase.', error);
@@ -3791,18 +3791,56 @@ async function handleAddProductForm() {
       refreshExchangeRatesFromSupabase()
     ]);
     const summary = getDataSourceSummary();
-    usingFallbackData = Object.values(summary).includes('fallback');
+    const fallbackKeys = Object.entries(summary)
+      .filter(([, value]) => value === 'fallback')
+      .map(([key]) => key);
+
+    usingFallbackData = fallbackKeys.length > 0;
+
     if (usingFallbackData) {
-      setSupabaseStatus('offline', 'Supabase tidak dapat diakses. Menggunakan data contoh.');
+      const fallbackLabels = fallbackKeys
+        .map(key => {
+          if (key === 'products') return 'produk';
+          if (key === 'categories') return 'kategori';
+          if (key === 'exchangeRates') return 'kurs';
+          return key;
+        })
+        .join(', ');
+
+      const offlineMessage = fallbackKeys.length === Object.keys(summary).length
+        ? 'Supabase tidak dapat diakses. Menggunakan data contoh.'
+        : `Data ${fallbackLabels} Supabase tidak tersedia. Menggunakan data cadangan untuk bagian tersebut.`;
+
+      setSupabaseStatus('offline', offlineMessage);
     } else {
       setSupabaseStatus('online', 'Terhubung ke Supabase.');
     }
   } catch (error) {
     console.error('Gagal menyiapkan data produk.', error);
-    applyLocalFallbackData();
-    usingFallbackData = true;
-    setSupabaseStatus('offline', 'Supabase tidak dapat diakses. Menggunakan data contoh.');
-    toast.show('Tidak dapat memuat data Supabase. Menampilkan data contoh.');
+    const hasProducts = getProductsFromCache().length > 0;
+    const hasCategories = getCategoriesFromCache().length > 0;
+    const hasExchangeRates = getExchangeRatesFromCache().length > 0;
+
+    applyLocalFallbackData({
+      products: !hasProducts,
+      categories: !hasCategories,
+      exchangeRates: !hasExchangeRates,
+      vendor: false
+    });
+
+    const fallbackSummary = [];
+    if (!hasProducts) fallbackSummary.push('produk');
+    if (!hasCategories) fallbackSummary.push('kategori');
+    if (!hasExchangeRates) fallbackSummary.push('kurs');
+
+    usingFallbackData = Object.values(getDataSourceSummary()).includes('fallback');
+
+    const fallbackMessage = fallbackSummary.length
+      ? `Data ${fallbackSummary.join(', ')} Supabase tidak dapat dimuat. Menampilkan data cadangan.`
+      : 'Supabase tidak dapat diakses. Menggunakan data contoh.';
+
+    setSupabaseStatus('offline', fallbackMessage);
+    toast.show('Sebagian data Supabase tidak dapat dimuat. Menampilkan data cadangan yang tersedia.');
   }
 
   const getPricingRows = () => Array.from(pricingBody?.querySelectorAll('.pricing-row') ?? []);
