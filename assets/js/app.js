@@ -249,6 +249,42 @@ const SUPABASE_TABLES = Object.freeze({
   exchangeRates: 'exchange_rates'
 });
 
+if (typeof globalThis.crypto === 'undefined') {
+  globalThis.crypto = {};
+}
+
+if (typeof globalThis.crypto.randomUUID !== 'function') {
+  const cryptoScope = globalThis.crypto || {};
+  const getRandomValues = typeof cryptoScope.getRandomValues === 'function'
+    ? cryptoScope.getRandomValues.bind(cryptoScope)
+    : null;
+
+  cryptoScope.randomUUID = () => {
+    if (getRandomValues) {
+      const buffer = new Uint8Array(16);
+      getRandomValues(buffer);
+      buffer[6] = (buffer[6] & 0x0f) | 0x40;
+      buffer[8] = (buffer[8] & 0x3f) | 0x80;
+      const hex = Array.from(buffer, byte => byte.toString(16).padStart(2, '0'));
+      return [
+        hex.slice(0, 4).join(''),
+        hex.slice(4, 6).join(''),
+        hex.slice(6, 8).join(''),
+        hex.slice(8, 10).join(''),
+        hex.slice(10, 16).join('')
+      ].join('-');
+    }
+
+    let timestamp = Date.now();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
+      const random = (timestamp + Math.random() * 16) % 16 | 0;
+      timestamp = Math.floor(timestamp / 16);
+      const value = char === 'x' ? random : (random & 0x3) | 0x8;
+      return value.toString(16);
+    });
+  };
+}
+
 let supabaseClient = null;
 let supabaseInitializationPromise = null;
 let supabaseInitializationError = null;
@@ -1884,6 +1920,16 @@ function clone(value) {
     console.error('Failed to clone value', error);
     return value;
   }
+}
+
+function ensureCategoryFallbackSeeded() {
+  if (getCategoriesFromCache().length > 0) {
+    return false;
+  }
+
+  setCategoryCache(DEFAULT_CATEGORIES.map(category => clone(category)));
+  setDataSourceState('categories', 'fallback');
+  return true;
 }
 
 function escapeHtml(value) {
@@ -3564,6 +3610,8 @@ function populateCategorySelect(select, { selectedValue, helperEl } = {}) {
     .filter(category => typeof category?.name === 'string' && category.name.trim())
     .map(category => ({ id: category.id, name: category.name.trim() }))
     .sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
+  const summary = getDataSourceSummary();
+  const usingFallbackData = summary.categories === 'fallback';
 
   const currentValue = selectedValue ?? select.value ?? '';
   select.innerHTML = '';
@@ -3606,6 +3654,8 @@ function populateCategorySelect(select, { selectedValue, helperEl } = {}) {
       helperEl.textContent = 'Belum ada kategori. Tambahkan kategori pada halaman Kategori.';
     } else if (hasFallback) {
       helperEl.textContent = 'Kategori lama tidak lagi tersedia. Pilih kategori terbaru atau tambahkan yang baru.';
+    } else if (usingFallbackData) {
+      helperEl.textContent = 'Menampilkan kategori cadangan sementara data Supabase dimuat.';
     } else {
       helperEl.textContent = 'Kategori diambil dari daftar Kategori yang Anda kelola.';
     }
@@ -3757,7 +3807,10 @@ async function handleAddProductForm() {
       sectionNav.appendChild(list);
     }
 
-    if (navItems.size) {
+    const supportsIntersectionObserver =
+      typeof window !== 'undefined' && 'IntersectionObserver' in window;
+
+    if (navItems.size && supportsIntersectionObserver) {
       const observer = new IntersectionObserver(
         entries => {
           entries.forEach(entry => {
@@ -3774,6 +3827,11 @@ async function handleAddProductForm() {
 
       sections.forEach(section => observer.observe(section));
 
+      const firstActive = sections.find(section => section.dataset.collapsed !== 'true') || sections[0];
+      if (firstActive) {
+        updateNavActive(firstActive);
+      }
+    } else if (navItems.size) {
       const firstActive = sections.find(section => section.dataset.collapsed !== 'true') || sections[0];
       if (firstActive) {
         updateNavActive(firstActive);
@@ -4698,6 +4756,7 @@ async function handleAddProductForm() {
     recalculatePurchasePriceIdr(row);
   };
 
+  ensureCategoryFallbackSeeded();
   populateCategorySelect(categorySelect, { helperEl: categoryHelper });
   if (categorySelect) {
     categorySelect.disabled = !getCategories().length;
