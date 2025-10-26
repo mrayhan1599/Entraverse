@@ -2817,7 +2817,6 @@ function handleCategoryActions() {
   const shopeeInput = form.querySelector('#category-fee-shopee');
   const entraverseInput = form.querySelector('#category-fee-entraverse');
   const marginValueInput = form.querySelector('#category-margin-value');
-  const marginNoteInput = form.querySelector('#category-margin-note');
   const submitBtn = form.querySelector('button[type="submit"]');
   const searchInput = document.getElementById('search-input');
 
@@ -2855,7 +2854,6 @@ function handleCategoryActions() {
     if (shopeeInput) shopeeInput.value = category.fees?.shopee ?? '';
     if (entraverseInput) entraverseInput.value = category.fees?.entraverse ?? '';
     if (marginValueInput) marginValueInput.value = category.margin?.value ?? '';
-    if (marginNoteInput) marginNoteInput.value = category.margin?.note ?? '';
   };
 
   const focusNameField = () => {
@@ -2957,7 +2955,6 @@ function handleCategoryActions() {
     const feeShopee = (formData.get('feeShopee') ?? '').toString().trim();
     const feeEntraverse = (formData.get('feeEntraverse') ?? '').toString().trim();
     const marginValue = (formData.get('marginValue') ?? '').toString().trim();
-    const marginNote = (formData.get('marginNote') ?? '').toString().trim();
 
     if (!name) {
       toast.show('Nama kategori wajib diisi.');
@@ -2978,6 +2975,17 @@ function handleCategoryActions() {
       return;
     }
 
+    const existingCategory = editingId
+      ? categories.find(category => category.id === editingId)
+      : null;
+
+    if (editingId && !existingCategory) {
+      toast.show('Kategori tidak ditemukan.');
+      await refreshCategoriesFromSupabase();
+      renderCategories(getCurrentFilter());
+      return;
+    }
+
     const payload = {
       id: editingId || crypto.randomUUID(),
       name,
@@ -2989,20 +2997,13 @@ function handleCategoryActions() {
       },
       margin: {
         value: marginValue,
-        note: marginNote
+        note: existingCategory?.margin?.note ?? ''
       }
     };
 
     const timestamp = Date.now();
-    if (editingId) {
-      const existing = categories.find(category => category.id === editingId);
-      if (!existing) {
-        toast.show('Kategori tidak ditemukan.');
-        await refreshCategoriesFromSupabase();
-        renderCategories(getCurrentFilter());
-        return;
-      }
-      payload.createdAt = existing.createdAt ?? timestamp;
+    if (existingCategory) {
+      payload.createdAt = existingCategory.createdAt ?? timestamp;
       payload.updatedAt = timestamp;
     } else {
       payload.createdAt = timestamp;
