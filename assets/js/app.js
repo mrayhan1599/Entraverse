@@ -830,6 +830,23 @@ async function refreshShippingVendorsFromSupabase() {
   return vendors;
 }
 
+async function deleteShippingVendorFromSupabase(id) {
+  if (!id) {
+    throw new Error('ID vendor pengiriman wajib diisi.');
+  }
+
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const { error } = await client
+    .from(SUPABASE_TABLES.shippingVendors)
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function upsertShippingVendorToSupabase(vendor) {
   await ensureSupabase();
   const client = getSupabaseClient();
@@ -2798,7 +2815,9 @@ function renderShippingVendors(filterText = '') {
   if (!tbody) return;
 
   const countEl = document.getElementById('shipping-count');
+  const addButton = document.getElementById('add-shipping-vendor-btn');
   const normalized = (filterText ?? '').toString().trim().toLowerCase();
+  const canManage = canManageCatalog();
   const vendors = getShippingVendorsFromCache()
     .filter(vendor => {
       if (!normalized) return true;
@@ -2822,21 +2841,57 @@ function renderShippingVendors(filterText = '') {
     tbody.innerHTML = '<tr class="empty-state"><td colspan="5">Tidak ada vendor pengiriman ditemukan.</td></tr>';
   } else {
     const rows = vendors.map(vendor => {
-      const contacts = createContactStack([
-        vendor.pic ? `<span class="contact-name">${vendor.pic}</span>` : '',
-        vendor.email ? `<a href="mailto:${vendor.email}">${vendor.email}</a>` : '',
-        vendor.phone ? `<a href="tel:${formatPhoneHref(vendor.phone)}">${vendor.phone}</a>` : ''
-      ]);
-      const action = vendor.detailUrl
-        ? `<a class="btn ghost-btn small" href="${vendor.detailUrl}">Kelola Tarif</a>`
+      const safeId = escapeHtml(vendor.id ?? '');
+      const safeName = escapeHtml(vendor.name ?? '');
+      const safeServices = escapeHtml(vendor.services ?? '') || '-';
+      const safeCoverage = escapeHtml(vendor.coverage ?? '') || '-';
+
+      const contactItems = [];
+      if (vendor.pic) {
+        contactItems.push(`<strong>${escapeHtml(vendor.pic)}</strong>`);
+      }
+      if (vendor.email) {
+        const email = vendor.email.toString().trim();
+        if (email) {
+          contactItems.push(`<a href="mailto:${encodeURIComponent(email)}">${escapeHtml(email)}</a>`);
+        }
+      }
+      if (vendor.phone) {
+        const phoneLabel = vendor.phone.toString().trim();
+        const phoneHref = formatPhoneHref(phoneLabel);
+        if (phoneLabel) {
+          const href = phoneHref ? escapeHtml(phoneHref) : '';
+          const label = escapeHtml(phoneLabel);
+          contactItems.push(href ? `<a href="tel:${href}">${label}</a>` : `<span>${label}</span>`);
+        }
+      }
+
+      const contacts = createContactStack(contactItems);
+
+      const actionButtons = [];
+      if (vendor.detailUrl) {
+        const detailUrl = escapeHtml(vendor.detailUrl);
+        actionButtons.push(`<a class="btn ghost-btn small" href="${detailUrl}">Kelola Tarif</a>`);
+      }
+
+      if (canManage && !isSampaiExpressVendorId(vendor.id)) {
+        actionButtons.push(`
+          <button class="icon-btn danger small" type="button" data-shipping-action="delete" data-id="${safeId}" title="Hapus vendor">🗑️</button>
+        `);
+      }
+
+      const actionMarkup = actionButtons.map(action => action.trim()).join('');
+      const actions = actionButtons.length
+        ? `<div class="table-actions">${actionMarkup}</div>`
         : '<span class="table-note">Hubungi PIC</span>';
+
       return `
-        <tr>
-          <td>${vendor.name}</td>
-          <td>${vendor.services}</td>
-          <td>${vendor.coverage}</td>
+        <tr data-vendor-id="${safeId}">
+          <td><strong>${safeName}</strong></td>
+          <td>${safeServices}</td>
+          <td>${safeCoverage}</td>
           <td>${contacts}</td>
-          <td>${action}</td>
+          <td>${actions}</td>
         </tr>
       `;
     }).join('');
@@ -2846,6 +2901,18 @@ function renderShippingVendors(filterText = '') {
   if (countEl) {
     const suffix = vendors.length === 1 ? 'vendor' : 'vendor';
     countEl.textContent = `${vendors.length} ${suffix}`;
+  }
+
+  if (addButton) {
+    if (canManage) {
+      addButton.disabled = false;
+      addButton.removeAttribute('aria-disabled');
+      addButton.title = 'Tambah vendor pengiriman';
+    } else {
+      addButton.disabled = true;
+      addButton.setAttribute('aria-disabled', 'true');
+      addButton.title = 'Silakan login untuk menambah vendor pengiriman.';
+    }
   }
 }
 
@@ -2873,6 +2940,184 @@ async function initShippingPage() {
         renderShippingVendors(filter.toString().trim().toLowerCase());
       } catch (error) {
         console.error('Gagal memperbarui vendor pengiriman setelah perubahan sesi.', error);
+      }
+    });
+  }
+
+  const tableBody = document.getElementById('shipping-table-body');
+  const modal = document.getElementById('shipping-vendor-modal');
+  const form = document.getElementById('shipping-vendor-form');
+  const modalTitle = document.getElementById('shipping-vendor-modal-title');
+  const submitBtn = form?.querySelector('button[type="submit"]');
+  const closeButtons = modal ? Array.from(modal.querySelectorAll('[data-close-modal]')) : [];
+  const addButton = document.getElementById('add-shipping-vendor-btn');
+  const nameInput = form?.querySelector('#shipping-vendor-name');
+
+  const resetSubmitState = () => {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('is-loading');
+    }
+  };
+
+  const closeModal = () => {
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.classList.remove('modal-open');
+    if (form) {
+      form.reset();
+      delete form.dataset.editingId;
+    }
+    resetSubmitState();
+  };
+
+  const focusNameField = () => {
+    if (!nameInput) return;
+    requestAnimationFrame(() => {
+      nameInput.focus({ preventScroll: true });
+      nameInput.select?.();
+    });
+  };
+
+  const openModal = () => {
+    if (!requireCatalogManager('Silakan login untuk menambah vendor pengiriman.')) {
+      return;
+    }
+    if (modalTitle) {
+      modalTitle.textContent = 'Tambah Vendor Pengiriman';
+    }
+    if (submitBtn) {
+      submitBtn.textContent = 'Simpan';
+    }
+    if (form) {
+      form.reset();
+      delete form.dataset.editingId;
+    }
+    if (modal) {
+      modal.hidden = false;
+      document.body.classList.add('modal-open');
+      focusNameField();
+    }
+  };
+
+  addButton?.addEventListener('click', openModal);
+  closeButtons.forEach(button => button.addEventListener('click', closeModal));
+
+  if (modal) {
+    modal.addEventListener('click', event => {
+      if (event.target === modal) {
+        closeModal();
+      }
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !modal.hidden) {
+        closeModal();
+      }
+    });
+  }
+
+  if (form) {
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+
+      if (!requireCatalogManager('Silakan login untuk menambah vendor pengiriman.')) {
+        return;
+      }
+
+      const formData = new FormData(form);
+      const name = (formData.get('name') ?? '').toString().trim();
+      const services = (formData.get('services') ?? '').toString().trim();
+      const coverage = (formData.get('coverage') ?? '').toString().trim();
+      const pic = (formData.get('pic') ?? '').toString().trim();
+      const email = (formData.get('email') ?? '').toString().trim();
+      const phone = (formData.get('phone') ?? '').toString().trim();
+      const detailUrl = (formData.get('detailUrl') ?? '').toString().trim();
+      const airRate = parseNumericValue(formData.get('airRate'));
+      const seaRate = parseNumericValue(formData.get('seaRate'));
+      const note = (formData.get('note') ?? '').toString().trim();
+
+      if (!name) {
+        toast.show('Nama vendor wajib diisi.');
+        focusNameField();
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('is-loading');
+      }
+
+      const payload = {
+        name,
+        services,
+        coverage,
+        pic,
+        email,
+        phone,
+        detailUrl,
+        airRate,
+        seaRate,
+        note,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      try {
+        await upsertShippingVendorToSupabase(payload);
+        await refreshShippingVendorsFromSupabase();
+        const filter = document.getElementById('search-input')?.value ?? '';
+        renderShippingVendors(filter.toString().trim().toLowerCase());
+        toast.show('Vendor pengiriman berhasil disimpan.');
+        closeModal();
+      } catch (error) {
+        console.error('Gagal menyimpan vendor pengiriman.', error);
+        toast.show('Gagal menyimpan vendor pengiriman. Coba lagi.');
+      } finally {
+        resetSubmitState();
+      }
+    });
+  }
+
+  if (tableBody) {
+    tableBody.addEventListener('click', async event => {
+      const button = event.target.closest('[data-shipping-action]');
+      if (!button) return;
+
+      const action = button.dataset.shippingAction;
+      const id = button.dataset.id;
+      if (!action || !id) return;
+
+      if (!requireCatalogManager('Silakan login untuk mengelola vendor pengiriman.')) {
+        return;
+      }
+
+      if (action === 'delete') {
+        if (isSampaiExpressVendorId(id)) {
+          toast.show('Vendor Sampai Express tidak dapat dihapus.');
+          return;
+        }
+
+        if (!confirm('Hapus vendor pengiriman ini?')) {
+          return;
+        }
+
+        button.disabled = true;
+        button.classList.add('is-loading');
+
+        try {
+          await deleteShippingVendorFromSupabase(id);
+          await refreshShippingVendorsFromSupabase();
+          const filter = document.getElementById('search-input')?.value ?? '';
+          renderShippingVendors(filter.toString().trim().toLowerCase());
+          toast.show('Vendor pengiriman berhasil dihapus.');
+        } catch (error) {
+          console.error('Gagal menghapus vendor pengiriman.', error);
+          toast.show('Gagal menghapus vendor pengiriman. Coba lagi.');
+        } finally {
+          button.disabled = false;
+          button.classList.remove('is-loading');
+        }
       }
     });
   }
