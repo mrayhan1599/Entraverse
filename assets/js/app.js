@@ -228,9 +228,24 @@ const DEFAULT_EXCHANGE_RATES = [
   }
 ];
 
+const SHIPPING_VENDOR_IDS = Object.freeze({
+  SAMPAI_EXPRESS: '00000000-0000-4000-8000-000000000001'
+});
+
+const LEGACY_SHIPPING_VENDOR_IDS = Object.freeze({
+  SAMPAI_EXPRESS: 'ship-sampai'
+});
+
+function isSampaiExpressVendorId(id) {
+  return (
+    id === SHIPPING_VENDOR_IDS.SAMPAI_EXPRESS ||
+    id === LEGACY_SHIPPING_VENDOR_IDS.SAMPAI_EXPRESS
+  );
+}
+
 const DEFAULT_SHIPPING_VENDORS = Object.freeze([
   {
-    id: 'ship-sampai',
+    id: SHIPPING_VENDOR_IDS.SAMPAI_EXPRESS,
     name: 'Sampai Express',
     services: 'Udara & Laut',
     coverage: 'Seluruh Indonesia',
@@ -726,7 +741,7 @@ function mapSupabaseShippingVendor(record) {
   const airRate = parseNumericValue(record.air_rate);
   const seaRate = parseNumericValue(record.sea_rate);
 
-  return {
+  return normalizeShippingVendor({
     id: record.id,
     name: record.name ?? '',
     services: record.services ?? '',
@@ -740,29 +755,49 @@ function mapSupabaseShippingVendor(record) {
     note: record.note ?? '',
     createdAt: record.created_at ? new Date(record.created_at).getTime() : Date.now(),
     updatedAt: record.updated_at ? new Date(record.updated_at).getTime() : null
-  };
+  });
 }
 
 function mapShippingVendorToRecord(vendor) {
+  const normalizedVendor = normalizeShippingVendor(vendor);
+  if (!normalizedVendor) {
+    return null;
+  }
+
   return {
-    id: vendor.id,
-    name: vendor.name,
-    services: vendor.services || null,
-    coverage: vendor.coverage || null,
-    pic: vendor.pic || null,
-    email: vendor.email || null,
-    phone: vendor.phone || null,
-    detail_url: vendor.detailUrl || null,
-    air_rate: parseNumericValue(vendor.airRate),
-    sea_rate: parseNumericValue(vendor.seaRate),
-    note: vendor.note || null,
-    created_at: toIsoTimestamp(vendor.createdAt) ?? new Date().toISOString(),
-    updated_at: toIsoTimestamp(vendor.updatedAt)
+    id: normalizedVendor.id,
+    name: normalizedVendor.name,
+    services: normalizedVendor.services || null,
+    coverage: normalizedVendor.coverage || null,
+    pic: normalizedVendor.pic || null,
+    email: normalizedVendor.email || null,
+    phone: normalizedVendor.phone || null,
+    detail_url: normalizedVendor.detailUrl || null,
+    air_rate: parseNumericValue(normalizedVendor.airRate),
+    sea_rate: parseNumericValue(normalizedVendor.seaRate),
+    note: normalizedVendor.note || null,
+    created_at: toIsoTimestamp(normalizedVendor.createdAt) ?? new Date().toISOString(),
+    updated_at: toIsoTimestamp(normalizedVendor.updatedAt)
   };
 }
 
+function normalizeShippingVendor(vendor) {
+  if (!vendor || typeof vendor !== 'object') {
+    return null;
+  }
+
+  const normalized = { ...vendor };
+  if (isSampaiExpressVendorId(normalized.id)) {
+    normalized.id = SHIPPING_VENDOR_IDS.SAMPAI_EXPRESS;
+  }
+
+  return normalized;
+}
+
 function setShippingVendorCache(vendors) {
-  const normalized = Array.isArray(vendors) ? vendors : [];
+  const normalized = Array.isArray(vendors)
+    ? vendors.map(vendor => normalizeShippingVendor(vendor)).filter(Boolean)
+    : [];
   setRemoteCache(STORAGE_KEYS.shippingVendors, normalized);
 }
 
@@ -799,6 +834,9 @@ async function upsertShippingVendorToSupabase(vendor) {
   await ensureSupabase();
   const client = getSupabaseClient();
   const payload = mapShippingVendorToRecord(vendor);
+  if (!payload) {
+    throw new Error('Data vendor pengiriman tidak valid.');
+  }
   if (!payload.id) {
     payload.id = crypto.randomUUID();
   }
@@ -992,10 +1030,13 @@ async function ensureSeeded() {
               createdAt: now,
               updatedAt: now
             });
+            if (!mapped) {
+              return null;
+            }
             mapped.created_at = now;
             mapped.updated_at = now;
             return mapped;
-          })
+          }).filter(Boolean)
         );
       }
 
@@ -2858,12 +2899,12 @@ async function initSampaiExpressPage() {
     }
   };
 
-  let vendorData = DEFAULT_SHIPPING_VENDORS.find(vendor => vendor.id === 'ship-sampai') || null;
+  let vendorData = DEFAULT_SHIPPING_VENDORS.find(vendor => isSampaiExpressVendorId(vendor.id)) || null;
 
   try {
     await ensureSeeded();
     const vendors = await refreshShippingVendorsFromSupabase();
-    vendorData = vendors.find(vendor => vendor.id === 'ship-sampai') || vendorData;
+    vendorData = vendors.find(vendor => isSampaiExpressVendorId(vendor.id)) || vendorData;
   } catch (error) {
     console.error('Gagal memuat data Sampai Express.', error);
     toast.show('Gagal memuat data Sampai Express dari Supabase.');
@@ -2882,7 +2923,7 @@ async function initSampaiExpressPage() {
 
     const payload = {
       ...(vendorData || {}),
-      id: 'ship-sampai',
+      id: SHIPPING_VENDOR_IDS.SAMPAI_EXPRESS,
       name: vendorData?.name ?? 'Sampai Express',
       services: vendorData?.services ?? 'Udara & Laut',
       coverage: vendorData?.coverage ?? 'Seluruh Indonesia',
