@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Entraverse Admin - Produk</title>
+  <title>Entraverse Admin - Vendor Pengiriman</title>
   <link rel="stylesheet" href="assets/css/styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body data-page="dashboard">
+<body data-page="shipping">
   <div class="app-shell">
     <aside class="sidebar" data-sidebar>
       <div class="sidebar-header">
@@ -22,7 +22,7 @@
       <nav class="sidebar-nav">
         <div class="nav-section">
           <p class="nav-title">E-Commerce</p>
-          <a class="nav-link active" href="dashboard.html">
+          <a class="nav-link" href="dashboard.html">
             <span class="nav-icon" aria-hidden="true">📦</span>
             Produk
           </a>
@@ -52,7 +52,7 @@
             <span class="nav-icon" aria-hidden="true">🤝</span>
             Supplier
           </a>
-          <a class="nav-link" href="shipping-vendors.html">
+          <a class="nav-link active" href="shipping-vendors.html">
             <span class="nav-icon" aria-hidden="true">🚚</span>
             Pengiriman
           </a>
@@ -87,7 +87,7 @@
           </button>
           <form class="search-bar" role="search">
             <span class="search-icon" aria-hidden="true">🔍</span>
-            <input type="search" id="search-input" placeholder="Search" aria-label="Pencarian produk">
+            <input type="search" id="search-input" placeholder="Cari vendor pengiriman" aria-label="Pencarian vendor pengiriman">
           </form>
         </div>
         <div class="topbar-actions">
@@ -115,45 +115,37 @@
       <section class="content-header">
         <div class="title-stack">
           <div class="title-bar">
-            <h1>Produk</h1>
-            <div class="title-actions" role="toolbar" aria-label="Aksi produk">
-              <button id="sync-btn" class="action-icon" type="button" aria-label="Sync ke Mekari Jurnal" data-label-default="Sync ke Mekari Jurnal" data-label-loading="Menyinkronkan...">
-                <span class="visually-hidden" data-label>Sync ke Mekari Jurnal</span>
-                <span aria-hidden="true" class="logo-badge">MJ</span>
-              </button>
-              <a href="add-product.html" class="action-icon" aria-label="Tambah produk" data-add-product-link>
-                <span class="visually-hidden">Tambah produk</span>
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <path d="M12 5v14M5 12h14"></path>
-                </svg>
-              </a>
-            </div>
+            <h1>Vendor Pengiriman</h1>
           </div>
-          <p>Kelola katalog produk Anda, atur trade-in, dan sinkronisasi stok.</p>
+          <p>Pilih mitra logistik resmi Entraverse untuk pemenuhan pesanan dan distribusi produk.</p>
         </div>
       </section>
       <section class="card">
         <header class="card-header">
-          <h2>Daftar Produk</h2>
-          <span id="product-count" class="count-pill">0 produk</span>
+          <div>
+            <h2>Daftar Vendor Pengiriman</h2>
+            <p class="card-subtitle">Detail mencakup jenis layanan utama, cakupan area, dan PIC terkait.</p>
+          </div>
+          <span id="shipping-count" class="count-pill">0 vendor</span>
         </header>
         <div class="table-wrapper">
-          <table class="product-table">
+          <table class="category-table">
             <thead>
               <tr>
-                <th>Foto</th>
-                <th>Nama Produk</th>
-                <th>Trade-In</th>
-                <th>Actions</th>
+                <th>Vendor</th>
+                <th>Jenis Layanan</th>
+                <th>Cakupan</th>
+                <th>Kontak</th>
+                <th>Aksi</th>
               </tr>
             </thead>
-            <tbody id="product-table-body">
+            <tbody id="shipping-table-body">
+              <tr class="empty-state">
+                <td colspan="5">Tidak ada vendor pengiriman ditemukan.</td>
+              </tr>
             </tbody>
           </table>
         </div>
-        <footer class="card-footer">
-          <span class="table-meta" id="table-meta">Menampilkan 0 produk</span>
-        </footer>
       </section>
     </main>
   </div>
