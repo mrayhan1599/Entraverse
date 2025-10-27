@@ -1345,32 +1345,6 @@ input:checked + .slider:before {
   min-width: 0;
 }
 
-.form-group.full-width {
-  grid-column: 1 / -1;
-}
-
-.dimension-inputs {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
-}
-
-.dimension-input {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.dimension-input input {
-  flex: 1;
-}
-
-.dimension-input span {
-  color: var(--color-muted);
-  font-size: 0.875rem;
-  white-space: nowrap;
-}
-
 .image-upload-grid {
   display: flex;
   flex-wrap: nowrap;
