@@ -381,45 +381,8 @@ function getRemoteCache(key, fallback) {
   return clone(remoteCache[key]);
 }
 
-function normalizeId(value) {
-  if (value === null || value === undefined) {
-    return '';
-  }
-
-  if (typeof value === 'string') {
-    return value.trim();
-  }
-
-  return value.toString().trim();
-}
-
-function idsAreEqual(a, b) {
-  return normalizeId(a) === normalizeId(b);
-}
-
-function normalizeIdForQuery(value) {
-  const normalized = normalizeId(value);
-  if (!normalized) {
-    return normalized;
-  }
-
-  if (/^-?\d+$/.test(normalized)) {
-    const numeric = Number.parseInt(normalized, 10);
-    if (Number.isSafeInteger(numeric)) {
-      return numeric;
-    }
-  }
-
-  return normalized;
-}
-
 function mapSupabaseCategory(record) {
   if (!record) {
-    return null;
-  }
-
-  const id = normalizeId(record.id);
-  if (!id) {
     return null;
   }
 
@@ -429,7 +392,7 @@ function mapSupabaseCategory(record) {
     margin.note ?? margin.margin_note ?? (typeof record.margin_note === 'string' ? record.margin_note : '');
 
   return {
-    id,
+    id: record.id,
     name: record.name ?? '',
     note: record.note ?? '',
     fees: {
@@ -451,7 +414,7 @@ function mapCategoryToRecord(category) {
   const margin = category.margin ?? {};
 
   return {
-    id: normalizeId(category.id) || crypto.randomUUID(),
+    id: category.id,
     name: category.name,
     note: category.note || null,
     fees: {
@@ -654,11 +617,10 @@ async function refreshCategoriesFromSupabase() {
 async function deleteCategoryFromSupabase(id) {
   await ensureSupabase();
   const client = getSupabaseClient();
-  const queryId = normalizeIdForQuery(id);
   const { error } = await client
     .from(SUPABASE_TABLES.categories)
     .delete()
-    .eq('id', queryId);
+    .eq('id', id);
 
   if (error) {
     throw error;
@@ -672,7 +634,6 @@ async function upsertCategoryToSupabase(category) {
   if (!payload.id) {
     payload.id = crypto.randomUUID();
   }
-  payload.id = normalizeId(payload.id) || crypto.randomUUID();
   if (!payload.updated_at) {
     payload.updated_at = new Date().toISOString();
   }
@@ -692,17 +653,12 @@ function mapSupabaseProduct(record) {
     return null;
   }
 
-  const id = normalizeId(record.id);
-  if (!id) {
-    return null;
-  }
-
   const photos = Array.isArray(record.photos) ? record.photos.filter(Boolean) : [];
   const variants = Array.isArray(record.variants) ? record.variants : [];
   const variantPricing = Array.isArray(record.variant_pricing) ? record.variant_pricing : [];
 
   return {
-    id,
+    id: record.id,
     name: record.name ?? '',
     category: record.category ?? '',
     brand: record.brand ?? '',
@@ -719,7 +675,7 @@ function mapSupabaseProduct(record) {
 
 function mapProductToRecord(product) {
   return {
-    id: normalizeId(product.id),
+    id: product.id,
     name: product.name,
     category: product.category,
     brand: product.brand || null,
@@ -743,8 +699,7 @@ function getProductsFromCache() {
 }
 
 async function fetchProductByIdFromSupabase(id) {
-  const normalizedId = normalizeId(id);
-  if (!normalizedId) {
+  if (!id) {
     return null;
   }
 
@@ -759,7 +714,7 @@ async function fetchProductByIdFromSupabase(id) {
     const { data, error } = await client
       .from(SUPABASE_TABLES.products)
       .select('*')
-      .eq('id', normalizeIdForQuery(normalizedId))
+      .eq('id', id)
       .maybeSingle();
 
     if (error) {
@@ -834,11 +789,10 @@ async function refreshProductsFromSupabase() {
 async function deleteProductFromSupabase(id) {
   await ensureSupabase();
   const client = getSupabaseClient();
-  const queryId = normalizeIdForQuery(id);
   const { error } = await client
     .from(SUPABASE_TABLES.products)
     .delete()
-    .eq('id', queryId);
+    .eq('id', id);
 
   if (error) {
     throw error;
@@ -852,7 +806,6 @@ async function upsertProductToSupabase(product) {
   if (!payload.id) {
     payload.id = crypto.randomUUID();
   }
-  payload.id = normalizeId(payload.id) || crypto.randomUUID();
   if (!payload.updated_at) {
     payload.updated_at = new Date().toISOString();
   }
@@ -873,7 +826,7 @@ function sanitizeSessionUser(user) {
   }
 
   return {
-    id: normalizeId(user.id),
+    id: user.id,
     name: user.name ?? '',
     company: user.company ?? '',
     email: user.email ?? ''
@@ -886,7 +839,7 @@ function mapSupabaseUser(record) {
   }
 
   return {
-    id: normalizeId(record.id),
+    id: record.id,
     name: record.name ?? '',
     company: record.company ?? '',
     email: record.email ?? '',
@@ -898,7 +851,7 @@ function mapSupabaseUser(record) {
 
 function mapUserToRecord(user) {
   return {
-    id: normalizeId(user.id),
+    id: user.id,
     name: user.name,
     company: user.company,
     email: user.email,
@@ -3009,18 +2962,18 @@ function handleProductActions() {
     const target = event.target.closest('button');
     if (!target) return;
 
-    const normalizedId = normalizeId(target.dataset.id);
-    if (!normalizedId) return;
+    const id = target.dataset.id;
+    if (!id) return;
 
     const products = getProductsFromCache();
-    const productIndex = products.findIndex(p => idsAreEqual(p.id, normalizedId));
+    const productIndex = products.findIndex(p => p.id === id);
     if (productIndex === -1) return;
 
     if (target.dataset.action === 'edit') {
       if (!requireCatalogManager('Silakan login untuk mengedit produk.')) {
         return;
       }
-      window.location.href = `add-product.html?id=${encodeURIComponent(normalizedId)}`;
+      window.location.href = `add-product.html?id=${id}`;
       return;
     }
 
@@ -3032,7 +2985,7 @@ function handleProductActions() {
         return;
       }
       try {
-        await deleteProductFromSupabase(normalizedId);
+        await deleteProductFromSupabase(id);
         await refreshProductsFromSupabase();
         toast.show('Produk berhasil dihapus.');
         renderProducts(getCurrentFilter());
@@ -3062,9 +3015,9 @@ function handleProductActions() {
       return;
     }
 
-    const id = normalizeId(input.dataset.id);
+    const id = input.dataset.id;
     const products = getProductsFromCache();
-    const product = products.find(p => idsAreEqual(p.id, id));
+    const product = products.find(p => p.id === id);
     if (!product) {
       return;
     }
@@ -3191,7 +3144,7 @@ function handleCategoryActions() {
     const button = event.target.closest('[data-category-action]');
     if (!button) return;
 
-    const id = normalizeId(button.dataset.id);
+    const id = button.dataset.id;
     if (!id) return;
 
     if (!requireCatalogManager('Silakan login untuk mengelola kategori.')) {
@@ -3200,7 +3153,7 @@ function handleCategoryActions() {
 
     if (button.dataset.categoryAction === 'edit') {
       const categories = getCategories();
-      const category = categories.find(item => idsAreEqual(item.id, id));
+      const category = categories.find(item => item.id === id);
       if (!category) {
         toast.show('Kategori tidak ditemukan.');
         renderCategories(getCurrentFilter());
@@ -3248,14 +3201,11 @@ function handleCategoryActions() {
     }
 
     const categories = getCategories();
-    const editingId = normalizeId(form.dataset.editingId);
+    const editingId = form.dataset.editingId;
     const normalizedName = name.toLowerCase();
-    const hasDuplicate = categories.some(category => {
-      if (category.name?.toLowerCase() !== normalizedName) {
-        return false;
-      }
-      return editingId ? !idsAreEqual(category.id, editingId) : true;
-    });
+    const hasDuplicate = categories.some(category =>
+      category.name?.toLowerCase() === normalizedName && category.id !== editingId
+    );
 
     if (hasDuplicate) {
       toast.show('Nama kategori sudah digunakan.');
@@ -3264,7 +3214,7 @@ function handleCategoryActions() {
     }
 
     const existingCategory = editingId
-      ? categories.find(category => idsAreEqual(category.id, editingId))
+      ? categories.find(category => category.id === editingId)
       : null;
 
     if (editingId && !existingCategory) {
@@ -3571,7 +3521,7 @@ async function handleAddProductForm() {
   const navItems = new Map();
   const scrollRoot = document.querySelector('.main-content');
   const params = new URLSearchParams(window.location.search);
-  const editingId = normalizeId(params.get('id'));
+  const editingId = params.get('id');
   let suppressPricingRefresh = false;
 
   const setSupabaseStatus = (status, message) => {
@@ -5364,13 +5314,13 @@ async function handleAddProductForm() {
 
   if (editingId) {
     const products = getProductsFromCache();
-    let product = products.find(p => idsAreEqual(p.id, editingId));
+    let product = products.find(p => p.id === editingId);
 
     if (!product) {
       const remoteProduct = await fetchProductByIdFromSupabase(editingId);
       if (remoteProduct) {
         product = remoteProduct;
-        const mergedProducts = [...products.filter(p => !idsAreEqual(p.id, remoteProduct.id)), remoteProduct];
+        const mergedProducts = [...products.filter(p => p.id !== remoteProduct.id), remoteProduct];
         setProductCache(mergedProducts);
         setDataSourceState('products', 'remote');
       }
@@ -5387,7 +5337,7 @@ async function handleAddProductForm() {
       return;
     }
 
-    form.dataset.editingId = normalizeId(product.id);
+    form.dataset.editingId = product.id;
 
     if (titleEl) {
       titleEl.textContent = 'Edit Produk';
@@ -5628,15 +5578,14 @@ async function handleAddProductForm() {
       }
     });
 
-    const editingProductId = normalizeId(form.dataset.editingId);
-    const isEditing = Boolean(editingProductId);
+    const isEditing = Boolean(form.dataset.editingId);
     const timestamp = Date.now();
-    const productId = isEditing ? editingProductId : crypto.randomUUID();
+    const productId = isEditing ? form.dataset.editingId : crypto.randomUUID();
 
     let existingProduct = null;
     if (isEditing) {
       const products = getProductsFromCache();
-      existingProduct = products.find(p => idsAreEqual(p.id, productId)) ?? null;
+      existingProduct = products.find(p => p.id === productId) ?? null;
       if (!existingProduct) {
         toast.show('Produk tidak ditemukan.');
         return;
