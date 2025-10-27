@@ -262,24 +262,6 @@ const remoteCache = {
 
 let seedingPromise = null;
 
-const dataSourceState = {
-  products: 'unknown',
-  categories: 'unknown',
-  exchangeRates: 'unknown'
-};
-
-function setDataSourceState(key, value) {
-  if (!Object.prototype.hasOwnProperty.call(dataSourceState, key)) {
-    return;
-  }
-
-  dataSourceState[key] = value;
-}
-
-function getDataSourceSummary() {
-  return { ...dataSourceState };
-}
-
 function getSupabaseConfig() {
   const config = window.entraverseConfig?.supabase ?? {};
   const url = typeof config.url === 'string' ? config.url.trim() : '';
@@ -531,7 +513,6 @@ async function refreshExchangeRatesFromSupabase() {
   if (!config) {
     const fallback = normalizeExchangeRates(DEFAULT_EXCHANGE_RATES);
     setExchangeRateCache(fallback);
-    setDataSourceState('exchangeRates', 'fallback');
     return fallback;
   }
 
@@ -553,12 +534,10 @@ async function refreshExchangeRatesFromSupabase() {
     if (!mapped.length) {
       const fallback = normalizeExchangeRates(DEFAULT_EXCHANGE_RATES);
       setExchangeRateCache(fallback);
-      setDataSourceState('exchangeRates', 'fallback');
       return fallback;
     }
 
     setExchangeRateCache(mapped);
-    setDataSourceState('exchangeRates', 'remote');
     return mapped;
   } catch (error) {
     if (error?.code === '42P01') {
@@ -568,7 +547,6 @@ async function refreshExchangeRatesFromSupabase() {
     }
     const fallback = normalizeExchangeRates(DEFAULT_EXCHANGE_RATES);
     setExchangeRateCache(fallback);
-    setDataSourceState('exchangeRates', 'fallback');
     return fallback;
   }
 }
@@ -585,33 +563,20 @@ function getCategoriesFromCache() {
 }
 
 async function refreshCategoriesFromSupabase() {
-  const config = getSupabaseConfig();
-  if (!config) {
-    applyLocalFallbackData({ products: false, categories: true, exchangeRates: false, vendor: false });
-    return getCategoriesFromCache();
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const { data, error } = await client
+    .from(SUPABASE_TABLES.categories)
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw error;
   }
 
-  try {
-    await ensureSupabase();
-    const client = getSupabaseClient();
-    const { data, error } = await client
-      .from(SUPABASE_TABLES.categories)
-      .select('*')
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      throw error;
-    }
-
-    const categories = (data ?? []).map(mapSupabaseCategory).filter(Boolean);
-    setCategoryCache(categories);
-    setDataSourceState('categories', 'remote');
-    return categories;
-  } catch (error) {
-    console.error('Gagal memuat kategori dari Supabase.', error);
-    applyLocalFallbackData({ products: false, categories: true, exchangeRates: false, vendor: false });
-    return getCategoriesFromCache();
-  }
+  const categories = (data ?? []).map(mapSupabaseCategory).filter(Boolean);
+  setCategoryCache(categories);
+  return categories;
 }
 
 async function deleteCategoryFromSupabase(id) {
@@ -698,56 +663,21 @@ function getProductsFromCache() {
   return getRemoteCache(STORAGE_KEYS.products, []);
 }
 
-function applyLocalFallbackData({ products = true, categories = true, exchangeRates = true, vendor = true } = {}) {
-  if (categories) {
-    setCategoryCache(DEFAULT_CATEGORIES.map(category => clone(category)));
-    setDataSourceState('categories', 'fallback');
-  }
-
-  if (products) {
-    setProductCache(DEFAULT_PRODUCTS.map(product => clone(product)));
-    setDataSourceState('products', 'fallback');
-  }
-
-  if (exchangeRates) {
-    const fallbackRates = normalizeExchangeRates(DEFAULT_EXCHANGE_RATES);
-    setExchangeRateCache(fallbackRates);
-    setDataSourceState('exchangeRates', 'fallback');
-  }
-
-  if (vendor) {
-    saveVendorSettings({ ...DEFAULT_VENDOR_SETTINGS, updatedAt: null });
-  }
-}
-
 async function refreshProductsFromSupabase() {
-  const config = getSupabaseConfig();
-  if (!config) {
-    applyLocalFallbackData({ products: true, categories: false, exchangeRates: false, vendor: false });
-    return getProductsFromCache();
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const { data, error } = await client
+    .from(SUPABASE_TABLES.products)
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw error;
   }
 
-  try {
-    await ensureSupabase();
-    const client = getSupabaseClient();
-    const { data, error } = await client
-      .from(SUPABASE_TABLES.products)
-      .select('*')
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      throw error;
-    }
-
-    const products = (data ?? []).map(mapSupabaseProduct).filter(Boolean);
-    setProductCache(products);
-    setDataSourceState('products', 'remote');
-    return products;
-  } catch (error) {
-    console.error('Gagal memuat produk dari Supabase.', error);
-    applyLocalFallbackData({ products: true, categories: false, exchangeRates: false, vendor: false });
-    return getProductsFromCache();
-  }
+  const products = (data ?? []).map(mapSupabaseProduct).filter(Boolean);
+  setProductCache(products);
+  return products;
 }
 
 async function deleteProductFromSupabase(id) {
@@ -887,12 +817,6 @@ async function insertUserToSupabase(user) {
 }
 
 async function ensureSeeded() {
-  const config = getSupabaseConfig();
-  if (!config) {
-    applyLocalFallbackData();
-    return;
-  }
-
   await ensureSupabase();
   if (!seedingPromise) {
     seedingPromise = (async () => {
@@ -951,7 +875,6 @@ async function ensureSeeded() {
       await refreshExchangeRatesFromSupabase();
     })().catch(error => {
       console.error('Gagal melakukan seeding awal Supabase.', error);
-      applyLocalFallbackData();
       throw error;
     });
   }
@@ -3478,146 +3401,9 @@ async function handleAddProductForm() {
   const volumeInput = form.querySelector('#product-volume');
   const shippingSeaInput = form.querySelector('#shipping-sea-rate');
   const shippingAirInput = form.querySelector('#shipping-air-rate');
-  const sectionNav = form.querySelector('[data-section-nav]');
-  const supabaseStatusEl = form.querySelector('[data-supabase-status]');
-  const supabaseStatusCard = form.querySelector('[data-supabase-status-card]');
-  const sections = Array.from(form.querySelectorAll('[data-section]'));
-  const navItems = new Map();
-  const scrollRoot = document.querySelector('.main-content');
   const params = new URLSearchParams(window.location.search);
   const editingId = params.get('id');
   let suppressPricingRefresh = false;
-
-  const setSupabaseStatus = (status, message) => {
-    if (supabaseStatusEl) {
-      supabaseStatusEl.textContent = message;
-    }
-
-    if (supabaseStatusCard) {
-      supabaseStatusCard.dataset.status = status;
-    }
-  };
-
-  const setSectionCollapsed = (section, collapsed) => {
-    if (!section) {
-      return;
-    }
-
-    const body = section.querySelector('.form-section-body');
-    const toggle = section.querySelector('[data-section-toggle]');
-    const targetState = collapsed ? 'true' : 'false';
-
-    section.dataset.collapsed = targetState;
-
-    if (body) {
-      body.hidden = collapsed;
-    }
-
-    if (toggle) {
-      toggle.setAttribute('aria-expanded', String(!collapsed));
-      toggle.textContent = collapsed ? 'Tampilkan' : 'Sembunyikan';
-    }
-  };
-
-  const updateNavActive = activeSection => {
-    navItems.forEach((button, section) => {
-      const isActive = section === activeSection;
-      button.classList.toggle('is-active', isActive);
-      if (isActive) {
-        button.setAttribute('aria-current', 'true');
-      } else {
-        button.removeAttribute('aria-current');
-      }
-    });
-  };
-
-  const ensureSectionExpanded = name => {
-    if (!name) {
-      return null;
-    }
-
-    const normalized = name.toString().trim().toLowerCase();
-    const target = sections.find(section => section.dataset.section === normalized) ?? null;
-    if (target) {
-      setSectionCollapsed(target, false);
-      updateNavActive(target);
-    }
-    return target;
-  };
-
-  const initializeSectionNavigation = () => {
-    sections.forEach(section => {
-      if (!section.id && section.dataset.section) {
-        section.id = `section-${section.dataset.section}`;
-      }
-
-      const defaultCollapsed = section.dataset.defaultCollapsed === 'true';
-      setSectionCollapsed(section, defaultCollapsed);
-
-      const toggle = section.querySelector('[data-section-toggle]');
-      if (toggle) {
-        toggle.setAttribute('aria-controls', section.id || '');
-        toggle.addEventListener('click', () => {
-          const collapsed = section.dataset.collapsed === 'true';
-          setSectionCollapsed(section, !collapsed);
-          if (collapsed) {
-            updateNavActive(section);
-            section.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
-          }
-        });
-      }
-    });
-
-    if (sectionNav) {
-      sectionNav.innerHTML = '';
-      const list = document.createElement('ul');
-      list.className = 'form-section-nav__list';
-
-      sections.forEach(section => {
-        const title = section.dataset.sectionTitle || section.querySelector('h2')?.textContent?.trim();
-        const item = document.createElement('li');
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'form-section-nav__link';
-        button.textContent = title || 'Bagian';
-        button.addEventListener('click', () => {
-          setSectionCollapsed(section, false);
-          section.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
-          updateNavActive(section);
-        });
-        item.appendChild(button);
-        list.appendChild(item);
-        navItems.set(section, button);
-      });
-
-      sectionNav.appendChild(list);
-    }
-
-    if (navItems.size) {
-      const observer = new IntersectionObserver(
-        entries => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              updateNavActive(entry.target);
-            }
-          });
-        },
-        {
-          root: scrollRoot || null,
-          rootMargin: '-35% 0px -45% 0px'
-        }
-      );
-
-      sections.forEach(section => observer.observe(section));
-
-      const firstActive = sections.find(section => section.dataset.collapsed !== 'true') || sections[0];
-      if (firstActive) {
-        updateNavActive(firstActive);
-      }
-    }
-  };
-
-  initializeSectionNavigation();
 
   const formatCbmValue = value => {
     if (!Number.isFinite(value)) {
@@ -3694,9 +3480,6 @@ async function handleAddProductForm() {
     updateAllArrivalCosts();
   });
 
-  setSupabaseStatus('loading', 'Menghubungkan ke database Supabase...');
-  let usingFallbackData = false;
-
   try {
     await ensureSeeded();
     await Promise.all([
@@ -3704,19 +3487,9 @@ async function handleAddProductForm() {
       refreshProductsFromSupabase(),
       refreshExchangeRatesFromSupabase()
     ]);
-    const summary = getDataSourceSummary();
-    usingFallbackData = Object.values(summary).includes('fallback');
-    if (usingFallbackData) {
-      setSupabaseStatus('offline', 'Supabase tidak dapat diakses. Menggunakan data contoh.');
-    } else {
-      setSupabaseStatus('online', 'Terhubung ke Supabase.');
-    }
   } catch (error) {
     console.error('Gagal menyiapkan data produk.', error);
-    applyLocalFallbackData();
-    usingFallbackData = true;
-    setSupabaseStatus('offline', 'Supabase tidak dapat diakses. Menggunakan data contoh.');
-    toast.show('Tidak dapat memuat data Supabase. Menampilkan data contoh.');
+    toast.show('Gagal memuat data produk. Pastikan Supabase tersambung.');
   }
 
   const getPricingRows = () => Array.from(pricingBody?.querySelectorAll('.pricing-row') ?? []);
@@ -5229,7 +5002,6 @@ async function handleAddProductForm() {
   };
 
   addVariantBtn?.addEventListener('click', () => {
-    ensureSectionExpanded('variants');
     createVariantRow();
   });
 
@@ -5272,7 +5044,6 @@ async function handleAddProductForm() {
   });
 
   addPricingRowBtn?.addEventListener('click', () => {
-    ensureSectionExpanded('pricing');
     toast.show('Daftar harga dibuat otomatis dari varian yang tersedia.');
   });
 

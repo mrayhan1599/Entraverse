@@ -84,273 +84,209 @@
       <form id="add-product-form" class="card form-card">
         <div class="form-content-grid">
           <div class="form-main">
-            <section class="form-section" data-section="general" data-section-title="Informasi Produk">
-              <div class="section-header">
-                <div class="section-header__text">
-                  <h2>Informasi Produk</h2>
-                  <p class="section-subtitle">Detail dasar produk yang ditampilkan kepada pelanggan.</p>
-                </div>
-                <button type="button" class="section-toggle" data-section-toggle aria-expanded="true">Sembunyikan</button>
-              </div>
-              <div class="form-section-body">
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="product-name">Nama Produk</label>
-                    <input type="text" id="product-name" name="name" placeholder="Masukkan nama produk" required>
-                  </div>
-                  <div class="form-group">
-                    <label for="product-category">Kategori</label>
-                    <select id="product-category" name="category" data-placeholder="Pilih kategori" required>
-                      <option value="">Memuat kategori...</option>
-                    </select>
-                    <p class="field-hint" id="category-helper-text">Pilih kategori dari daftar Kategori.</p>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>Foto Produk</label>
-                  <div class="image-upload-grid" id="photo-inputs">
-                    <div class="image-upload" data-index="0">
-                      <label class="image-dropzone" data-photo-preview for="photo-0" role="button" tabindex="0">
-                        <img data-preview-image alt="" hidden>
-                        <span class="image-icon" aria-hidden="true">🖼️</span>
-                        <span class="image-text">Unggah foto</span>
-                      </label>
-                      <input type="file" id="photo-0" name="photo-0" accept="image/*" class="visually-hidden" data-photo-field>
-                    </div>
-                    <div class="image-upload" data-index="1">
-                      <label class="image-dropzone" data-photo-preview for="photo-1" role="button" tabindex="0">
-                        <img data-preview-image alt="" hidden>
-                        <span class="image-icon" aria-hidden="true">🖼️</span>
-                        <span class="image-text">Unggah foto</span>
-                      </label>
-                      <input type="file" id="photo-1" name="photo-1" accept="image/*" class="visually-hidden" data-photo-field>
-                    </div>
-                    <div class="image-upload" data-index="2">
-                      <label class="image-dropzone" data-photo-preview for="photo-2" role="button" tabindex="0">
-                        <img data-preview-image alt="" hidden>
-                        <span class="image-icon" aria-hidden="true">🖼️</span>
-                        <span class="image-text">Unggah foto</span>
-                      </label>
-                      <input type="file" id="photo-2" name="photo-2" accept="image/*" class="visually-hidden" data-photo-field>
-                    </div>
-                    <div class="image-upload" data-index="3">
-                      <label class="image-dropzone" data-photo-preview for="photo-3" role="button" tabindex="0">
-                        <img data-preview-image alt="" hidden>
-                        <span class="image-icon" aria-hidden="true">🖼️</span>
-                        <span class="image-text">Unggah foto</span>
-                      </label>
-                      <input type="file" id="photo-3" name="photo-3" accept="image/*" class="visually-hidden" data-photo-field>
-                    </div>
-                    <div class="image-upload" data-index="4">
-                      <label class="image-dropzone" data-photo-preview for="photo-4" role="button" tabindex="0">
-                        <img data-preview-image alt="" hidden>
-                        <span class="image-icon" aria-hidden="true">🖼️</span>
-                        <span class="image-text">Unggah foto</span>
-                      </label>
-                      <input type="file" id="photo-4" name="photo-4" accept="image/*" class="visually-hidden" data-photo-field>
-                    </div>
-                  </div>
-                  <p class="field-hint">Unggah foto produk langsung dari perangkat Anda (maks. 5 foto).</p>
-                </div>
-                <div class="form-group">
-                  <label for="product-brand">Brand</label>
-                  <input type="text" id="product-brand" name="brand" placeholder="Pilih brand" required>
-                </div>
-                <div class="form-group">
-                  <label for="product-description">Deskripsi</label>
-                  <textarea id="product-description" name="description" rows="5" placeholder="Tuliskan deskripsi produk"></textarea>
-                </div>
-              </div>
-            </section>
-            <section class="form-section" data-section="inventory" data-section-title="Perencanaan Stok" data-default-collapsed="true">
-              <div class="section-header">
-                <div class="section-header__text">
-                  <h2>Parameter Perencanaan Stok</h2>
-                  <p class="section-subtitle">Bantu tim supply chain memperkirakan kebutuhan stok.</p>
-                </div>
-                <button type="button" class="section-toggle" data-section-toggle aria-expanded="false">Tampilkan</button>
-              </div>
-              <div class="form-section-body">
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="initial-stock-prediction">Prediksi Stok Awal</label>
-                    <input type="number" id="initial-stock-prediction" name="initialStockPrediction" placeholder="Contoh: 120" min="0" inputmode="decimal">
-                  </div>
-                  <div class="form-group">
-                    <label for="daily-average-sales">Rata-rata Penjualan per Hari</label>
-                    <input type="number" id="daily-average-sales" name="dailyAverageSales" placeholder="Contoh: 8" min="0" step="0.01" inputmode="decimal">
-                  </div>
-                  <div class="form-group">
-                    <label for="lead-time">Lead Time (hari)</label>
-                    <input type="number" id="lead-time" name="leadTime" placeholder="Contoh: 5" min="0" step="0.1" inputmode="decimal">
-                  </div>
-                </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="reorder-point">Reorder Point</label>
-                    <input type="number" id="reorder-point" name="reorderPoint" placeholder="Contoh: 40" min="0" step="0.01" inputmode="decimal">
-                  </div>
-                  <div class="form-group">
-                    <label for="product-weight">Berat Produk (gram)</label>
-                    <input type="number" id="product-weight" name="weightGram" placeholder="Contoh: 1500" min="0" step="0.01" inputmode="decimal">
-                  </div>
-                </div>
-                <div class="form-row">
-                  <div class="form-group full-width">
-                    <label for="product-length">Dimensi Produk (cm)</label>
-                    <div class="dimension-inputs dimension-inputs--inline">
-                      <div class="dimension-input">
-                        <input type="number" id="product-length" name="lengthCm" placeholder="Panjang" min="0" step="0.01" inputmode="decimal">
-                      </div>
-                      <span class="dimension-separator" aria-hidden="true">×</span>
-                      <div class="dimension-input">
-                        <input type="number" id="product-width" name="widthCm" placeholder="Lebar" min="0" step="0.01" inputmode="decimal">
-                      </div>
-                      <span class="dimension-separator" aria-hidden="true">×</span>
-                      <div class="dimension-input">
-                        <input type="number" id="product-height" name="heightCm" placeholder="Tinggi" min="0" step="0.01" inputmode="decimal">
-                      </div>
-                      <span class="dimension-unit" aria-hidden="true">cm</span>
-                    </div>
-                    <p class="field-hint">Masukkan panjang, lebar, dan tinggi untuk menghitung volume.</p>
-                  </div>
-                </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="product-volume">Volume (CBM)</label>
-                    <input type="text" id="product-volume" name="volumeCbm" placeholder="Otomatis dihitung" readonly>
-                    <p class="field-hint">Nilai volume dihitung otomatis dari dimensi di atas.</p>
-                  </div>
-                </div>
-              </div>
-            </section>
-            <section class="form-section form-section--vendor" data-section="vendor" data-section-title="Tarif Pengiriman" data-default-collapsed="true">
-              <div class="section-header">
-                <div class="section-header__text">
-                  <h2>Tarif Pengiriman Vendor</h2>
-                  <p class="section-subtitle">Sinkron dengan tarif terbaru yang Anda kelola di halaman Vendor.</p>
-                </div>
-                <div class="section-header__actions">
-                  <a class="btn ghost-btn small" href="vendor.html">Kelola Vendor</a>
-                  <button type="button" class="section-toggle" data-section-toggle aria-expanded="false">Tampilkan</button>
-                </div>
-              </div>
-              <div class="form-section-body">
-                <p class="field-hint" data-vendor-last-updated>Tarif vendor menggunakan nilai bawaan.</p>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="shipping-sea-rate">Ongkos Kirim Supplier - Laut (Rp per CBM)</label>
-                    <input type="number" id="shipping-sea-rate" name="shippingSeaRate" placeholder="Contoh: 2500000" min="0" step="0.01" inputmode="decimal">
-                  </div>
-                  <div class="form-group">
-                    <label for="shipping-air-rate">Ongkos Kirim Supplier - Udara (Rp per Kg)</label>
-                    <input type="number" id="shipping-air-rate" name="shippingAirRate" placeholder="Contoh: 180000" min="0" step="0.01" inputmode="decimal">
-                  </div>
-                </div>
-                <p class="field-hint">Perubahan tarif pada halaman Vendor akan otomatis diterapkan ke formulir produk baru.</p>
-              </div>
-            </section>
-            <section class="form-section" data-section="trade-in" data-section-title="Trade-In" data-default-collapsed="true">
-              <div class="section-header">
-                <div class="section-header__text">
-                  <h2>Trade-In</h2>
-                  <p class="section-subtitle">Izinkan pelanggan menukar barang lama mereka.</p>
-                </div>
-                <div class="section-header__actions">
-                  <label class="switch">
-                    <input type="checkbox" id="trade-in-toggle" name="tradeIn">
-                    <span class="slider"></span>
-                  </label>
-                  <button type="button" class="section-toggle" data-section-toggle aria-expanded="false">Tampilkan</button>
-                </div>
-              </div>
-              <div class="form-section-body">
-                <p class="field-hint">Aktifkan trade-in agar produk dapat ditukar dengan barang lama.</p>
-              </div>
-            </section>
-            <section class="form-section" data-section="variants" data-section-title="Varian Produk" data-default-collapsed="true">
-              <div class="section-header">
-                <div class="section-header__text">
-                  <h2>Varian Produk</h2>
-                  <p class="section-subtitle">Tambahkan atribut produk dan opsi yang tersedia.</p>
-                </div>
-                <div class="section-header__actions">
-                  <button type="button" id="add-variant-btn" class="btn ghost-btn small">+ Tambah Varian</button>
-                  <button type="button" class="section-toggle" data-section-toggle aria-expanded="false">Tampilkan</button>
-                </div>
-              </div>
-              <div class="form-section-body">
-                <div class="variant-table-wrapper">
-                  <table class="variant-table">
-                    <thead>
-                      <tr>
-                        <th>Nama Varian</th>
-                        <th>Opsi</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody id="variant-body"></tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
-            <section class="form-section" data-section="pricing" data-section-title="Harga &amp; Inventori" data-default-collapsed="true">
-              <div class="section-header">
-                <div class="section-header__text">
-                  <h2>Harga &amp; Detail Varian</h2>
-                  <p class="section-subtitle">Hitung otomatis harga dan stok untuk tiap kombinasi.</p>
-                </div>
-                <div class="section-header__actions">
-                  <button type="button" id="add-pricing-row-btn" class="btn ghost-btn small">+ Tambah Baris Harga</button>
-                  <button type="button" class="section-toggle" data-section-toggle aria-expanded="false">Tampilkan</button>
-                </div>
-              </div>
-              <div class="form-section-body">
-                <p class="field-hint">Tentukan harga jual dan detail inventori untuk setiap kombinasi varian.</p>
-                <div class="variant-pricing-table-wrapper">
-                  <table class="variant-pricing-table">
-                    <thead>
-                      <tr id="variant-pricing-header">
-                        <th>Varian</th>
-                        <th>Harga Beli</th>
-                        <th>Kurs</th>
-                        <th>Nilai Tukar Kurs</th>
-                        <th>Pengiriman</th>
-                        <th>Biaya Kedatangan</th>
-                        <th>Harga Beli (Rp.)</th>
-                        <th>Harga Jual Offline</th>
-                        <th>Harga Jual Entraverse.id</th>
-                        <th>Harga Jual Tokopedia</th>
-                        <th>Harga Jual Shopee</th>
-                        <th>Stok</th>
-                        <th>Berat Barang</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody id="variant-pricing-body"></tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
+        <div class="form-section">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="product-name">Nama Produk</label>
+              <input type="text" id="product-name" name="name" placeholder="Masukkan nama produk" required>
+            </div>
+            <div class="form-group">
+              <label for="product-category">Kategori</label>
+              <select id="product-category" name="category" data-placeholder="Pilih kategori" required>
+                <option value="">Memuat kategori...</option>
+              </select>
+              <p class="field-hint" id="category-helper-text">Pilih kategori dari daftar Kategori.</p>
+            </div>
           </div>
-          <aside class="form-sidebar">
-            <section class="form-sidebar-card">
-              <h2 class="form-sidebar-title">Navigasi Formulir</h2>
-              <nav class="form-section-nav" data-section-nav aria-label="Navigasi bagian formulir"></nav>
-            </section>
-            <section class="form-sidebar-card form-sidebar-card--status" data-supabase-status-card>
-              <h2 class="form-sidebar-title">Status Data</h2>
-              <p class="supabase-status-text" data-supabase-status>Memeriksa koneksi...</p>
-            </section>
-            <section class="form-sidebar-card form-sidebar-card--tips">
-              <h2 class="form-sidebar-title">Tips Cepat</h2>
-              <ul class="form-tips-list">
-                <li>Gunakan navigasi untuk lompat langsung ke bagian yang Anda perlukan.</li>
-                <li>Bagian lanjutan dapat dibuka hanya saat dibutuhkan.</li>
-              </ul>
-            </section>
-          </aside>
+          <div class="form-group">
+            <label>Foto Produk</label>
+            <div class="image-upload-grid" id="photo-inputs">
+              <div class="image-upload" data-index="0">
+                <label class="image-dropzone" data-photo-preview for="photo-0" role="button" tabindex="0">
+                  <img data-preview-image alt="" hidden>
+                  <span class="image-icon" aria-hidden="true">🖼️</span>
+                  <span class="image-text">Unggah foto</span>
+                </label>
+                <input type="file" id="photo-0" name="photo-0" accept="image/*" class="visually-hidden" data-photo-field>
+              </div>
+              <div class="image-upload" data-index="1">
+                <label class="image-dropzone" data-photo-preview for="photo-1" role="button" tabindex="0">
+                  <img data-preview-image alt="" hidden>
+                  <span class="image-icon" aria-hidden="true">🖼️</span>
+                  <span class="image-text">Unggah foto</span>
+                </label>
+                <input type="file" id="photo-1" name="photo-1" accept="image/*" class="visually-hidden" data-photo-field>
+              </div>
+              <div class="image-upload" data-index="2">
+                <label class="image-dropzone" data-photo-preview for="photo-2" role="button" tabindex="0">
+                  <img data-preview-image alt="" hidden>
+                  <span class="image-icon" aria-hidden="true">🖼️</span>
+                  <span class="image-text">Unggah foto</span>
+                </label>
+                <input type="file" id="photo-2" name="photo-2" accept="image/*" class="visually-hidden" data-photo-field>
+              </div>
+              <div class="image-upload" data-index="3">
+                <label class="image-dropzone" data-photo-preview for="photo-3" role="button" tabindex="0">
+                  <img data-preview-image alt="" hidden>
+                  <span class="image-icon" aria-hidden="true">🖼️</span>
+                  <span class="image-text">Unggah foto</span>
+                </label>
+                <input type="file" id="photo-3" name="photo-3" accept="image/*" class="visually-hidden" data-photo-field>
+              </div>
+              <div class="image-upload" data-index="4">
+                <label class="image-dropzone" data-photo-preview for="photo-4" role="button" tabindex="0">
+                  <img data-preview-image alt="" hidden>
+                  <span class="image-icon" aria-hidden="true">🖼️</span>
+                  <span class="image-text">Unggah foto</span>
+                </label>
+                <input type="file" id="photo-4" name="photo-4" accept="image/*" class="visually-hidden" data-photo-field>
+              </div>
+            </div>
+            <p class="field-hint">Unggah foto produk langsung dari perangkat Anda (maks. 5 foto).</p>
+          </div>
+          <div class="form-group">
+            <label for="product-brand">Brand</label>
+            <input type="text" id="product-brand" name="brand" placeholder="Pilih brand" required>
+          </div>
+          <div class="form-group">
+            <label for="product-description">Deskripsi</label>
+            <textarea id="product-description" name="description" rows="5" placeholder="Tuliskan deskripsi produk"></textarea>
+          </div>
         </div>
+        <div class="form-section">
+          <div class="section-header">
+            <h2>Parameter Perencanaan Stok</h2>
+          </div>
+          <p class="field-hint">Lengkapi parameter di bawah ini untuk membantu estimasi kebutuhan stok dan pengadaan barang.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="initial-stock-prediction">Prediksi Stok Awal</label>
+              <input type="number" id="initial-stock-prediction" name="initialStockPrediction" placeholder="Contoh: 120" min="0" inputmode="decimal">
+            </div>
+            <div class="form-group">
+              <label for="daily-average-sales">Rata-rata Penjualan per Hari</label>
+              <input type="number" id="daily-average-sales" name="dailyAverageSales" placeholder="Contoh: 8" min="0" step="0.01" inputmode="decimal">
+            </div>
+            <div class="form-group">
+              <label for="lead-time">Lead Time (hari)</label>
+              <input type="number" id="lead-time" name="leadTime" placeholder="Contoh: 5" min="0" step="0.1" inputmode="decimal">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="reorder-point">Reorder Point</label>
+              <input type="number" id="reorder-point" name="reorderPoint" placeholder="Contoh: 40" min="0" step="0.01" inputmode="decimal">
+            </div>
+            <div class="form-group">
+              <label for="product-weight">Berat Produk (gram)</label>
+              <input type="number" id="product-weight" name="weightGram" placeholder="Contoh: 1500" min="0" step="0.01" inputmode="decimal">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group full-width">
+              <label for="product-length">Dimensi Produk (cm)</label>
+              <div class="dimension-inputs dimension-inputs--inline">
+                <div class="dimension-input">
+                  <input type="number" id="product-length" name="lengthCm" placeholder="Panjang" min="0" step="0.01" inputmode="decimal">
+                </div>
+                <span class="dimension-separator" aria-hidden="true">×</span>
+                <div class="dimension-input">
+                  <input type="number" id="product-width" name="widthCm" placeholder="Lebar" min="0" step="0.01" inputmode="decimal">
+                </div>
+                <span class="dimension-separator" aria-hidden="true">×</span>
+                <div class="dimension-input">
+                  <input type="number" id="product-height" name="heightCm" placeholder="Tinggi" min="0" step="0.01" inputmode="decimal">
+                </div>
+                <span class="dimension-unit" aria-hidden="true">cm</span>
+              </div>
+              <p class="field-hint">Masukkan panjang, lebar, dan tinggi untuk menghitung volume.</p>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="product-volume">Volume (CBM)</label>
+              <input type="text" id="product-volume" name="volumeCbm" placeholder="Otomatis dihitung" readonly>
+              <p class="field-hint">Nilai volume dihitung otomatis dari dimensi di atas.</p>
+            </div>
+          </div>
+        </div>
+        <div class="form-section form-section--vendor">
+          <div class="section-header">
+            <h2>Tarif Pengiriman Vendor</h2>
+            <a class="btn ghost-btn small" href="vendor.html">Kelola Vendor</a>
+          </div>
+          <p class="field-hint" data-vendor-last-updated>Tarif vendor menggunakan nilai bawaan.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="shipping-sea-rate">Ongkos Kirim Supplier - Laut (Rp per CBM)</label>
+              <input type="number" id="shipping-sea-rate" name="shippingSeaRate" placeholder="Contoh: 2500000" min="0" step="0.01" inputmode="decimal">
+            </div>
+            <div class="form-group">
+              <label for="shipping-air-rate">Ongkos Kirim Supplier - Udara (Rp per Kg)</label>
+              <input type="number" id="shipping-air-rate" name="shippingAirRate" placeholder="Contoh: 180000" min="0" step="0.01" inputmode="decimal">
+            </div>
+          </div>
+          <p class="field-hint">Perubahan tarif pada halaman Vendor akan otomatis diterapkan ke formulir produk baru.</p>
+        </div>
+        <div class="form-section">
+          <div class="section-header">
+            <h2>Trade-In</h2>
+            <label class="switch">
+              <input type="checkbox" id="trade-in-toggle" name="tradeIn">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <p class="field-hint">Aktifkan trade-in agar produk dapat ditukar dengan barang lama.</p>
+        </div>
+        <div class="form-section">
+          <div class="section-header">
+            <h2>Varian Produk</h2>
+            <button type="button" id="add-variant-btn" class="btn ghost-btn small">+ Tambah Varian</button>
+          </div>
+          <div class="variant-table-wrapper">
+            <table class="variant-table">
+              <thead>
+                <tr>
+                  <th>Nama Varian</th>
+                  <th>Opsi</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="variant-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="form-section" data-pricing-section>
+          <div class="section-header">
+            <h2>Harga &amp; Detail Varian</h2>
+            <button type="button" id="add-pricing-row-btn" class="btn ghost-btn small">+ Tambah Baris Harga</button>
+          </div>
+          <p class="field-hint">Tentukan harga jual dan detail inventori untuk setiap kombinasi varian.</p>
+          <div class="variant-pricing-table-wrapper">
+            <table class="variant-pricing-table">
+              <thead>
+                <tr id="variant-pricing-header">
+                  <th>Varian</th>
+                  <th>Harga Beli</th>
+                  <th>Kurs</th>
+                  <th>Nilai Tukar Kurs</th>
+                  <th>Pengiriman</th>
+                  <th>Biaya Kedatangan</th>
+                  <th>Harga Beli (Rp.)</th>
+                  <th>Harga Jual Offline</th>
+                  <th>Harga Jual Entraverse.id</th>
+                  <th>Harga Jual Tokopedia</th>
+                  <th>Harga Jual Shopee</th>
+                  <th>Stok</th>
+                  <th>Berat Barang</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="variant-pricing-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
         <footer class="form-footer">
           <a href="dashboard.html" class="btn ghost-btn">Batalkan</a>
           <button type="submit" class="btn primary-btn">Simpan sebagai Draft</button>
