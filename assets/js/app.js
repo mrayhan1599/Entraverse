@@ -3921,35 +3921,6 @@ async function handleAddProductForm() {
     toast.show('Sebagian data Supabase tidak dapat dimuat. Menampilkan data cadangan yang tersedia.');
   }
 
-  let categoriesSnapshot = getCategories();
-  if (!categoriesSnapshot.length) {
-    const summaryAfterLoad = getDataSourceSummary();
-    const categoryState = summaryAfterLoad.categories;
-
-    if (categoryState === 'remote') {
-      console.warn(
-        'Supabase tidak mengembalikan data kategori untuk formulir produk. Menggunakan data cadangan sementara.'
-      );
-
-      setSupabaseStatus(
-        'warning',
-        'Supabase tidak mengembalikan data kategori. Menampilkan data cadangan sementara. Periksa kebijakan RLS atau tambahkan kategori di Supabase.'
-      );
-
-      applyLocalFallbackData({
-        products: false,
-        categories: true,
-        exchangeRates: false,
-        vendor: false
-      });
-
-      categoriesSnapshot = getCategories();
-      if (categoriesSnapshot.length) {
-        toast.show('Kategori Supabase tidak tersedia. Menampilkan data cadangan untuk sementara.');
-      }
-    }
-  }
-
   const getPricingRows = () => Array.from(pricingBody?.querySelectorAll('.pricing-row') ?? []);
 
   const getShippingRateValue = input => {
