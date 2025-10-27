@@ -16,6 +16,48 @@ const GUEST_USER = Object.freeze({
 
 let activeSessionUser = null;
 
+function createUuid() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const byteToHex = [];
+  for (let index = 0; index < 256; index += 1) {
+    byteToHex[index] = index.toString(16).padStart(2, '0');
+  }
+
+  return (
+    byteToHex[bytes[0]] +
+    byteToHex[bytes[1]] +
+    byteToHex[bytes[2]] +
+    byteToHex[bytes[3]] + '-' +
+    byteToHex[bytes[4]] +
+    byteToHex[bytes[5]] + '-' +
+    byteToHex[bytes[6]] +
+    byteToHex[bytes[7]] + '-' +
+    byteToHex[bytes[8]] +
+    byteToHex[bytes[9]] + '-' +
+    byteToHex[bytes[10]] +
+    byteToHex[bytes[11]] +
+    byteToHex[bytes[12]] +
+    byteToHex[bytes[13]] +
+    byteToHex[bytes[14]] +
+    byteToHex[bytes[15]]
+  );
+}
+
 const DEFAULT_PRODUCTS = [
   {
     id: crypto.randomUUID(),
@@ -258,6 +300,153 @@ const DEFAULT_SHIPPING_VENDORS = Object.freeze([
     note: ''
   }
 ]);
+
+const LOCAL_STORAGE_KEYS = Object.freeze({
+  shippingVendorsSnapshot: 'entraverse_shipping_vendors_snapshot',
+  shippingVendorsLocal: 'entraverse_shipping_vendors_local'
+});
+
+function sanitizeShippingVendor(vendor, { localOnly = false } = {}) {
+  const normalized = normalizeShippingVendor(vendor);
+  if (!normalized) {
+    return null;
+  }
+
+  const sanitized = { ...normalized };
+  sanitized.id = sanitized.id || createUuid();
+  sanitized.name = sanitized.name ?? '';
+  sanitized.services = sanitized.services ?? '';
+  sanitized.coverage = sanitized.coverage ?? '';
+  sanitized.pic = sanitized.pic ?? '';
+  sanitized.email = sanitized.email ?? '';
+  sanitized.phone = sanitized.phone ?? '';
+  sanitized.detailUrl = sanitized.detailUrl ?? '';
+  sanitized.airRate = parseNumericValue(sanitized.airRate);
+  sanitized.seaRate = parseNumericValue(sanitized.seaRate);
+  sanitized.note = sanitized.note ?? '';
+
+  const now = Date.now();
+  sanitized.createdAt = typeof sanitized.createdAt === 'number' ? sanitized.createdAt : now;
+  sanitized.updatedAt = typeof sanitized.updatedAt === 'number' ? sanitized.updatedAt : sanitized.createdAt;
+  sanitized.localOnly = localOnly || Boolean(normalized.localOnly);
+
+  return sanitized;
+}
+
+function mergeShippingVendorCollections(base = [], additions = []) {
+  const map = new Map();
+
+  const append = list => {
+    list.forEach(item => {
+      const sanitized = sanitizeShippingVendor(item, { localOnly: Boolean(item?.localOnly) });
+      if (!sanitized) {
+        return;
+      }
+      map.set(sanitized.id, sanitized);
+    });
+  };
+
+  append(Array.isArray(base) ? base : []);
+  append(Array.isArray(additions) ? additions : []);
+
+  return Array.from(map.values());
+}
+
+function loadShippingVendorSnapshot() {
+  if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
+    return [];
+  }
+
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEYS.shippingVendorsSnapshot);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map(item => sanitizeShippingVendor(item, { localOnly: false }))
+      .filter(Boolean);
+  } catch (error) {
+    console.error('Gagal memuat snapshot vendor pengiriman.', error);
+    return [];
+  }
+}
+
+function saveShippingVendorSnapshot(vendors) {
+  if (typeof localStorage === 'undefined' || typeof localStorage.setItem !== 'function') {
+    return;
+  }
+
+  try {
+    const sanitized = Array.isArray(vendors)
+      ? vendors
+          .filter(vendor => !isSampaiExpressVendorId(vendor.id))
+          .map(vendor => sanitizeShippingVendor(vendor, { localOnly: false }))
+          .filter(Boolean)
+      : [];
+
+    if (!sanitized.length) {
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.shippingVendorsSnapshot);
+    } else {
+      localStorage.setItem(LOCAL_STORAGE_KEYS.shippingVendorsSnapshot, JSON.stringify(sanitized));
+    }
+  } catch (error) {
+    console.error('Gagal menyimpan snapshot vendor pengiriman.', error);
+  }
+}
+
+function loadLocalShippingVendors() {
+  if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
+    return [];
+  }
+
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEYS.shippingVendorsLocal);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map(item => sanitizeShippingVendor(item, { localOnly: true }))
+      .filter(Boolean);
+  } catch (error) {
+    console.error('Gagal memuat vendor pengiriman lokal.', error);
+    return [];
+  }
+}
+
+function saveLocalShippingVendors(vendors) {
+  if (typeof localStorage === 'undefined' || typeof localStorage.setItem !== 'function') {
+    return;
+  }
+
+  try {
+    const sanitized = Array.isArray(vendors)
+      ? vendors
+          .filter(vendor => !isSampaiExpressVendorId(vendor.id))
+          .map(vendor => sanitizeShippingVendor({ ...vendor, localOnly: true }, { localOnly: true }))
+          .filter(Boolean)
+      : [];
+
+    if (!sanitized.length) {
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.shippingVendorsLocal);
+    } else {
+      localStorage.setItem(LOCAL_STORAGE_KEYS.shippingVendorsLocal, JSON.stringify(sanitized));
+    }
+  } catch (error) {
+    console.error('Gagal menyimpan vendor pengiriman lokal.', error);
+  }
+}
 
 const SUPABASE_TABLES = Object.freeze({
   users: 'users',
@@ -804,6 +993,18 @@ function setShippingVendorCache(vendors) {
 function getShippingVendorsFromCache() {
   const cached = getRemoteCache(STORAGE_KEYS.shippingVendors, []);
   if (!Array.isArray(cached) || !cached.length) {
+    const snapshot = loadShippingVendorSnapshot();
+    const localOnly = loadLocalShippingVendors();
+
+    if (snapshot.length || localOnly.length) {
+      const base = snapshot.length
+        ? mergeShippingVendorCollections(DEFAULT_SHIPPING_VENDORS, snapshot)
+        : DEFAULT_SHIPPING_VENDORS.map(vendor => ({ ...vendor }));
+      const merged = mergeShippingVendorCollections(base, localOnly);
+      setRemoteCache(STORAGE_KEYS.shippingVendors, merged);
+      return merged;
+    }
+
     return DEFAULT_SHIPPING_VENDORS.map(vendor => ({ ...vendor }));
   }
   return cached;
@@ -827,6 +1028,7 @@ async function refreshShippingVendorsFromSupabase() {
   }
 
   setShippingVendorCache(vendors);
+  saveShippingVendorSnapshot(vendors);
   return vendors;
 }
 
@@ -855,36 +1057,16 @@ async function upsertShippingVendorToSupabase(vendor) {
     throw new Error('Data vendor pengiriman tidak valid.');
   }
 
-  const hasExistingId = Boolean(payload.id);
   const now = new Date().toISOString();
-
-  if (!hasExistingId) {
-    payload.id = crypto.randomUUID();
-    payload.created_at = payload.created_at ?? now;
-  }
-
+  payload.id = payload.id || createUuid();
+  payload.created_at = payload.created_at ?? now;
   payload.updated_at = payload.updated_at ?? now;
 
-  let response;
-
-  if (hasExistingId) {
-    const { id, created_at, ...updatePayload } = payload;
-    updatePayload.updated_at = payload.updated_at;
-    response = await client
-      .from(SUPABASE_TABLES.shippingVendors)
-      .update(updatePayload)
-      .eq('id', payload.id)
-      .select()
-      .maybeSingle();
-  } else {
-    response = await client
-      .from(SUPABASE_TABLES.shippingVendors)
-      .insert(payload)
-      .select()
-      .maybeSingle();
-  }
-
-  const { data, error } = response;
+  const { data, error } = await client
+    .from(SUPABASE_TABLES.shippingVendors)
+    .upsert(payload, { onConflict: 'id' })
+    .select()
+    .maybeSingle();
 
   if (error) {
     throw error;
@@ -2938,14 +3120,53 @@ function renderShippingVendors(filterText = '') {
 async function initShippingPage() {
   let supabaseReady = true;
 
+  const syncLocalWithSupabase = async () => {
+    const localVendors = loadLocalShippingVendors();
+    if (!localVendors.length) {
+      return;
+    }
+
+    const remaining = [];
+    for (const vendor of localVendors) {
+      try {
+        await upsertShippingVendorToSupabase({ ...vendor, localOnly: false });
+      } catch (error) {
+        console.error('Gagal menyinkronkan vendor pengiriman lokal.', error);
+        remaining.push(vendor);
+      }
+    }
+
+    saveLocalShippingVendors(remaining);
+
+    if (remaining.length !== localVendors.length) {
+      try {
+        const refreshed = await refreshShippingVendorsFromSupabase();
+        const merged = mergeShippingVendorCollections(refreshed, remaining);
+        setShippingVendorCache(merged);
+      } catch (error) {
+        console.error('Gagal memperbarui vendor setelah sinkronisasi lokal.', error);
+      }
+    } else if (remaining.length) {
+      const merged = mergeShippingVendorCollections(getShippingVendorsFromCache(), remaining);
+      setShippingVendorCache(merged);
+    }
+  };
+
   try {
     await ensureSeeded();
     await refreshShippingVendorsFromSupabase();
+    await syncLocalWithSupabase();
   } catch (error) {
     supabaseReady = false;
     console.error('Gagal memuat vendor pengiriman.', error);
     toast.show('Gagal memuat data vendor pengiriman dari Supabase.');
-    setShippingVendorCache(DEFAULT_SHIPPING_VENDORS.map(vendor => ({ ...vendor })));
+    const snapshot = loadShippingVendorSnapshot();
+    const localOnly = loadLocalShippingVendors();
+    const base = snapshot.length
+      ? mergeShippingVendorCollections(DEFAULT_SHIPPING_VENDORS, snapshot)
+      : DEFAULT_SHIPPING_VENDORS.map(vendor => ({ ...vendor }));
+    const fallback = mergeShippingVendorCollections(base, localOnly);
+    setShippingVendorCache(fallback);
   }
 
   renderShippingVendors();
@@ -2955,6 +3176,7 @@ async function initShippingPage() {
     document.addEventListener('entraverse:session-change', async () => {
       try {
         await refreshShippingVendorsFromSupabase();
+        await syncLocalWithSupabase();
         const filter = document.getElementById('search-input')?.value ?? '';
         renderShippingVendors(filter.toString().trim().toLowerCase());
       } catch (error) {
@@ -3067,7 +3289,11 @@ async function initShippingPage() {
         submitBtn.classList.add('is-loading');
       }
 
+      const timestamp = Date.now();
+      const vendorId = form.dataset.editingId || createUuid();
+
       const payload = {
+        id: vendorId,
         name,
         services,
         coverage,
@@ -3078,20 +3304,38 @@ async function initShippingPage() {
         airRate,
         seaRate,
         note,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+
+      const persistLocally = message => {
+        const localVendor = sanitizeShippingVendor({ ...payload, localOnly: true }, { localOnly: true });
+        const updatedLocal = mergeShippingVendorCollections(loadLocalShippingVendors(), [localVendor]);
+        saveLocalShippingVendors(updatedLocal);
+        const mergedCache = mergeShippingVendorCollections(getShippingVendorsFromCache(), [localVendor]);
+        setShippingVendorCache(mergedCache);
+        const filter = document.getElementById('search-input')?.value ?? '';
+        renderShippingVendors(filter.toString().trim().toLowerCase());
+        toast.show(message ?? 'Vendor pengiriman disimpan secara lokal. Akan tersinkron saat Supabase tersedia.');
+        closeModal();
       };
 
       try {
+        if (!supabaseReady) {
+          persistLocally('Supabase tidak tersedia. Vendor disimpan secara lokal dan akan tersinkron otomatis.');
+          return;
+        }
+
         await upsertShippingVendorToSupabase(payload);
         await refreshShippingVendorsFromSupabase();
+        await syncLocalWithSupabase();
         const filter = document.getElementById('search-input')?.value ?? '';
         renderShippingVendors(filter.toString().trim().toLowerCase());
         toast.show('Vendor pengiriman berhasil disimpan.');
         closeModal();
       } catch (error) {
         console.error('Gagal menyimpan vendor pengiriman.', error);
-        toast.show('Gagal menyimpan vendor pengiriman. Coba lagi.');
+        persistLocally('Supabase tidak tersedia. Vendor disimpan secara lokal dan akan tersinkron otomatis.');
       } finally {
         resetSubmitState();
       }
@@ -3125,14 +3369,44 @@ async function initShippingPage() {
         button.classList.add('is-loading');
 
         try {
+          if (!supabaseReady) {
+            const localVendors = loadLocalShippingVendors();
+            const existsLocally = localVendors.some(vendor => vendor.id === id);
+            if (existsLocally) {
+              const updatedLocal = localVendors.filter(vendor => vendor.id !== id);
+              saveLocalShippingVendors(updatedLocal);
+              const updatedCache = getShippingVendorsFromCache().filter(vendor => vendor.id !== id);
+              setShippingVendorCache(updatedCache);
+              const filter = document.getElementById('search-input')?.value ?? '';
+              renderShippingVendors(filter.toString().trim().toLowerCase());
+              toast.show('Vendor pengiriman lokal dihapus. Akan tersinkron saat Supabase tersedia.');
+            } else {
+              toast.show('Supabase tidak tersedia. Hanya vendor lokal yang dapat dihapus.');
+            }
+            return;
+          }
+
           await deleteShippingVendorFromSupabase(id);
           await refreshShippingVendorsFromSupabase();
+          await syncLocalWithSupabase();
           const filter = document.getElementById('search-input')?.value ?? '';
           renderShippingVendors(filter.toString().trim().toLowerCase());
           toast.show('Vendor pengiriman berhasil dihapus.');
         } catch (error) {
           console.error('Gagal menghapus vendor pengiriman.', error);
-          toast.show('Gagal menghapus vendor pengiriman. Coba lagi.');
+          const localVendors = loadLocalShippingVendors();
+          const existsLocally = localVendors.some(vendor => vendor.id === id);
+          if (existsLocally) {
+            const updatedLocal = localVendors.filter(vendor => vendor.id !== id);
+            saveLocalShippingVendors(updatedLocal);
+            const updatedCache = getShippingVendorsFromCache().filter(vendor => vendor.id !== id);
+            setShippingVendorCache(updatedCache);
+            const filter = document.getElementById('search-input')?.value ?? '';
+            renderShippingVendors(filter.toString().trim().toLowerCase());
+            toast.show('Vendor pengiriman dihapus secara lokal. Akan tersinkron saat Supabase tersedia.');
+          } else {
+            toast.show('Gagal menghapus vendor pengiriman. Coba lagi.');
+          }
         } finally {
           button.disabled = false;
           button.classList.remove('is-loading');
