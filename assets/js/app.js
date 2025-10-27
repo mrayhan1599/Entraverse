@@ -3291,6 +3291,33 @@ async function handleAddProductForm() {
     return numeric;
   };
 
+  const formatCbmValue = value => {
+    if (value === null || typeof value === 'undefined' || value === '') {
+      return '';
+    }
+
+    const numeric = typeof value === 'number' ? value : Number.parseFloat(value);
+    if (!Number.isFinite(numeric)) {
+      return '';
+    }
+
+    if (numeric === 0) {
+      return '0';
+    }
+
+    const fixed = numeric.toFixed(6);
+    const trimmed = fixed.replace(/\.?0+$/, '').replace(/\.$/, '');
+    return trimmed === '' ? '0' : trimmed;
+  };
+
+  const convertCm3ToCbm = value => {
+    const numeric = typeof value === 'number' ? value : Number.parseFloat(value);
+    if (!Number.isFinite(numeric)) {
+      return null;
+    }
+    return numeric / 1_000_000;
+  };
+
   const updatePackageVolume = ({ preferExisting = false } = {}) => {
     if (!packageVolumeInput) {
       return;
@@ -3303,8 +3330,12 @@ async function handleAddProductForm() {
     if ([lengthValue, widthValue, heightValue].every(value => value !== null)) {
       const volume = lengthValue * widthValue * heightValue;
       if (Number.isFinite(volume)) {
-        packageVolumeInput.value = volume ? volume.toString() : '0';
-        return;
+        const cbm = convertCm3ToCbm(volume);
+        if (cbm !== null) {
+          const formattedVolume = formatCbmValue(cbm);
+          packageVolumeInput.value = formattedVolume;
+          return;
+        }
       }
     }
 
@@ -4767,6 +4798,24 @@ async function handleAddProductForm() {
         value = '';
       }
 
+      if (key === 'packageVolumeCm3') {
+        if (!value) {
+          input.value = '';
+          return;
+        }
+
+        const numericValue = Number.parseFloat(value);
+        if (Number.isFinite(numericValue)) {
+          const shouldConvertFromCm3 = numericValue >= 1000;
+          const cbmValue = shouldConvertFromCm3 ? convertCm3ToCbm(numericValue) : numericValue;
+          const formattedValue = formatCbmValue(cbmValue);
+          input.value = formattedValue;
+        } else {
+          input.value = value;
+        }
+        return;
+      }
+
       input.value = value;
     });
 
@@ -4829,7 +4878,11 @@ async function handleAddProductForm() {
       if ([lengthNumeric, widthNumeric, heightNumeric].every(value => value !== null)) {
         const volume = lengthNumeric * widthNumeric * heightNumeric;
         if (Number.isFinite(volume)) {
-          return volume ? volume.toString() : '0';
+          const cbm = convertCm3ToCbm(volume);
+          if (cbm !== null) {
+            const formattedVolume = formatCbmValue(cbm);
+            return formattedVolume;
+          }
         }
       }
 
