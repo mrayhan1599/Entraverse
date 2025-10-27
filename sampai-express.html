@@ -1,15 +1,16 @@
 <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Entraverse Admin - Produk</title>
+  <title>Entraverse Admin - Sampai Express</title>
   <link rel="stylesheet" href="assets/css/styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body data-page="dashboard">
+<body data-page="sampai-express">
   <div class="app-shell">
     <aside class="sidebar" data-sidebar>
       <div class="sidebar-header">
@@ -22,7 +23,7 @@
       <nav class="sidebar-nav">
         <div class="nav-section">
           <p class="nav-title">E-Commerce</p>
-          <a class="nav-link active" href="dashboard.html">
+          <a class="nav-link" href="dashboard.html">
             <span class="nav-icon" aria-hidden="true">📦</span>
             Produk
           </a>
@@ -52,7 +53,7 @@
             <span class="nav-icon" aria-hidden="true">🤝</span>
             Supplier
           </a>
-          <a class="nav-link" href="shipping-vendors.html">
+          <a class="nav-link active" href="shipping-vendors.html">
             <span class="nav-icon" aria-hidden="true">🚚</span>
             Pengiriman
           </a>
@@ -85,10 +86,7 @@
             <span></span>
             <span></span>
           </button>
-          <form class="search-bar" role="search">
-            <span class="search-icon" aria-hidden="true">🔍</span>
-            <input type="search" id="search-input" placeholder="Search" aria-label="Pencarian produk">
-          </form>
+          <a class="back-link" href="shipping-vendors.html">← Kembali ke Vendor Pengiriman</a>
         </div>
         <div class="topbar-actions">
           <div class="auth-buttons" data-guest-actions hidden>
@@ -103,7 +101,7 @@
           </div>
           <div class="profile-menu" data-profile-menu hidden>
             <button class="avatar-button" type="button" data-profile-toggle aria-haspopup="true" aria-expanded="false">
-              <span class="avatar" data-avatar-initials>AM</span>
+              <span class="avatar" data-avatar-initials>SE</span>
             </button>
             <div class="profile-dropdown" data-profile-dropdown role="menu" hidden>
               <p class="profile-greeting">Hai, <span data-profile-name>Pengguna</span></p>
@@ -115,45 +113,52 @@
       <section class="content-header">
         <div class="title-stack">
           <div class="title-bar">
-            <h1>Produk</h1>
-            <div class="title-actions" role="toolbar" aria-label="Aksi produk">
-              <button id="sync-btn" class="action-icon" type="button" aria-label="Sync ke Mekari Jurnal" data-label-default="Sync ke Mekari Jurnal" data-label-loading="Menyinkronkan...">
-                <span class="visually-hidden" data-label>Sync ke Mekari Jurnal</span>
-                <span aria-hidden="true" class="logo-badge">MJ</span>
-              </button>
-              <a href="add-product.html" class="action-icon" aria-label="Tambah produk" data-add-product-link>
-                <span class="visually-hidden">Tambah produk</span>
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <path d="M12 5v14M5 12h14"></path>
-                </svg>
-              </a>
-            </div>
+            <h1>Sampai Express</h1>
           </div>
-          <p>Kelola katalog produk Anda, atur trade-in, dan sinkronisasi stok.</p>
+          <p>Atur tarif logistik Sampai Express untuk pengiriman udara dan laut.</p>
         </div>
       </section>
+      <form id="sampai-express-form" class="card form-card">
+        <div class="form-section">
+          <h2>Tarif Pengiriman</h2>
+          <p class="form-section__subtitle">Masukkan tarif terbaru yang diberlakukan Sampai Express.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="air-rate">Pengiriman via Udara (Rp per Kg)</label>
+              <input type="number" id="air-rate" name="airRate" placeholder="Contoh: 12000" min="0" step="100">
+            </div>
+            <div class="form-group">
+              <label for="sea-rate">Pengiriman via Laut (Rp per CBM)</label>
+              <input type="number" id="sea-rate" name="seaRate" placeholder="Contoh: 1850000" min="0" step="1000">
+            </div>
+          </div>
+        </div>
+        <div class="form-section">
+          <h2>Catatan Tambahan</h2>
+          <div class="form-group">
+            <label for="sampai-note">Syarat &amp; ketentuan</label>
+            <textarea id="sampai-note" name="note" rows="4" placeholder="Catatan penting mengenai SLA, minimum berat, atau biaya tambahan."></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn primary-btn" type="submit">Simpan Tarif</button>
+        </div>
+      </form>
       <section class="card">
         <header class="card-header">
-          <h2>Daftar Produk</h2>
-          <span id="product-count" class="count-pill">0 produk</span>
+          <div>
+            <h2>Informasi Kontak</h2>
+            <p class="card-subtitle">Hubungi PIC Sampai Express untuk koordinasi operasional.</p>
+          </div>
         </header>
-        <div class="table-wrapper">
-          <table class="product-table">
-            <thead>
-              <tr>
-                <th>Foto</th>
-                <th>Nama Produk</th>
-                <th>Trade-In</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="product-table-body">
-            </tbody>
-          </table>
+        <div class="card-body">
+          <ul class="detail-list">
+            <li><span>Nama PIC</span><span>Raka Dwi Putra</span></li>
+            <li><span>Email</span><span><a href="mailto:logistics@sampaiexpress.id">logistics@sampaiexpress.id</a></span></li>
+            <li><span>Telepon</span><span><a href="tel:+622112345678">+62 21 1234 5678</a></span></li>
+            <li><span>Alamat Gudang</span><span>Jl. Halim Perdana Kusuma No. 88, Jakarta Timur</span></li>
+          </ul>
         </div>
-        <footer class="card-footer">
-          <span class="table-meta" id="table-meta">Menampilkan 0 produk</span>
-        </footer>
       </section>
     </main>
   </div>
