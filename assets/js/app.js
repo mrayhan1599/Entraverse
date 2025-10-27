@@ -3264,6 +3264,11 @@ async function handleAddProductForm() {
   const addVariantBtn = document.getElementById('add-variant-btn');
   const addPricingRowBtn = document.getElementById('add-pricing-row-btn');
   const photoInputs = Array.from(form.querySelectorAll('[data-photo-field]'));
+  const weightInput = form.querySelector('#product-weight');
+  const packageLengthInput = form.querySelector('#package-length');
+  const packageWidthInput = form.querySelector('#package-width');
+  const packageHeightInput = form.querySelector('#package-height');
+  const packageVolumeInput = form.querySelector('#package-volume');
   const titleEl = document.getElementById('product-form-title');
   const subtitleEl = document.getElementById('product-form-subtitle');
   const submitBtn = form.querySelector('.primary-btn');
@@ -3272,6 +3277,47 @@ async function handleAddProductForm() {
   const params = new URLSearchParams(window.location.search);
   const editingId = params.get('id');
   let suppressPricingRefresh = false;
+
+  const parseDimensionValue = value => {
+    if (value === null || typeof value === 'undefined') {
+      return null;
+    }
+
+    const numeric = Number.parseFloat(value);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return null;
+    }
+
+    return numeric;
+  };
+
+  const updatePackageVolume = ({ preferExisting = false } = {}) => {
+    if (!packageVolumeInput) {
+      return;
+    }
+
+    const lengthValue = parseDimensionValue(packageLengthInput?.value);
+    const widthValue = parseDimensionValue(packageWidthInput?.value);
+    const heightValue = parseDimensionValue(packageHeightInput?.value);
+
+    if ([lengthValue, widthValue, heightValue].every(value => value !== null)) {
+      const volume = lengthValue * widthValue * heightValue;
+      if (Number.isFinite(volume)) {
+        packageVolumeInput.value = volume ? volume.toString() : '0';
+        return;
+      }
+    }
+
+    if (!preferExisting) {
+      packageVolumeInput.value = '';
+    }
+  };
+
+  [packageLengthInput, packageWidthInput, packageHeightInput]
+    .filter(Boolean)
+    .forEach(input => {
+      input.addEventListener('input', () => updatePackageVolume());
+    });
 
   try {
     await ensureSeeded();
@@ -4705,7 +4751,12 @@ async function handleAddProductForm() {
       initialStockPrediction: form.querySelector('#initial-stock-prediction'),
       dailyAverageSales: form.querySelector('#daily-average-sales'),
       leadTime: form.querySelector('#lead-time'),
-      reorderPoint: form.querySelector('#reorder-point')
+      reorderPoint: form.querySelector('#reorder-point'),
+      weightGrams: weightInput,
+      packageLengthCm: packageLengthInput,
+      packageWidthCm: packageWidthInput,
+      packageHeightCm: packageHeightInput,
+      packageVolumeCm3: packageVolumeInput
     };
     const inventory = product.inventory ?? {};
     Object.entries(inventoryFields).forEach(([key, input]) => {
@@ -4718,6 +4769,8 @@ async function handleAddProductForm() {
 
       input.value = value;
     });
+
+    updatePackageVolume({ preferExisting: true });
 
     if (Array.isArray(product.photos)) {
       product.photos.slice(0, photoInputs.length).forEach((photo, index) => {
@@ -4756,6 +4809,7 @@ async function handleAddProductForm() {
 
   form.addEventListener('submit', async event => {
     event.preventDefault();
+    updatePackageVolume();
     if (categorySelect && categorySelect.disabled) {
       toast.show('Tambahkan kategori terlebih dahulu di halaman Kategori.');
       categorySelect.focus();
@@ -4764,11 +4818,33 @@ async function handleAddProductForm() {
 
     const formData = new FormData(form);
     const categoryValue = (formData.get('category') ?? '').toString().trim();
+    const lengthValue = (formData.get('packageLengthCm') ?? '').toString().trim();
+    const widthValue = (formData.get('packageWidthCm') ?? '').toString().trim();
+    const heightValue = (formData.get('packageHeightCm') ?? '').toString().trim();
+    const computedVolume = (() => {
+      const lengthNumeric = parseDimensionValue(lengthValue);
+      const widthNumeric = parseDimensionValue(widthValue);
+      const heightNumeric = parseDimensionValue(heightValue);
+
+      if ([lengthNumeric, widthNumeric, heightNumeric].every(value => value !== null)) {
+        const volume = lengthNumeric * widthNumeric * heightNumeric;
+        if (Number.isFinite(volume)) {
+          return volume ? volume.toString() : '0';
+        }
+      }
+
+      return (formData.get('packageVolumeCm3') ?? '').toString().trim();
+    })();
     const inventoryData = {
       initialStockPrediction: (formData.get('initialStockPrediction') ?? '').toString().trim(),
       dailyAverageSales: (formData.get('dailyAverageSales') ?? '').toString().trim(),
       leadTime: (formData.get('leadTime') ?? '').toString().trim(),
-      reorderPoint: (formData.get('reorderPoint') ?? '').toString().trim()
+      reorderPoint: (formData.get('reorderPoint') ?? '').toString().trim(),
+      weightGrams: (formData.get('weightGrams') ?? '').toString().trim(),
+      packageLengthCm: lengthValue,
+      packageWidthCm: widthValue,
+      packageHeightCm: heightValue,
+      packageVolumeCm3: computedVolume
     };
     const hasInventoryData = Object.values(inventoryData).some(value => (value ?? '').toString().trim());
 
