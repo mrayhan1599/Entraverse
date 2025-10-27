@@ -42,6 +42,22 @@ Halaman admin Entraverse kini menggunakan Supabase sebagai basis data untuk aute
      created_at timestamptz not null default timezone('utc', now()),
      updated_at timestamptz
    );
+
+   create table if not exists public.shipping_vendors (
+     id uuid primary key,
+     name text not null,
+     services text,
+     coverage text,
+     pic text,
+     email text,
+     phone text,
+     detail_url text,
+     air_rate numeric,
+     sea_rate numeric,
+     note text,
+     created_at timestamptz not null default timezone('utc', now()),
+     updated_at timestamptz
+   );
    ```
 
 3. Aktifkan Row Level Security (RLS) sesuai kebutuhan dan pastikan aturan mengizinkan akses dari `anon` key untuk operasi yang diperlukan selama pengembangan.

@@ -854,18 +854,37 @@ async function upsertShippingVendorToSupabase(vendor) {
   if (!payload) {
     throw new Error('Data vendor pengiriman tidak valid.');
   }
-  if (!payload.id) {
+
+  const hasExistingId = Boolean(payload.id);
+  const now = new Date().toISOString();
+
+  if (!hasExistingId) {
     payload.id = crypto.randomUUID();
-  }
-  if (!payload.updated_at) {
-    payload.updated_at = new Date().toISOString();
+    payload.created_at = payload.created_at ?? now;
   }
 
-  const { data, error } = await client
-    .from(SUPABASE_TABLES.shippingVendors)
-    .upsert(payload, { onConflict: 'id' })
-    .select()
-    .maybeSingle();
+  payload.updated_at = payload.updated_at ?? now;
+
+  let response;
+
+  if (hasExistingId) {
+    const { id, created_at, ...updatePayload } = payload;
+    updatePayload.updated_at = payload.updated_at;
+    response = await client
+      .from(SUPABASE_TABLES.shippingVendors)
+      .update(updatePayload)
+      .eq('id', payload.id)
+      .select()
+      .maybeSingle();
+  } else {
+    response = await client
+      .from(SUPABASE_TABLES.shippingVendors)
+      .insert(payload)
+      .select()
+      .maybeSingle();
+  }
+
+  const { data, error } = response;
 
   if (error) {
     throw error;
