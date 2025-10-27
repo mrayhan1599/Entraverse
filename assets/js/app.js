@@ -4186,6 +4186,25 @@ async function handleAddProductForm() {
         return;
       }
 
+      if (field === 'exchangeRate') {
+        const applied = setExchangeRateInputValue(input, value);
+        if (Number.isFinite(applied)) {
+          input.dataset.userOverride = 'true';
+          if (initialCurrency) {
+            input.dataset.overrideCurrency = initialCurrency;
+          } else {
+            delete input.dataset.overrideCurrency;
+          }
+          input.dataset.rateSource = 'manual';
+        } else {
+          delete input.dataset.userOverride;
+          delete input.dataset.overrideCurrency;
+          delete input.dataset.rateSource;
+        }
+        syncExchangeRateDatasetFromInput(input);
+        return;
+      }
+
       if (RUPIAH_PRICING_FIELDS.has(field)) {
         setRupiahInputValue(input, value ?? '');
         return;
@@ -4201,6 +4220,7 @@ async function handleAddProductForm() {
 
     [
       'purchasePrice',
+      'exchangeRate',
       'purchasePriceIdr',
       'offlinePrice',
       'entraversePrice',
