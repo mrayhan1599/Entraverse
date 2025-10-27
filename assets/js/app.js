@@ -698,42 +698,6 @@ function getProductsFromCache() {
   return getRemoteCache(STORAGE_KEYS.products, []);
 }
 
-async function fetchProductByIdFromSupabase(id) {
-  if (!id) {
-    return null;
-  }
-
-  const config = getSupabaseConfig();
-  if (!config) {
-    return null;
-  }
-
-  try {
-    await ensureSupabase();
-    const client = getSupabaseClient();
-    const { data, error } = await client
-      .from(SUPABASE_TABLES.products)
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (error) {
-      if (error.code === 'PGRST116' || error.code === 'PGRST103') {
-        return null;
-      }
-      if (error.details?.includes('No rows found')) {
-        return null;
-      }
-      throw error;
-    }
-
-    return mapSupabaseProduct(data);
-  } catch (error) {
-    console.error(`Gagal mengambil produk ${id} dari Supabase.`, error);
-    return null;
-  }
-}
-
 function applyLocalFallbackData({ products = true, categories = true, exchangeRates = true, vendor = true } = {}) {
   if (categories) {
     setCategoryCache(DEFAULT_CATEGORIES.map(category => clone(category)));
@@ -5314,17 +5278,7 @@ async function handleAddProductForm() {
 
   if (editingId) {
     const products = getProductsFromCache();
-    let product = products.find(p => p.id === editingId);
-
-    if (!product) {
-      const remoteProduct = await fetchProductByIdFromSupabase(editingId);
-      if (remoteProduct) {
-        product = remoteProduct;
-        const mergedProducts = [...products.filter(p => p.id !== remoteProduct.id), remoteProduct];
-        setProductCache(mergedProducts);
-        setDataSourceState('products', 'remote');
-      }
-    }
+    const product = products.find(p => p.id === editingId);
 
     if (!product) {
       toast.show('Produk tidak ditemukan.');
