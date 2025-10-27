@@ -3,8 +3,7 @@ const STORAGE_KEYS = {
   session: 'entraverse_session',
   products: 'entraverse_products',
   categories: 'entraverse_categories',
-  exchangeRates: 'entraverse_exchange_rates',
-  vendorSettings: 'entraverse_vendor_settings'
+  exchangeRates: 'entraverse_exchange_rates'
 };
 
 const GUEST_USER = Object.freeze({
@@ -235,12 +234,6 @@ const DEFAULT_EXCHANGE_RATES = [
     rate: 10300
   }
 ];
-
-const DEFAULT_VENDOR_SETTINGS = Object.freeze({
-  shippingSeaRate: '2500000',
-  shippingAirRate: '180000',
-  updatedAt: null
-});
 
 const SUPABASE_TABLES = Object.freeze({
   users: 'users',
@@ -1883,116 +1876,6 @@ function parseDateValue(value) {
   return null;
 }
 
-function normalizeVendorRate(value) {
-  if (value === null || typeof value === 'undefined') {
-    return '';
-  }
-
-  if (typeof value === 'string' && !value.trim()) {
-    return '';
-  }
-
-  const numeric = parseNumericValue(value);
-  if (!Number.isFinite(numeric) || numeric < 0) {
-    return '';
-  }
-
-  const rounded = Number(numeric);
-  const fixed = rounded.toFixed(4);
-  return fixed.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
-}
-
-function normalizeVendorSettings(partial = {}) {
-  const normalized = {};
-
-  if (Object.prototype.hasOwnProperty.call(partial, 'shippingSeaRate')) {
-    normalized.shippingSeaRate = normalizeVendorRate(partial.shippingSeaRate);
-  }
-
-  if (Object.prototype.hasOwnProperty.call(partial, 'shippingAirRate')) {
-    normalized.shippingAirRate = normalizeVendorRate(partial.shippingAirRate);
-  }
-
-  if (Object.prototype.hasOwnProperty.call(partial, 'updatedAt')) {
-    const timestamp = Number(partial.updatedAt);
-    normalized.updatedAt = Number.isFinite(timestamp) ? timestamp : null;
-  }
-
-  return normalized;
-}
-
-function formatDateTimeForDisplay(value) {
-  if (value === null || typeof value === 'undefined') {
-    return '';
-  }
-
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-
-  try {
-    return new Intl.DateTimeFormat('id-ID', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    }).format(date);
-  } catch (error) {
-    console.error('Failed to format date for display', error);
-    return date.toLocaleString();
-  }
-}
-
-function getVendorSettings() {
-  const stored = getData(STORAGE_KEYS.vendorSettings, null);
-  const base = { ...DEFAULT_VENDOR_SETTINGS };
-
-  if (!stored || typeof stored !== 'object') {
-    return base;
-  }
-
-  const normalized = { ...base };
-
-  if (Object.prototype.hasOwnProperty.call(stored, 'shippingSeaRate')) {
-    const raw = stored.shippingSeaRate;
-    const value = normalizeVendorRate(raw);
-    if (value || raw === '' || raw === null) {
-      normalized.shippingSeaRate = value;
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(stored, 'shippingAirRate')) {
-    const raw = stored.shippingAirRate;
-    const value = normalizeVendorRate(raw);
-    if (value || raw === '' || raw === null) {
-      normalized.shippingAirRate = value;
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(stored, 'updatedAt')) {
-    const timestamp = Number(stored.updatedAt);
-    normalized.updatedAt = Number.isFinite(timestamp) ? timestamp : null;
-  }
-
-  return normalized;
-}
-
-function saveVendorSettings(partial = {}) {
-  const current = getVendorSettings();
-  const normalized = normalizeVendorSettings(partial);
-  const payload = {
-    ...current,
-    ...normalized,
-    updatedAt: Date.now()
-  };
-
-  setData(STORAGE_KEYS.vendorSettings, payload);
-  const event = new CustomEvent('vendor:changed', {
-    detail: clone(payload)
-  });
-  document.dispatchEvent(event);
-  return payload;
-}
-
 const INDONESIAN_MONTH_INDEX = Object.freeze({
   januari: 0,
   februari: 1,
@@ -2677,7 +2560,7 @@ async function ensureAuthenticatedPage() {
   const page = document.body.dataset.page;
   const guest = getGuestUser();
 
-  if (!['dashboard', 'add-product', 'categories', 'vendor'].includes(page)) {
+  if (!['dashboard', 'add-product', 'categories'].includes(page)) {
     return { user: guest, status: 'guest' };
   }
 
@@ -3468,10 +3351,6 @@ async function handleAddProductForm() {
 
   [shippingSeaInput, shippingAirInput].forEach(input => {
     input?.addEventListener('input', () => {
-      if (input) {
-        input.dataset.vendorDirty = 'true';
-        delete input.dataset.vendorSource;
-      }
       updateAllArrivalCosts();
     });
   });
@@ -4111,73 +3990,6 @@ async function handleAddProductForm() {
   const updateAllArrivalCosts = () => {
     getPricingRows().forEach(row => updateArrivalCostForRow(row));
   };
-
-  const vendorStatusEl = form.querySelector('[data-vendor-last-updated]');
-  const vendorStatusDefaultText = vendorStatusEl?.textContent?.trim() || '';
-
-  const updateVendorStatus = settings => {
-    if (!vendorStatusEl) {
-      return;
-    }
-
-    const timestamp = Number(settings?.updatedAt);
-    if (Number.isFinite(timestamp) && timestamp > 0) {
-      const formatted = formatDateTimeForDisplay(timestamp);
-      vendorStatusEl.textContent = formatted
-        ? `Tarif vendor diperbarui ${formatted}.`
-        : 'Tarif vendor diperbarui.';
-    } else if (vendorStatusDefaultText) {
-      vendorStatusEl.textContent = vendorStatusDefaultText;
-    } else {
-      vendorStatusEl.textContent = 'Tarif vendor menggunakan nilai bawaan.';
-    }
-  };
-
-  const applyVendorSettingsToInputs = (settings, { force = false } = {}) => {
-    const vendorSettings = settings && typeof settings === 'object' ? settings : getVendorSettings();
-
-    const assignValue = (input, key) => {
-      if (!input) {
-        return;
-      }
-
-      const manualValue = (input.value ?? '').toString().trim();
-      const isDirty = input.dataset.vendorDirty === 'true';
-      const hasManualValue = isDirty && manualValue.length > 0;
-
-      if (!force && hasManualValue) {
-        return;
-      }
-
-      const normalized = normalizeVendorRate(vendorSettings?.[key]);
-      input.value = normalized || '';
-      if (normalized) {
-        input.dataset.vendorSource = 'vendor';
-      } else {
-        delete input.dataset.vendorSource;
-      }
-      input.dataset.vendorDirty = 'false';
-    };
-
-    assignValue(shippingSeaInput, 'shippingSeaRate');
-    assignValue(shippingAirInput, 'shippingAirRate');
-  };
-
-  const initializeVendorSettings = ({ force = false } = {}) => {
-    const settings = getVendorSettings();
-    applyVendorSettingsToInputs(settings, { force });
-    updateVendorStatus(settings);
-    updateAllArrivalCosts();
-  };
-
-  initializeVendorSettings();
-
-  document.addEventListener('vendor:changed', event => {
-    const settings = event.detail && typeof event.detail === 'object' ? event.detail : getVendorSettings();
-    applyVendorSettingsToInputs(settings);
-    updateVendorStatus(settings);
-    updateAllArrivalCosts();
-  });
 
   const syncCurrencyForRow = (row, { currency, fallbackRate } = {}) => {
     if (!row) {
@@ -5119,15 +4931,6 @@ async function handleAddProductForm() {
       }
 
       input.value = value;
-
-      if (['shippingSeaRate', 'shippingAirRate'].includes(key)) {
-        if ((value ?? '').toString().trim()) {
-          input.dataset.vendorDirty = 'true';
-        } else {
-          delete input.dataset.vendorDirty;
-        }
-        delete input.dataset.vendorSource;
-      }
     });
 
     updateVolumeCbm();
@@ -5447,163 +5250,6 @@ async function initCategories() {
   handleCategoryActions();
 }
 
-async function initVendor() {
-  const form = document.getElementById('vendor-settings-form');
-  const seaInput = document.getElementById('vendor-shipping-sea');
-  const airInput = document.getElementById('vendor-shipping-air');
-  const summaryUpdatedEl = document.querySelector('[data-vendor-summary-updated]');
-  const summarySeaEl = document.querySelector('[data-vendor-summary-sea]');
-  const summaryAirEl = document.querySelector('[data-vendor-summary-air]');
-  const statusHint = document.querySelector('[data-vendor-form-status]');
-  const resetButton = form?.querySelector('[data-vendor-reset]');
-  const defaultStatusText = statusHint?.textContent?.trim() || '';
-
-  const formatSummaryValue = (value, unit) => {
-    const normalized = normalizeVendorRate(value);
-    if (!normalized) {
-      return '—';
-    }
-
-    const numeric = parseNumericValue(normalized);
-    if (!Number.isFinite(numeric) || numeric < 0) {
-      return `${normalized} / ${unit}`;
-    }
-
-    try {
-      const formatter = new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: Number.isInteger(numeric) ? 0 : 2
-      });
-      return `${formatter.format(numeric)} / ${unit}`;
-    } catch (error) {
-      console.error('Failed to format vendor rate', error);
-      return `${numeric.toString()} / ${unit}`;
-    }
-  };
-
-  const updateSummary = settings => {
-    if (summarySeaEl) {
-      summarySeaEl.textContent = formatSummaryValue(settings?.shippingSeaRate, 'CBM');
-    }
-    if (summaryAirEl) {
-      summaryAirEl.textContent = formatSummaryValue(settings?.shippingAirRate, 'Kg');
-    }
-    if (summaryUpdatedEl) {
-      const timestamp = Number(settings?.updatedAt);
-      if (Number.isFinite(timestamp) && timestamp > 0) {
-        summaryUpdatedEl.textContent = formatDateTimeForDisplay(timestamp) || '-';
-      } else {
-        summaryUpdatedEl.textContent = 'Belum pernah disimpan';
-      }
-    }
-  };
-
-  const applySettingsToForm = settings => {
-    const vendorSettings = settings && typeof settings === 'object' ? settings : getVendorSettings();
-
-    if (seaInput) {
-      seaInput.value = normalizeVendorRate(vendorSettings.shippingSeaRate) || '';
-    }
-    if (airInput) {
-      airInput.value = normalizeVendorRate(vendorSettings.shippingAirRate) || '';
-    }
-  };
-
-  const refreshSettings = () => {
-    const settings = getVendorSettings();
-    applySettingsToForm(settings);
-    updateSummary(settings);
-  };
-
-  const setFormAvailability = canManage => {
-    if (form) {
-      const interactive = form.querySelectorAll('input, button');
-      interactive.forEach(element => {
-        const tagName = element?.tagName?.toLowerCase();
-        if (!tagName || (tagName !== 'input' && tagName !== 'button')) {
-          return;
-        }
-        if (canManage) {
-          element.removeAttribute('disabled');
-        } else {
-          element.setAttribute('disabled', 'true');
-        }
-      });
-    }
-
-    if (statusHint) {
-      statusHint.textContent = canManage
-        ? defaultStatusText || 'Perubahan akan langsung tersimpan ke perangkat Anda dan diterapkan pada produk baru.'
-        : 'Login untuk mengelola pengaturan vendor.';
-    }
-  };
-
-  refreshSettings();
-
-  setFormAvailability(canManageCatalog());
-
-  document.addEventListener('vendor:changed', event => {
-    const settings = event.detail && typeof event.detail === 'object' ? event.detail : getVendorSettings();
-    applySettingsToForm(settings);
-    updateSummary(settings);
-  });
-
-  document.addEventListener('entraverse:session-change', () => {
-    setFormAvailability(canManageCatalog());
-    refreshSettings();
-  });
-
-  form?.addEventListener('submit', event => {
-    event.preventDefault();
-
-    if (!requireCatalogManager('Silakan login untuk memperbarui pengaturan vendor.')) {
-      return;
-    }
-
-    const seaRaw = (seaInput?.value ?? '').toString().trim();
-    const airRaw = (airInput?.value ?? '').toString().trim();
-
-    const normalizedSea = normalizeVendorRate(seaRaw);
-    if (seaRaw && !normalizedSea) {
-      toast.show('Masukkan angka yang valid untuk ongkos kirim laut.');
-      seaInput?.focus();
-      return;
-    }
-
-    const normalizedAir = normalizeVendorRate(airRaw);
-    if (airRaw && !normalizedAir) {
-      toast.show('Masukkan angka yang valid untuk ongkos kirim udara.');
-      airInput?.focus();
-      return;
-    }
-
-    const saved = saveVendorSettings({
-      shippingSeaRate: seaRaw ? normalizedSea : '',
-      shippingAirRate: airRaw ? normalizedAir : ''
-    });
-
-    applySettingsToForm(saved);
-    updateSummary(saved);
-    toast.show('Pengaturan vendor berhasil disimpan.');
-  });
-
-  resetButton?.addEventListener('click', () => {
-    if (!requireCatalogManager('Silakan login untuk mengelola pengaturan vendor.')) {
-      return;
-    }
-
-    const restored = saveVendorSettings({
-      shippingSeaRate: DEFAULT_VENDOR_SETTINGS.shippingSeaRate,
-      shippingAirRate: DEFAULT_VENDOR_SETTINGS.shippingAirRate
-    });
-
-    applySettingsToForm(restored);
-    updateSummary(restored);
-    toast.show('Pengaturan vendor dikembalikan ke nilai bawaan.');
-  });
-}
-
 function initPage() {
   document.addEventListener('DOMContentLoaded', async () => {
     const page = document.body.dataset.page;
@@ -5626,7 +5272,7 @@ function initPage() {
       handleRegister();
     }
 
-    if (['dashboard', 'add-product', 'categories', 'vendor'].includes(page)) {
+    if (['dashboard', 'add-product', 'categories'].includes(page)) {
       setupSidebarToggle();
       setupSidebarCollapse();
       const { user, status } = await ensureAuthenticatedPage();
@@ -5646,10 +5292,6 @@ function initPage() {
 
     if (page === 'categories') {
       await initCategories();
-    }
-
-    if (page === 'vendor') {
-      await initVendor();
     }
   });
 }
