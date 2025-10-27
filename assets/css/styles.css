@@ -75,7 +75,11 @@ body {
 
 body[data-page="dashboard"],
 body[data-page="categories"],
-body[data-page="add-product"] {
+body[data-page="add-product"],
+body[data-page="suppliers"],
+body[data-page="shipping"],
+body[data-page="other-vendors"],
+body[data-page="sampai-express"] {
   overflow: hidden;
 }
 
@@ -1231,6 +1235,71 @@ a.action-icon {
   margin: 6px 0 0;
   color: var(--color-muted);
   font-size: 14px;
+}
+
+.contact-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 14px;
+}
+
+.form-section__subtitle {
+  margin: 6px 0 18px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.contact-stack .contact-name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.contact-stack a {
+  font-weight: 500;
+}
+
+.table-note {
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.detail-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 15px;
+  flex-wrap: wrap;
+}
+
+.detail-list li span:first-child {
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.detail-list li span:last-child {
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .detail-list li span:last-child {
+    text-align: left;
+  }
 }
 
 .photo-preview {

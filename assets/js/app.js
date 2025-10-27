@@ -227,6 +227,127 @@ const DEFAULT_EXCHANGE_RATES = [
   }
 ];
 
+const SUPPLIER_DIRECTORY = Object.freeze([
+  {
+    id: 'sup-tekno-nusantara',
+    name: 'PT Teknologi Nusantara',
+    category: 'Elektronik Konsumen',
+    pic: 'Andi Pratama',
+    email: 'andi.pratama@teknologinusantara.id',
+    phone: '+62 812 3456 7890'
+  },
+  {
+    id: 'sup-luxora',
+    name: 'CV Luxora Distribusi',
+    category: 'Lifestyle & Aksesoris',
+    pic: 'Sinta Lestari',
+    email: 'sinta@luxora.id',
+    phone: '+62 811 9988 7766'
+  },
+  {
+    id: 'sup-prima-gadget',
+    name: 'PT Prima Gadgetindo',
+    category: 'Gadget & Mobile',
+    pic: 'Bagus Saputra',
+    email: 'bagus@primagadget.co.id',
+    phone: '+62 21 6655 4433'
+  },
+  {
+    id: 'sup-harmoni-audio',
+    name: 'PT Harmoni Audio',
+    category: 'Audio & Sound System',
+    pic: 'Carissa Putri',
+    email: 'carissa@harmoniaudio.id',
+    phone: '+62 878 1122 3344'
+  },
+  {
+    id: 'sup-sinergi-komputindo',
+    name: 'PT Sinergi Komputindo',
+    category: 'Komputer & IT',
+    pic: 'Rifki Hidayat',
+    email: 'rifki@sinergikomputindo.com',
+    phone: '+62 812 5566 7788'
+  }
+]);
+
+const SHIPPING_VENDORS = Object.freeze([
+  {
+    id: 'ship-sampai',
+    name: 'Sampai Express',
+    services: 'Udara & Laut',
+    coverage: 'Seluruh Indonesia',
+    pic: 'Raka Dwi Putra',
+    email: 'logistics@sampaiexpress.id',
+    phone: '+62 21 1234 5678',
+    detailUrl: 'sampai-express.html'
+  },
+  {
+    id: 'ship-nusa-freight',
+    name: 'Nusa Freight',
+    services: 'Laut & Darat',
+    coverage: 'Kalimantan, Sulawesi, Papua',
+    pic: 'Maya Sari',
+    email: 'maya@nusafreight.id',
+    phone: '+62 812 8000 4455',
+    detailUrl: ''
+  },
+  {
+    id: 'ship-skyfast',
+    name: 'SkyFast Logistics',
+    services: 'Udara',
+    coverage: 'Sumatera & Jawa',
+    pic: 'Kevin Wijaya',
+    email: 'kevin@skyfast.co.id',
+    phone: '+62 813 9988 2211',
+    detailUrl: ''
+  },
+  {
+    id: 'ship-borneo-cargo',
+    name: 'Borneo Cargo Lines',
+    services: 'Laut',
+    coverage: 'Kalimantan & Indonesia Timur',
+    pic: 'Lidya Santoso',
+    email: 'lidya@borneocargo.co.id',
+    phone: '+62 812 1444 5577',
+    detailUrl: ''
+  }
+]);
+
+const OTHER_VENDOR_DIRECTORY = Object.freeze([
+  {
+    id: 'ven-lumina-marketing',
+    name: 'Lumina Marketing',
+    type: 'Performance Marketing',
+    pic: 'Natasha Wibowo',
+    email: 'partnership@luminamkt.id',
+    phone: '+62 811 7000 2299'
+  },
+  {
+    id: 'ven-service-plus',
+    name: 'ServicePlus Indonesia',
+    type: 'Layanan Purna Jual',
+    pic: 'Rudi Firmansyah',
+    email: 'support@serviceplus.id',
+    phone: '+62 21 8899 7766'
+  },
+  {
+    id: 'ven-financeku',
+    name: 'FinanceKu Capital',
+    type: 'Pembiayaan Modal Kerja',
+    pic: 'Desi Marlina',
+    email: 'partnership@financeku.co.id',
+    phone: '+62 812 9000 5566'
+  },
+  {
+    id: 'ven-retail-insight',
+    name: 'Retail Insight Lab',
+    type: 'Riset & Analytics',
+    pic: 'Arman Putra',
+    email: 'hello@retailinsightlab.com',
+    phone: '+62 811 4455 6677'
+  }
+]);
+
 const SUPABASE_TABLES = Object.freeze({
   users: 'users',
   products: 'products',
@@ -2552,7 +2673,7 @@ async function ensureAuthenticatedPage() {
   const page = document.body.dataset.page;
   const guest = getGuestUser();
 
-  if (!['dashboard', 'add-product', 'categories'].includes(page)) {
+  if (!['dashboard', 'add-product', 'categories', 'suppliers', 'shipping', 'other-vendors', 'sampai-express'].includes(page)) {
     return { user: guest, status: 'guest' };
   }
 
@@ -2578,6 +2699,162 @@ async function ensureAuthenticatedPage() {
     console.error('Gagal memuat data pengguna.', error);
     return { user: sessionUser, status: 'authenticated' };
   }
+}
+
+function formatPhoneHref(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/[^+\d]/g, '');
+  if (!digits) {
+    return trimmed;
+  }
+  return digits.startsWith('+') ? digits : `+${digits}`;
+}
+
+function createContactStack(items = []) {
+  const normalized = items
+    .filter(item => typeof item === 'string' && item.trim())
+    .map(item => {
+      const trimmed = item.trim();
+      return /^<\s*(span|a|strong|em)\b/i.test(trimmed) ? trimmed : `<span>${trimmed}</span>`;
+    });
+
+  if (!normalized.length) {
+    return '<div class="contact-stack"><span>-</span></div>';
+  }
+
+  return `<div class="contact-stack">${normalized.join('')}</div>`;
+}
+
+function renderSuppliersDirectory(filterText = '') {
+  const tbody = document.getElementById('supplier-table-body');
+  if (!tbody) return;
+
+  const countEl = document.getElementById('supplier-count');
+  const normalized = (filterText ?? '').toString().trim().toLowerCase();
+  const suppliers = SUPPLIER_DIRECTORY.filter(supplier => {
+    if (!normalized) return true;
+    return [supplier.name, supplier.category, supplier.pic, supplier.email, supplier.phone]
+      .some(field => (field ?? '').toString().toLowerCase().includes(normalized));
+  }).sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
+
+  if (!suppliers.length) {
+    tbody.innerHTML = '<tr class="empty-state"><td colspan="4">Tidak ada supplier ditemukan.</td></tr>';
+  } else {
+    const rows = suppliers.map(supplier => {
+      const contacts = createContactStack([
+        supplier.email ? `<a href="mailto:${supplier.email}">${supplier.email}</a>` : '',
+        supplier.phone ? `<a href="tel:${formatPhoneHref(supplier.phone)}">${supplier.phone}</a>` : ''
+      ]);
+      return `
+        <tr>
+          <td>${supplier.name}</td>
+          <td>${supplier.category}</td>
+          <td>${supplier.pic}</td>
+          <td>${contacts}</td>
+        </tr>
+      `;
+    }).join('');
+    tbody.innerHTML = rows;
+  }
+
+  if (countEl) {
+    const suffix = suppliers.length === 1 ? 'supplier' : 'supplier';
+    countEl.textContent = `${suppliers.length} ${suffix}`;
+  }
+}
+
+function renderShippingVendors(filterText = '') {
+  const tbody = document.getElementById('shipping-table-body');
+  if (!tbody) return;
+
+  const countEl = document.getElementById('shipping-count');
+  const normalized = (filterText ?? '').toString().trim().toLowerCase();
+  const vendors = SHIPPING_VENDORS.filter(vendor => {
+    if (!normalized) return true;
+    return [vendor.name, vendor.services, vendor.coverage, vendor.pic, vendor.email, vendor.phone]
+      .some(field => (field ?? '').toString().toLowerCase().includes(normalized));
+  }).sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
+
+  if (!vendors.length) {
+    tbody.innerHTML = '<tr class="empty-state"><td colspan="5">Tidak ada vendor pengiriman ditemukan.</td></tr>';
+  } else {
+    const rows = vendors.map(vendor => {
+      const contacts = createContactStack([
+        vendor.pic ? `<span class="contact-name">${vendor.pic}</span>` : '',
+        vendor.email ? `<a href="mailto:${vendor.email}">${vendor.email}</a>` : '',
+        vendor.phone ? `<a href="tel:${formatPhoneHref(vendor.phone)}">${vendor.phone}</a>` : ''
+      ]);
+      const action = vendor.detailUrl
+        ? `<a class="btn ghost-btn small" href="${vendor.detailUrl}">Kelola Tarif</a>`
+        : '<span class="table-note">Hubungi PIC</span>';
+      return `
+        <tr>
+          <td>${vendor.name}</td>
+          <td>${vendor.services}</td>
+          <td>${vendor.coverage}</td>
+          <td>${contacts}</td>
+          <td>${action}</td>
+        </tr>
+      `;
+    }).join('');
+    tbody.innerHTML = rows;
+  }
+
+  if (countEl) {
+    const suffix = vendors.length === 1 ? 'vendor' : 'vendor';
+    countEl.textContent = `${vendors.length} ${suffix}`;
+  }
+}
+
+function renderOtherVendors(filterText = '') {
+  const tbody = document.getElementById('other-vendor-table-body');
+  if (!tbody) return;
+
+  const countEl = document.getElementById('other-vendor-count');
+  const normalized = (filterText ?? '').toString().trim().toLowerCase();
+  const vendors = OTHER_VENDOR_DIRECTORY.filter(vendor => {
+    if (!normalized) return true;
+    return [vendor.name, vendor.type, vendor.pic, vendor.email, vendor.phone]
+      .some(field => (field ?? '').toString().toLowerCase().includes(normalized));
+  }).sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
+
+  if (!vendors.length) {
+    tbody.innerHTML = '<tr class="empty-state"><td colspan="4">Tidak ada vendor ditemukan.</td></tr>';
+  } else {
+    const rows = vendors.map(vendor => {
+      const contacts = createContactStack([
+        vendor.email ? `<a href="mailto:${vendor.email}">${vendor.email}</a>` : '',
+        vendor.phone ? `<a href="tel:${formatPhoneHref(vendor.phone)}">${vendor.phone}</a>` : ''
+      ]);
+      return `
+        <tr>
+          <td>${vendor.name}</td>
+          <td>${vendor.type}</td>
+          <td>${vendor.pic}</td>
+          <td>${contacts}</td>
+        </tr>
+      `;
+    }).join('');
+    tbody.innerHTML = rows;
+  }
+
+  if (countEl) {
+    const suffix = vendors.length === 1 ? 'vendor' : 'vendor';
+    countEl.textContent = `${vendors.length} ${suffix}`;
+  }
+}
+
+function initSampaiExpressForm() {
+  const form = document.getElementById('sampai-express-form');
+  if (!form) return;
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    toast.show('Tarif Sampai Express tersimpan (simulasi).');
+  });
 }
 
 function renderCategories(filterText = '') {
@@ -5172,7 +5449,7 @@ function initPage() {
       handleRegister();
     }
 
-    if (['dashboard', 'add-product', 'categories'].includes(page)) {
+    if (['dashboard', 'add-product', 'categories', 'suppliers', 'shipping', 'other-vendors', 'sampai-express'].includes(page)) {
       setupSidebarToggle();
       setupSidebarCollapse();
       const { user, status } = await ensureAuthenticatedPage();
@@ -5192,6 +5469,25 @@ function initPage() {
 
     if (page === 'categories') {
       await initCategories();
+    }
+
+    if (page === 'suppliers') {
+      renderSuppliersDirectory();
+      handleSearch(value => renderSuppliersDirectory(value));
+    }
+
+    if (page === 'shipping') {
+      renderShippingVendors();
+      handleSearch(value => renderShippingVendors(value));
+    }
+
+    if (page === 'other-vendors') {
+      renderOtherVendors();
+      handleSearch(value => renderOtherVendors(value));
+    }
+
+    if (page === 'sampai-express') {
+      initSampaiExpressForm();
     }
   });
 }
