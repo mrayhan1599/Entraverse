@@ -4628,6 +4628,7 @@ async function handleAddProductForm() {
     }
 
     setRupiahInputValue(arrivalInput, Math.round(computedCost));
+    recalculatePurchasePriceIdr(row);
   }
 
   function updateAllArrivalCosts() {
@@ -5101,12 +5102,16 @@ async function handleAddProductForm() {
     const purchasePriceInput = row.querySelector('[data-field="purchasePrice"]');
     const exchangeRateInput = row.querySelector('[data-field="exchangeRate"]');
     const idrInput = row.querySelector('[data-field="purchasePriceIdr"]');
+    const arrivalInput = row.querySelector('[data-field="arrivalCost"]');
 
     if (!idrInput) {
       return;
     }
 
     const price = parseNumericValue(purchasePriceInput?.value ?? '');
+    const arrivalCost = parseNumericValue(
+      arrivalInput?.dataset.numericValue ?? arrivalInput?.value ?? ''
+    );
     let rate = null;
 
     if (exchangeRateInput?.dataset.numericValue) {
@@ -5117,13 +5122,15 @@ async function handleAddProductForm() {
       rate = parseNumericValue(exchangeRateInput?.value ?? '');
     }
 
+    const normalizedArrival = Number.isFinite(arrivalCost) ? Math.max(0, arrivalCost) : 0;
+
     if (!Number.isFinite(price) || !Number.isFinite(rate)) {
       setRupiahInputValue(idrInput, '');
       updateComputedPricingForRow(row);
       return;
     }
 
-    const total = Math.round(price * rate);
+    const total = Math.round(price * rate + normalizedArrival);
     if (!Number.isFinite(total)) {
       setRupiahInputValue(idrInput, '');
       updateComputedPricingForRow(row);
@@ -5602,6 +5609,7 @@ async function handleAddProductForm() {
     let purchasePriceInput = null;
     let currencySelect = null;
     let exchangeRateInput = null;
+    let arrivalCostInput = null;
 
     if (variantDefs.length) {
       variantDefs.forEach((variant, index) => {
@@ -5697,6 +5705,9 @@ async function handleAddProductForm() {
       if (field === 'exchangeRate') {
         exchangeRateInput = input;
       }
+      if (field === 'arrivalCost') {
+        arrivalCostInput = input;
+      }
 
       cell.appendChild(input);
       row.appendChild(cell);
@@ -5764,6 +5775,12 @@ async function handleAddProductForm() {
     if (shippingSelect) {
       shippingSelect.addEventListener('change', () => {
         updateArrivalCostForRow(row);
+      });
+    }
+
+    if (arrivalCostInput) {
+      arrivalCostInput.addEventListener('input', () => {
+        recalculatePurchasePriceIdr(row);
       });
     }
 
