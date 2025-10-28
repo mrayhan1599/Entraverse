@@ -82,6 +82,10 @@ Halaman admin Entraverse kini menggunakan Supabase sebagai basis data untuk aute
 
 3. Setelah konfigurasi benar, aplikasi akan otomatis melakukan seeding data awal (produk dan kategori contoh) saat pertama kali dijalankan.
 
+### Vendor Pengiriman
+
+Menu **Vendor Pengiriman** di sidebar menggunakan tabel `shipping_vendors` pada Supabase untuk menyimpan informasi mitra logistik (kontak PIC, tarif udara, dan tarif laut). Pastikan skrip SQL di atas dijalankan melalui **SQL Editor** Supabase sehingga tabel tersebut tersedia sebelum mencoba menyimpan data baru dari aplikasi.
+
 ### Pengembangan lokal
 
 Proyek ini merupakan aplikasi statis. Anda dapat menjalankannya dengan server statis apa pun, misalnya:
