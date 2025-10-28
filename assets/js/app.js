@@ -4495,8 +4495,19 @@ async function handleAddProductForm() {
   [packageLengthInput, packageWidthInput, packageHeightInput]
     .filter(Boolean)
     .forEach(input => {
-      input.addEventListener('input', () => updatePackageVolume());
+      input.addEventListener('input', () => {
+        updatePackageVolume();
+        updateAllArrivalCosts();
+      });
     });
+
+  weightInput?.addEventListener('input', () => {
+    updateAllArrivalCosts();
+  });
+
+  packageVolumeInput?.addEventListener('input', () => {
+    updateAllArrivalCosts();
+  });
 
   try {
     await ensureSeeded();
@@ -4523,11 +4534,105 @@ async function handleAddProductForm() {
 
   const AUTO_COMPUTED_PRICING_FIELDS = new Set([
     'purchasePriceIdr',
+    'arrivalCost',
     'offlinePrice',
     'entraversePrice',
     'tokopediaPrice',
     'shopeePrice'
   ]);
+
+  const SAMPAI_EXPRESS_VENDOR_NAME = 'sampai express';
+
+  function findSampaiExpressVendor() {
+    const vendors = getShippingVendorsFromCache();
+    if (!Array.isArray(vendors) || !vendors.length) {
+      return null;
+    }
+
+    return (
+      vendors.find(
+        vendor => (vendor?.name ?? '').toString().trim().toLowerCase() === SAMPAI_EXPRESS_VENDOR_NAME
+      ) || null
+    );
+  }
+
+  function getInventoryWeightInKg() {
+    if (!weightInput) {
+      return null;
+    }
+
+    const rawValue = parseNumericValue(weightInput.value ?? '');
+    if (!Number.isFinite(rawValue) || rawValue < 0) {
+      return null;
+    }
+
+    if (rawValue === 0) {
+      return 0;
+    }
+
+    return rawValue / 1000;
+  }
+
+  function getInventoryVolumeInCbm() {
+    if (!packageVolumeInput) {
+      return null;
+    }
+
+    const raw = (packageVolumeInput.value ?? '').toString().trim();
+    if (!raw) {
+      return null;
+    }
+
+    const normalized = Number.parseFloat(raw.replace(',', '.'));
+    if (!Number.isFinite(normalized) || normalized < 0) {
+      return null;
+    }
+
+    return normalized;
+  }
+
+  function updateArrivalCostForRow(row) {
+    if (!row) {
+      return;
+    }
+
+    const arrivalInput = row.querySelector('[data-field="arrivalCost"]');
+    const shippingSelect = row.querySelector('select[data-field="shippingMethod"]');
+    if (!arrivalInput || !shippingSelect) {
+      return;
+    }
+
+    const vendor = findSampaiExpressVendor();
+    const method = (shippingSelect.value ?? '').toString().trim().toLowerCase();
+
+    let computedCost = 0;
+
+    if (method === 'udara') {
+      const weightKg = getInventoryWeightInKg();
+      const airRate = Number.isFinite(vendor?.airRate) ? vendor.airRate : null;
+      if (Number.isFinite(weightKg) && Number.isFinite(airRate)) {
+        computedCost = weightKg * airRate;
+      }
+    } else if (method === 'laut') {
+      const volumeCbm = getInventoryVolumeInCbm();
+      const seaRate = Number.isFinite(vendor?.seaRate) ? vendor.seaRate : null;
+      if (Number.isFinite(volumeCbm) && Number.isFinite(seaRate)) {
+        computedCost = volumeCbm * seaRate;
+      }
+    } else {
+      computedCost = 0;
+    }
+
+    if (!Number.isFinite(computedCost) || computedCost < 0) {
+      computedCost = 0;
+    }
+
+    setRupiahInputValue(arrivalInput, Math.round(computedCost));
+  }
+
+  function updateAllArrivalCosts() {
+    getPricingRows().forEach(row => updateArrivalCostForRow(row));
+  }
 
   const WARRANTY_RATE = 0.03;
   const WARRANTY_PROFIT_RATE = 1;
@@ -5484,6 +5589,8 @@ async function handleAddProductForm() {
       currency: currencySelect?.value || initialCurrency,
       fallbackRate
     });
+
+    updateArrivalCostForRow(row);
   }
 
   function createPricingRow(initialData = {}, variantDefs = getVariantDefinitions(), options = {}) {
@@ -5622,7 +5729,7 @@ async function handleAddProductForm() {
     buildInputCell('purchasePrice', '0');
     buildInputCell('purchaseCurrency', 'Pilih mata uang');
     buildInputCell('exchangeRate', '0');
-    buildShippingCell();
+    const shippingSelect = buildShippingCell();
     buildInputCell('arrivalCost', 'Rp 0');
     buildInputCell('purchasePriceIdr', 'Rp 0');
     buildInputCell('offlinePrice', 'Rp 0');
@@ -5653,6 +5760,12 @@ async function handleAddProductForm() {
         updateComputedPricingForRow(row);
       });
     });
+
+    if (shippingSelect) {
+      shippingSelect.addEventListener('change', () => {
+        updateArrivalCostForRow(row);
+      });
+    }
 
     const manualVariantInput = row.querySelector('[data-field="variantLabel"]');
     if (manualVariantInput) {
@@ -5699,6 +5812,7 @@ async function handleAddProductForm() {
     }
 
     updateComputedPricingForRow(row);
+    updateArrivalCostForRow(row);
     return row;
   }
 
@@ -5774,6 +5888,7 @@ async function handleAddProductForm() {
         }
         createPricingRow(rowData, variantDefs, { lockVariantSelection: true });
       });
+      updateAllArrivalCosts();
       return;
     }
 
@@ -5781,6 +5896,7 @@ async function handleAddProductForm() {
     fallbackData.forEach(data => {
       createPricingRow(data, variantDefs);
     });
+    updateAllArrivalCosts();
   }
 
   const variantRowTemplate = () => `
