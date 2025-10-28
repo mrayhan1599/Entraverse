@@ -270,36 +270,7 @@ const DEFAULT_EXCHANGE_RATES = [
   }
 ];
 
-const SHIPPING_VENDOR_IDS = Object.freeze({
-  SAMPAI_EXPRESS: '00000000-0000-4000-8000-000000000001'
-});
-
-const LEGACY_SHIPPING_VENDOR_IDS = Object.freeze({
-  SAMPAI_EXPRESS: 'ship-sampai'
-});
-
-function isSampaiExpressVendorId(id) {
-  return (
-    id === SHIPPING_VENDOR_IDS.SAMPAI_EXPRESS ||
-    id === LEGACY_SHIPPING_VENDOR_IDS.SAMPAI_EXPRESS
-  );
-}
-
-const DEFAULT_SHIPPING_VENDORS = Object.freeze([
-  {
-    id: SHIPPING_VENDOR_IDS.SAMPAI_EXPRESS,
-    name: 'Sampai Express',
-    services: 'Udara & Laut',
-    coverage: 'Seluruh Indonesia',
-    pic: 'Raka Dwi Putra',
-    email: 'logistics@sampaiexpress.id',
-    phone: '+62 21 1234 5678',
-    detailUrl: 'sampai-express.html',
-    airRate: null,
-    seaRate: null,
-    note: ''
-  }
-]);
+const DEFAULT_SHIPPING_VENDORS = Object.freeze([]);
 
 const LOCAL_STORAGE_KEYS = Object.freeze({
   shippingVendorsSnapshot: 'entraverse_shipping_vendors_snapshot',
@@ -384,10 +355,7 @@ function saveShippingVendorSnapshot(vendors) {
 
   try {
     const sanitized = Array.isArray(vendors)
-      ? vendors
-          .filter(vendor => !isSampaiExpressVendorId(vendor.id))
-          .map(vendor => sanitizeShippingVendor(vendor, { localOnly: false }))
-          .filter(Boolean)
+      ? vendors.map(vendor => sanitizeShippingVendor(vendor, { localOnly: false })).filter(Boolean)
       : [];
 
     if (!sanitized.length) {
@@ -433,7 +401,6 @@ function saveLocalShippingVendors(vendors) {
   try {
     const sanitized = Array.isArray(vendors)
       ? vendors
-          .filter(vendor => !isSampaiExpressVendorId(vendor.id))
           .map(vendor => sanitizeShippingVendor({ ...vendor, localOnly: true }, { localOnly: true }))
           .filter(Boolean)
       : [];
@@ -1003,9 +970,6 @@ function normalizeShippingVendor(vendor) {
   }
 
   const normalized = { ...vendor };
-  if (isSampaiExpressVendorId(normalized.id)) {
-    normalized.id = SHIPPING_VENDOR_IDS.SAMPAI_EXPRESS;
-  }
 
   return normalized;
 }
@@ -1023,16 +987,10 @@ function getShippingVendorsFromCache() {
     const snapshot = loadShippingVendorSnapshot();
     const localOnly = loadLocalShippingVendors();
 
-    if (snapshot.length || localOnly.length) {
-      const base = snapshot.length
-        ? mergeShippingVendorCollections(DEFAULT_SHIPPING_VENDORS, snapshot)
-        : DEFAULT_SHIPPING_VENDORS.map(vendor => ({ ...vendor }));
-      const merged = mergeShippingVendorCollections(base, localOnly);
-      setRemoteCache(STORAGE_KEYS.shippingVendors, merged);
-      return merged;
-    }
-
-    return DEFAULT_SHIPPING_VENDORS.map(vendor => ({ ...vendor }));
+    const base = snapshot.length ? snapshot.map(vendor => ({ ...vendor })) : [];
+    const merged = mergeShippingVendorCollections(base, localOnly);
+    setRemoteCache(STORAGE_KEYS.shippingVendors, merged);
+    return merged;
   }
   return cached;
 }
@@ -1049,11 +1007,7 @@ async function refreshShippingVendorsFromSupabase() {
     throw error;
   }
 
-  let vendors = (data ?? []).map(mapSupabaseShippingVendor).filter(Boolean);
-  if (!vendors.length) {
-    vendors = DEFAULT_SHIPPING_VENDORS.map(vendor => ({ ...vendor }));
-  }
-
+  const vendors = (data ?? []).map(mapSupabaseShippingVendor).filter(Boolean);
   setShippingVendorCache(vendors);
   saveShippingVendorSnapshot(vendors);
   return vendors;
@@ -3089,7 +3043,7 @@ async function ensureAuthenticatedPage() {
   const page = document.body.dataset.page;
   const guest = getGuestUser();
 
-  if (!['dashboard', 'add-product', 'categories', 'shipping', 'sampai-express'].includes(page)) {
+  if (!['dashboard', 'add-product', 'categories', 'shipping'].includes(page)) {
     return { user: guest, status: 'guest' };
   }
 
@@ -3203,15 +3157,18 @@ function renderShippingVendors(filterText = '') {
       const contacts = createContactStack(contactItems);
 
       const actionButtons = [];
-      if (vendor.detailUrl) {
-        const detailUrl = escapeHtml(vendor.detailUrl);
-        actionButtons.push(`<a class="btn ghost-btn small" href="${detailUrl}">Kelola Tarif</a>`);
-      }
-
-      if (canManage && !isSampaiExpressVendorId(vendor.id)) {
+      if (canManage) {
+        actionButtons.push(`
+          <button class="icon-btn small" type="button" data-shipping-action="edit" data-id="${safeId}" title="Edit vendor">✏️</button>
+        `);
         actionButtons.push(`
           <button class="icon-btn danger small" type="button" data-shipping-action="delete" data-id="${safeId}" title="Hapus vendor">🗑️</button>
         `);
+      }
+
+      if (vendor.detailUrl) {
+        const detailUrl = escapeHtml(vendor.detailUrl);
+        actionButtons.unshift(`<a class="btn ghost-btn small" href="${detailUrl}">Kelola Tarif</a>`);
       }
 
       const actionMarkup = actionButtons.map(action => action.trim()).join('');
@@ -3303,9 +3260,7 @@ async function initShippingPage() {
     toast.show('Gagal memuat data vendor pengiriman dari Supabase.');
     const snapshot = loadShippingVendorSnapshot();
     const localOnly = loadLocalShippingVendors();
-    const base = snapshot.length
-      ? mergeShippingVendorCollections(DEFAULT_SHIPPING_VENDORS, snapshot)
-      : DEFAULT_SHIPPING_VENDORS.map(vendor => ({ ...vendor }));
+    const base = snapshot.length ? snapshot.map(vendor => ({ ...vendor })) : [];
     const fallback = mergeShippingVendorCollections(base, localOnly);
     setShippingVendorCache(fallback);
     supabaseReady = computeSupabaseReady();
@@ -3336,6 +3291,41 @@ async function initShippingPage() {
   const addButton = document.getElementById('add-shipping-vendor-btn');
   const nameInput = form?.querySelector('#shipping-vendor-name');
 
+  const toInputValue = value => (value === null || value === undefined ? '' : value);
+
+  const setFieldValue = (selector, value) => {
+    if (!form) return;
+    const field = form.querySelector(selector);
+    if (field) {
+      field.value = toInputValue(value);
+    }
+  };
+
+  const populateFormFields = vendor => {
+    if (!form) return;
+    form.reset();
+    if (vendor) {
+      form.dataset.editingId = vendor.id ?? '';
+      setFieldValue('#shipping-vendor-name', vendor.name ?? '');
+      setFieldValue('#shipping-vendor-services', vendor.services ?? '');
+      setFieldValue('#shipping-vendor-coverage', vendor.coverage ?? '');
+      setFieldValue('#shipping-vendor-pic', vendor.pic ?? '');
+      setFieldValue('#shipping-vendor-email', vendor.email ?? '');
+      setFieldValue('#shipping-vendor-phone', vendor.phone ?? '');
+      setFieldValue('#shipping-vendor-detail-url', vendor.detailUrl ?? '');
+      setFieldValue('#shipping-vendor-air-rate', vendor.airRate);
+      setFieldValue('#shipping-vendor-sea-rate', vendor.seaRate);
+      setFieldValue('#shipping-vendor-note', vendor.note ?? '');
+    } else {
+      delete form.dataset.editingId;
+    }
+  };
+
+  const findVendorById = id => {
+    if (!id) return null;
+    return getShippingVendorsFromCache().find(vendor => vendor.id === id) || null;
+  };
+
   const resetSubmitState = () => {
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -3348,8 +3338,7 @@ async function initShippingPage() {
     modal.hidden = true;
     document.body.classList.remove('modal-open');
     if (form) {
-      form.reset();
-      delete form.dataset.editingId;
+      populateFormFields(null);
     }
     resetSubmitState();
   };
@@ -3372,10 +3361,29 @@ async function initShippingPage() {
     if (submitBtn) {
       submitBtn.textContent = 'Simpan';
     }
-    if (form) {
-      form.reset();
-      delete form.dataset.editingId;
+    populateFormFields(null);
+    if (modal) {
+      modal.hidden = false;
+      document.body.classList.add('modal-open');
+      focusNameField();
     }
+  };
+
+  const openEditModal = vendor => {
+    if (!requireCatalogManager('Silakan login untuk mengelola vendor pengiriman.')) {
+      return;
+    }
+    if (!vendor) {
+      toast.show('Data vendor pengiriman tidak ditemukan.');
+      return;
+    }
+    if (modalTitle) {
+      modalTitle.textContent = 'Edit Vendor Pengiriman';
+    }
+    if (submitBtn) {
+      submitBtn.textContent = 'Perbarui';
+    }
+    populateFormFields(vendor);
     if (modal) {
       modal.hidden = false;
       document.body.classList.add('modal-open');
@@ -3432,7 +3440,10 @@ async function initShippingPage() {
       }
 
       const timestamp = Date.now();
-      const vendorId = form.dataset.editingId || createUuid();
+      const editingId = form.dataset.editingId;
+      const vendorId = editingId || createUuid();
+      const existingVendor = editingId ? findVendorById(vendorId) : null;
+      const createdAt = existingVendor?.createdAt ?? timestamp;
 
       const payload = {
         id: vendorId,
@@ -3446,26 +3457,36 @@ async function initShippingPage() {
         airRate,
         seaRate,
         note,
-        createdAt: timestamp,
+        createdAt,
         updatedAt: timestamp
       };
 
+      const successMessage = editingId
+        ? 'Vendor pengiriman berhasil diperbarui.'
+        : 'Vendor pengiriman berhasil disimpan.';
+      const localFallbackMessage = editingId
+        ? 'Perubahan vendor pengiriman disimpan secara lokal. Akan tersinkron saat Supabase tersedia.'
+        : 'Vendor pengiriman disimpan secara lokal. Akan tersinkron saat Supabase tersedia.';
+
       const persistLocally = message => {
         const localVendor = sanitizeShippingVendor({ ...payload, localOnly: true }, { localOnly: true });
-        const updatedLocal = mergeShippingVendorCollections(loadLocalShippingVendors(), [localVendor]);
+        const currentLocal = loadLocalShippingVendors().filter(vendor => vendor.id !== vendorId);
+        const updatedLocal = mergeShippingVendorCollections(currentLocal, [localVendor]);
         saveLocalShippingVendors(updatedLocal);
         const mergedCache = mergeShippingVendorCollections(getShippingVendorsFromCache(), [localVendor]);
         setShippingVendorCache(mergedCache);
         const filter = document.getElementById('search-input')?.value ?? '';
         renderShippingVendors(filter.toString().trim().toLowerCase());
-        toast.show(message ?? 'Vendor pengiriman disimpan secara lokal. Akan tersinkron saat Supabase tersedia.');
+        toast.show(message ?? localFallbackMessage);
         closeModal();
       };
 
       try {
         supabaseReady = computeSupabaseReady();
         if (!supabaseReady) {
-          persistLocally('Supabase tidak dapat diakses. Vendor disimpan secara lokal dan akan tersinkron otomatis.');
+          persistLocally(
+            'Supabase tidak dapat diakses. Data vendor disimpan secara lokal dan akan tersinkron otomatis.'
+          );
           return;
         }
 
@@ -3474,11 +3495,13 @@ async function initShippingPage() {
         await syncLocalWithSupabase();
         const filter = document.getElementById('search-input')?.value ?? '';
         renderShippingVendors(filter.toString().trim().toLowerCase());
-        toast.show('Vendor pengiriman berhasil disimpan.');
+        toast.show(successMessage);
         closeModal();
       } catch (error) {
         console.error('Gagal menyimpan vendor pengiriman.', error);
-        persistLocally('Supabase tidak dapat diakses. Vendor disimpan secara lokal dan akan tersinkron otomatis.');
+        persistLocally(
+          'Supabase tidak dapat diakses. Data vendor disimpan secara lokal dan akan tersinkron otomatis.'
+        );
       } finally {
         resetSubmitState();
       }
@@ -3498,12 +3521,13 @@ async function initShippingPage() {
         return;
       }
 
-      if (action === 'delete') {
-        if (isSampaiExpressVendorId(id)) {
-          toast.show('Vendor Sampai Express tidak dapat dihapus.');
-          return;
-        }
+      if (action === 'edit') {
+        const vendor = findVendorById(id);
+        openEditModal(vendor);
+        return;
+      }
 
+      if (action === 'delete') {
         if (!confirm('Hapus vendor pengiriman ini?')) {
           return;
         }
@@ -3558,89 +3582,6 @@ async function initShippingPage() {
       }
     });
   }
-}
-
-async function initSampaiExpressPage() {
-  const form = document.getElementById('sampai-express-form');
-  if (!form) return;
-
-  const airRateInput = form.querySelector('#air-rate');
-  const seaRateInput = form.querySelector('#sea-rate');
-  const noteInput = form.querySelector('#sampai-note');
-  const submitBtn = form.querySelector('button[type="submit"]');
-
-  const populateForm = vendor => {
-    if (airRateInput) {
-      airRateInput.value = vendor && vendor.airRate !== null && vendor.airRate !== undefined ? vendor.airRate : '';
-    }
-    if (seaRateInput) {
-      seaRateInput.value = vendor && vendor.seaRate !== null && vendor.seaRate !== undefined ? vendor.seaRate : '';
-    }
-    if (noteInput) {
-      noteInput.value = vendor?.note ?? '';
-    }
-  };
-
-  let vendorData = DEFAULT_SHIPPING_VENDORS.find(vendor => isSampaiExpressVendorId(vendor.id)) || null;
-
-  try {
-    await ensureSeeded();
-    const vendors = await refreshShippingVendorsFromSupabase();
-    vendorData = vendors.find(vendor => isSampaiExpressVendorId(vendor.id)) || vendorData;
-  } catch (error) {
-    console.error('Gagal memuat data Sampai Express.', error);
-    toast.show('Gagal memuat data Sampai Express dari Supabase.');
-    setShippingVendorCache(DEFAULT_SHIPPING_VENDORS.map(vendor => ({ ...vendor })));
-  }
-
-  populateForm(vendorData);
-
-  form.addEventListener('submit', async event => {
-    event.preventDefault();
-
-    const formData = new FormData(form);
-    const airRateValue = parseNumericValue(formData.get('airRate'));
-    const seaRateValue = parseNumericValue(formData.get('seaRate'));
-    const noteValue = (formData.get('note') ?? '').toString().trim();
-
-    const payload = {
-      ...(vendorData || {}),
-      id: SHIPPING_VENDOR_IDS.SAMPAI_EXPRESS,
-      name: vendorData?.name ?? 'Sampai Express',
-      services: vendorData?.services ?? 'Udara & Laut',
-      coverage: vendorData?.coverage ?? 'Seluruh Indonesia',
-      pic: vendorData?.pic ?? 'Raka Dwi Putra',
-      email: vendorData?.email ?? 'logistics@sampaiexpress.id',
-      phone: vendorData?.phone ?? '+62 21 1234 5678',
-      detailUrl: vendorData?.detailUrl ?? 'sampai-express.html',
-      airRate: airRateValue,
-      seaRate: seaRateValue,
-      note: noteValue,
-      createdAt: vendorData?.createdAt ?? Date.now(),
-      updatedAt: Date.now()
-    };
-
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.classList.add('is-loading');
-    }
-
-    try {
-      const saved = await upsertShippingVendorToSupabase(payload);
-      vendorData = saved || payload;
-      await refreshShippingVendorsFromSupabase();
-      populateForm(vendorData);
-      toast.show('Tarif Sampai Express tersimpan.');
-    } catch (error) {
-      console.error('Gagal menyimpan tarif Sampai Express.', error);
-      toast.show('Gagal menyimpan tarif Sampai Express. Coba lagi.');
-    } finally {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.classList.remove('is-loading');
-      }
-    }
-  });
 }
 
 function renderCategories(filterText = '') {
@@ -6235,7 +6176,7 @@ function initPage() {
       handleRegister();
     }
 
-    if (['dashboard', 'add-product', 'categories', 'shipping', 'sampai-express'].includes(page)) {
+    if (['dashboard', 'add-product', 'categories', 'shipping'].includes(page)) {
       setupSidebarToggle();
       setupSidebarCollapse();
       const { user, status } = await ensureAuthenticatedPage();
@@ -6261,9 +6202,6 @@ function initPage() {
       await initShippingPage();
     }
 
-    if (page === 'sampai-express') {
-      await initSampaiExpressPage();
-    }
   });
 }
 
