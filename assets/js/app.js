@@ -3089,7 +3089,7 @@ async function ensureAuthenticatedPage() {
   const page = document.body.dataset.page;
   const guest = getGuestUser();
 
-  if (!['dashboard', 'add-product', 'categories'].includes(page)) {
+  if (!['dashboard', 'add-product', 'categories', 'shipping', 'sampai-express'].includes(page)) {
     return { user: guest, status: 'guest' };
   }
 
@@ -6224,7 +6224,7 @@ function initPage() {
       handleRegister();
     }
 
-    if (['dashboard', 'add-product', 'categories'].includes(page)) {
+    if (['dashboard', 'add-product', 'categories', 'shipping', 'sampai-express'].includes(page)) {
       setupSidebarToggle();
       setupSidebarCollapse();
       const { user, status } = await ensureAuthenticatedPage();
@@ -6246,7 +6246,13 @@ function initPage() {
       await initCategories();
     }
 
-    
+    if (page === 'shipping') {
+      await initShippingPage();
+    }
+
+    if (page === 'sampai-express') {
+      await initSampaiExpressPage();
+    }
   });
 }
 
