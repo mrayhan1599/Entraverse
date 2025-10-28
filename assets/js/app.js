@@ -3290,6 +3290,145 @@ async function initShippingPage() {
   const closeButtons = modal ? Array.from(modal.querySelectorAll('[data-close-modal]')) : [];
   const addButton = document.getElementById('add-shipping-vendor-btn');
   const nameInput = form?.querySelector('#shipping-vendor-name');
+  const rupiahFieldSelectors = ['#shipping-vendor-air-rate', '#shipping-vendor-sea-rate'];
+  const rupiahInputs = rupiahFieldSelectors
+    .map(selector => form?.querySelector(selector))
+    .filter(input => Boolean(input));
+
+  const sanitizeRupiahDigits = value => {
+    if (value === null || typeof value === 'undefined') {
+      return '';
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.round(value)).toString();
+    }
+
+    if (typeof value === 'bigint') {
+      return value < 0n ? '' : value.toString();
+    }
+
+    const text = value.toString();
+    const digits = text.replace(/[^0-9]/g, '');
+    if (!digits) {
+      return '';
+    }
+
+    const normalized = digits.replace(/^0+(?=\d)/, '');
+    return normalized || '0';
+  };
+
+  const formatRupiahDigits = digits => digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+  const setRupiahInputValue = (input, value) => {
+    if (!input) {
+      return '';
+    }
+
+    const sanitized = sanitizeRupiahDigits(value);
+    if (!sanitized) {
+      delete input.dataset.numericValue;
+      input.value = '';
+      return '';
+    }
+
+    input.dataset.numericValue = sanitized;
+    input.value = `Rp ${formatRupiahDigits(sanitized)}`;
+    return sanitized;
+  };
+
+  const resetRupiahInputs = () => {
+    rupiahInputs.forEach(input => {
+      delete input.dataset.numericValue;
+      input.value = '';
+    });
+  };
+
+  const countDigitsBeforePosition = (value, position) => {
+    if (!value) {
+      return 0;
+    }
+
+    const slice = value.slice(0, Math.max(0, position));
+    return slice.replace(/[^0-9]/g, '').length;
+  };
+
+  const findCaretPositionForDigitCount = (value, digitCount) => {
+    if (!value) {
+      return 0;
+    }
+
+    if (digitCount <= 0) {
+      return value.startsWith('Rp ') ? 3 : 0;
+    }
+
+    let digitsSeen = 0;
+    for (let index = 0; index < value.length; index += 1) {
+      if (/\d/.test(value[index])) {
+        digitsSeen += 1;
+        if (digitsSeen === digitCount) {
+          return index + 1;
+        }
+      }
+    }
+
+    return value.length;
+  };
+
+  const formatRupiahInputValue = input => {
+    if (!input) {
+      return { sanitized: '', caret: 0 };
+    }
+
+    const selectionStart = input.selectionStart ?? input.value.length;
+    const digitsBefore = countDigitsBeforePosition(input.value, selectionStart);
+    const sanitized = sanitizeRupiahDigits(input.value);
+
+    if (!sanitized) {
+      delete input.dataset.numericValue;
+      input.value = '';
+      return { sanitized: '', caret: 0 };
+    }
+
+    const formatted = `Rp ${formatRupiahDigits(sanitized)}`;
+    input.dataset.numericValue = sanitized;
+    input.value = formatted;
+
+    const caret = findCaretPositionForDigitCount(formatted, digitsBefore);
+    return { sanitized, caret };
+  };
+
+  const attachRupiahFormatter = input => {
+    if (!input || input.readOnly) {
+      return;
+    }
+
+    const handler = () => {
+      const { caret } = formatRupiahInputValue(input);
+      requestAnimationFrame(() => {
+        const nextCaret = typeof caret === 'number' ? caret : input.value.length;
+        try {
+          input.setSelectionRange(nextCaret, nextCaret);
+        } catch (error) {
+          // Ignore selection errors on unfocused inputs.
+        }
+      });
+    };
+
+    input.addEventListener('input', handler);
+    input.addEventListener('blur', handler);
+  };
+
+  rupiahInputs.forEach(input => {
+    if (!input) return;
+    if (!input.inputMode) {
+      input.inputMode = 'numeric';
+    }
+    if (!input.autocomplete) {
+      input.autocomplete = 'off';
+    }
+    attachRupiahFormatter(input);
+  });
 
   const toInputValue = value => (value === null || value === undefined ? '' : value);
 
@@ -3297,13 +3436,18 @@ async function initShippingPage() {
     if (!form) return;
     const field = form.querySelector(selector);
     if (field) {
-      field.value = toInputValue(value);
+      if (rupiahInputs.includes(field)) {
+        setRupiahInputValue(field, value);
+      } else {
+        field.value = toInputValue(value);
+      }
     }
   };
 
   const populateFormFields = vendor => {
     if (!form) return;
     form.reset();
+    resetRupiahInputs();
     if (vendor) {
       form.dataset.editingId = vendor.id ?? '';
       setFieldValue('#shipping-vendor-name', vendor.name ?? '');

@@ -47,7 +47,7 @@
           </a>
         </div>
         <div class="nav-section">
-          <p class="nav-title">Vendor Pengiriman</p>
+          <p class="nav-title">Vendor</p>
           <a class="nav-link active" href="shipping-vendors.html">
             <span class="nav-icon" aria-hidden="true">🚚</span>
             Vendor Pengiriman
@@ -188,11 +188,25 @@
             <div class="form-row">
               <div class="form-group">
                 <label for="shipping-vendor-air-rate">Tarif Udara</label>
-                <input type="number" id="shipping-vendor-air-rate" name="airRate" step="0.01" min="0" placeholder="Masukkan tarif">
+                <input
+                  type="text"
+                  id="shipping-vendor-air-rate"
+                  name="airRate"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  placeholder="Rp 0"
+                >
               </div>
               <div class="form-group">
                 <label for="shipping-vendor-sea-rate">Tarif Laut</label>
-                <input type="number" id="shipping-vendor-sea-rate" name="seaRate" step="0.01" min="0" placeholder="Masukkan tarif">
+                <input
+                  type="text"
+                  id="shipping-vendor-sea-rate"
+                  name="seaRate"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  placeholder="Rp 0"
+                >
               </div>
             </div>
             <div class="form-group">
