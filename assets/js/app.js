@@ -4517,7 +4517,8 @@ async function handleAddProductForm() {
     'offlinePrice',
     'entraversePrice',
     'tokopediaPrice',
-    'shopeePrice'
+    'shopeePrice',
+    'arrivalCost'
   ]);
 
   const AUTO_COMPUTED_PRICING_FIELDS = new Set([
@@ -5322,6 +5323,8 @@ async function handleAddProductForm() {
         purchaseCurrency: getValue('[data-field="purchaseCurrency"]'),
         exchangeRate: getValue('[data-field="exchangeRate"]', { useDataset: true }),
         purchasePriceIdr: getValue('[data-field="purchasePriceIdr"]', { asRupiah: true }),
+        shippingMethod: getValue('[data-field="shippingMethod"]'),
+        arrivalCost: getValue('[data-field="arrivalCost"]', { asRupiah: true }),
         offlinePrice: getValue('[data-field="offlinePrice"]', { asRupiah: true }),
         entraversePrice: getValue('[data-field="entraversePrice"]', { asRupiah: true }),
         tokopediaPrice: getValue('[data-field="tokopediaPrice"]', { asRupiah: true }),
@@ -5405,6 +5408,24 @@ async function handleAddProductForm() {
       populateCurrencySelectOptions(currencySelect, initialCurrency);
     }
 
+    const shippingSelect = row.querySelector('select[data-field="shippingMethod"]');
+    if (shippingSelect) {
+      const shippingValue = (initialData.shippingMethod ?? '').toString().trim();
+      if (shippingValue) {
+        const exists = Array.from(shippingSelect.options).some(option => option.value === shippingValue);
+        if (!exists) {
+          const option = document.createElement('option');
+          option.value = shippingValue;
+          option.textContent = shippingValue;
+          option.dataset.temporaryOption = 'true';
+          shippingSelect.appendChild(option);
+        }
+        shippingSelect.value = shippingValue;
+      } else {
+        shippingSelect.value = '';
+      }
+    }
+
     const applyFieldValue = (field, value) => {
       const input = row.querySelector(`[data-field="${field}"]`);
       if (!input) {
@@ -5447,6 +5468,7 @@ async function handleAddProductForm() {
       'purchasePrice',
       'exchangeRate',
       'purchasePriceIdr',
+      'arrivalCost',
       'offlinePrice',
       'entraversePrice',
       'tokopediaPrice',
@@ -5529,6 +5551,7 @@ async function handleAddProductForm() {
           'purchasePrice',
           'exchangeRate',
           'purchasePriceIdr',
+          'arrivalCost',
           'offlinePrice',
           'entraversePrice',
           'tokopediaPrice',
@@ -5573,9 +5596,34 @@ async function handleAddProductForm() {
       return input;
     };
 
+    const buildShippingCell = () => {
+      const cell = document.createElement('td');
+      const select = document.createElement('select');
+      select.dataset.field = 'shippingMethod';
+      select.setAttribute('aria-label', 'Pilih metode pengiriman');
+
+      const placeholderOption = document.createElement('option');
+      placeholderOption.value = '';
+      placeholderOption.textContent = 'Pilih pengiriman';
+      select.appendChild(placeholderOption);
+
+      ['Udara', 'Laut', 'Darat'].forEach(optionLabel => {
+        const option = document.createElement('option');
+        option.value = optionLabel;
+        option.textContent = optionLabel;
+        select.appendChild(option);
+      });
+
+      cell.appendChild(select);
+      row.appendChild(cell);
+      return select;
+    };
+
     buildInputCell('purchasePrice', '0');
     buildInputCell('purchaseCurrency', 'Pilih mata uang');
     buildInputCell('exchangeRate', '0');
+    buildShippingCell();
+    buildInputCell('arrivalCost', 'Rp 0');
     buildInputCell('purchasePriceIdr', 'Rp 0');
     buildInputCell('offlinePrice', 'Rp 0');
     buildInputCell('entraversePrice', 'Rp 0');
@@ -5683,6 +5731,8 @@ async function handleAddProductForm() {
       'Harga Beli',
       'Kurs',
       'Nilai Tukar Kurs',
+      'Pengiriman',
+      'Biaya Kedatangan',
       'Harga Beli (Rp.)',
       'Harga Jual Offline',
       'Harga Jual Entraverse.id',
@@ -6091,6 +6141,8 @@ async function handleAddProductForm() {
         purchaseCurrency: (row.purchaseCurrency ?? '').toString().trim(),
         exchangeRate: (row.exchangeRate ?? '').toString().trim(),
         purchasePriceIdr: (row.purchasePriceIdr ?? '').toString().trim(),
+        shippingMethod: (row.shippingMethod ?? '').toString().trim(),
+        arrivalCost: (row.arrivalCost ?? '').toString().trim(),
         offlinePrice: (row.offlinePrice ?? '').toString().trim(),
         entraversePrice: (row.entraversePrice ?? '').toString().trim(),
         tokopediaPrice: (row.tokopediaPrice ?? '').toString().trim(),
@@ -6123,6 +6175,8 @@ async function handleAddProductForm() {
         row.purchaseCurrency,
         row.exchangeRate,
         row.purchasePriceIdr,
+        row.shippingMethod,
+        row.arrivalCost,
         row.offlinePrice,
         row.entraversePrice,
         row.tokopediaPrice,
