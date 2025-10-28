@@ -460,6 +460,33 @@ let supabaseClient = null;
 let supabaseInitializationPromise = null;
 let supabaseInitializationError = null;
 
+function isTableMissingError(error) {
+  if (!error) {
+    return false;
+  }
+
+  const code = error.code || error?.cause?.code;
+  if (code === '42P01' || code === 'PGRST301') {
+    return true;
+  }
+
+  const details = [error.message, error.details, error.hint]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (!details) {
+    return false;
+  }
+
+  return (
+    details.includes('does not exist') ||
+    details.includes('not exist') ||
+    details.includes('not found') ||
+    details.includes('missing')
+  );
+}
+
 const remoteCache = {
   [STORAGE_KEYS.users]: [],
   [STORAGE_KEYS.products]: [],
@@ -1183,85 +1210,191 @@ async function ensureSeeded() {
     seedingPromise = (async () => {
       const client = getSupabaseClient();
 
-      const { count: categoryCount, error: categoryError } = await client
-        .from(SUPABASE_TABLES.categories)
-        .select('id', { count: 'exact', head: true });
+      let categoriesAvailable = true;
+      try {
+        const { count, error } = await client
+          .from(SUPABASE_TABLES.categories)
+          .select('id', { count: 'exact', head: true });
 
-      if (categoryError) {
-        throw categoryError;
+        if (error) {
+          throw error;
+        }
+
+        if (!count) {
+          const now = new Date().toISOString();
+          await client.from(SUPABASE_TABLES.categories).insert(
+            DEFAULT_CATEGORIES.map(category => {
+              const mapped = mapCategoryToRecord({
+                ...category,
+                createdAt: now,
+                updatedAt: now
+              });
+              mapped.created_at = now;
+              mapped.updated_at = now;
+              return mapped;
+            })
+          );
+        }
+      } catch (error) {
+        if (isTableMissingError(error)) {
+          categoriesAvailable = false;
+          console.warn('Tabel kategori tidak ditemukan. Melewati seeding kategori.');
+        } else {
+          throw error;
+        }
       }
 
-      if (!categoryCount) {
-        const now = new Date().toISOString();
-        await client.from(SUPABASE_TABLES.categories).insert(
-          DEFAULT_CATEGORIES.map(category => {
-            const mapped = mapCategoryToRecord({
-              ...category,
-              createdAt: now,
-              updatedAt: now
-            });
-            mapped.created_at = now;
-            mapped.updated_at = now;
-            return mapped;
-          })
-        );
+      let productsAvailable = true;
+      try {
+        const { count, error } = await client
+          .from(SUPABASE_TABLES.products)
+          .select('id', { count: 'exact', head: true });
+
+        if (error) {
+          throw error;
+        }
+
+        if (!count) {
+          const now = new Date().toISOString();
+          await client.from(SUPABASE_TABLES.products).insert(
+            DEFAULT_PRODUCTS.map(product => {
+              const mapped = mapProductToRecord({
+                ...product,
+                createdAt: now,
+                updatedAt: now
+              });
+              mapped.created_at = now;
+              mapped.updated_at = now;
+              return mapped;
+            })
+          );
+        }
+      } catch (error) {
+        if (isTableMissingError(error)) {
+          productsAvailable = false;
+          console.warn('Tabel produk tidak ditemukan. Melewati seeding produk.');
+        } else {
+          throw error;
+        }
       }
 
-      const { count: productCount, error: productError } = await client
-        .from(SUPABASE_TABLES.products)
-        .select('id', { count: 'exact', head: true });
+      let exchangeRatesAvailable = true;
+      try {
+        const { count, error } = await client
+          .from(SUPABASE_TABLES.exchangeRates)
+          .select('id', { count: 'exact', head: true });
 
-      if (productError) {
-        throw productError;
+        if (error) {
+          throw error;
+        }
+
+        if (!count) {
+          const now = new Date().toISOString();
+          await client.from(SUPABASE_TABLES.exchangeRates).insert(
+            DEFAULT_EXCHANGE_RATES.map(rate => ({
+              ...rate,
+              created_at: now,
+              updated_at: now
+            }))
+          );
+        }
+      } catch (error) {
+        if (isTableMissingError(error)) {
+          exchangeRatesAvailable = false;
+          console.warn('Tabel kurs tidak ditemukan. Melewati seeding kurs.');
+        } else {
+          throw error;
+        }
       }
 
-      if (!productCount) {
-        const now = new Date().toISOString();
-        await client.from(SUPABASE_TABLES.products).insert(
-          DEFAULT_PRODUCTS.map(product => {
-            const mapped = mapProductToRecord({
-              ...product,
-              createdAt: now,
-              updatedAt: now
-            });
-            mapped.created_at = now;
-            mapped.updated_at = now;
-            return mapped;
-          })
-        );
+      let shippingVendorsAvailable = true;
+      try {
+        const { count, error } = await client
+          .from(SUPABASE_TABLES.shippingVendors)
+          .select('id', { count: 'exact', head: true });
+
+        if (error) {
+          throw error;
+        }
+
+        if (!count) {
+          const now = new Date().toISOString();
+          await client.from(SUPABASE_TABLES.shippingVendors).insert(
+            DEFAULT_SHIPPING_VENDORS.map(vendor => {
+              const mapped = mapShippingVendorToRecord({
+                ...vendor,
+                createdAt: now,
+                updatedAt: now
+              });
+              if (!mapped) {
+                return null;
+              }
+              mapped.created_at = now;
+              mapped.updated_at = now;
+              return mapped;
+            }).filter(Boolean)
+          );
+        }
+      } catch (error) {
+        if (isTableMissingError(error)) {
+          shippingVendorsAvailable = false;
+          console.warn('Tabel vendor pengiriman tidak ditemukan. Melewati seeding vendor pengiriman.');
+        } else {
+          throw error;
+        }
       }
 
-      const { count: shippingCount, error: shippingError } = await client
-        .from(SUPABASE_TABLES.shippingVendors)
-        .select('id', { count: 'exact', head: true });
-
-      if (shippingError) {
-        throw shippingError;
+      if (categoriesAvailable) {
+        try {
+          await refreshCategoriesFromSupabase();
+        } catch (error) {
+          if (isTableMissingError(error)) {
+            categoriesAvailable = false;
+            console.warn('Tabel kategori tidak ditemukan saat refresh.');
+          } else {
+            throw error;
+          }
+        }
       }
 
-      if (!shippingCount) {
-        const now = new Date().toISOString();
-        await client.from(SUPABASE_TABLES.shippingVendors).insert(
-          DEFAULT_SHIPPING_VENDORS.map(vendor => {
-            const mapped = mapShippingVendorToRecord({
-              ...vendor,
-              createdAt: now,
-              updatedAt: now
-            });
-            if (!mapped) {
-              return null;
-            }
-            mapped.created_at = now;
-            mapped.updated_at = now;
-            return mapped;
-          }).filter(Boolean)
-        );
+      if (productsAvailable) {
+        try {
+          await refreshProductsFromSupabase();
+        } catch (error) {
+          if (isTableMissingError(error)) {
+            productsAvailable = false;
+            console.warn('Tabel produk tidak ditemukan saat refresh.');
+          } else {
+            throw error;
+          }
+        }
       }
 
-      await refreshCategoriesFromSupabase();
-      await refreshProductsFromSupabase();
-      await refreshExchangeRatesFromSupabase();
-      await refreshShippingVendorsFromSupabase();
+      if (exchangeRatesAvailable) {
+        try {
+          await refreshExchangeRatesFromSupabase();
+        } catch (error) {
+          if (isTableMissingError(error)) {
+            exchangeRatesAvailable = false;
+            console.warn('Tabel kurs tidak ditemukan saat refresh.');
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      if (shippingVendorsAvailable) {
+        try {
+          await refreshShippingVendorsFromSupabase();
+        } catch (error) {
+          if (isTableMissingError(error)) {
+            shippingVendorsAvailable = false;
+            console.warn('Tabel vendor pengiriman tidak ditemukan saat refresh.');
+          } else {
+            throw error;
+          }
+        }
+      }
     })().catch(error => {
       console.error('Gagal melakukan seeding awal Supabase.', error);
       throw error;
