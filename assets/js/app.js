@@ -525,6 +525,30 @@ async function ensureSupabase() {
   return supabaseInitializationPromise;
 }
 
+function isSupabaseTableMissingError(error) {
+  if (!error) {
+    return false;
+  }
+
+  const code = typeof error.code === 'string' ? error.code : '';
+  if (code === '42P01' || code === 'PGRST116' || code === 'PGRST114') {
+    return true;
+  }
+
+  const status = typeof error.status === 'number'
+    ? error.status
+    : Number.isFinite(Number.parseInt(code, 10))
+      ? Number.parseInt(code, 10)
+      : null;
+
+  if (status === 404) {
+    return true;
+  }
+
+  const messageCandidates = [error.message, error.error_description, error.details, error.hint];
+  return messageCandidates.some(part => typeof part === 'string' && /not found|does not exist/i.test(part));
+}
+
 function toIsoTimestamp(value) {
   if (!value) {
     return null;
@@ -773,18 +797,37 @@ function getCategoriesFromCache() {
 async function refreshCategoriesFromSupabase() {
   await ensureSupabase();
   const client = getSupabaseClient();
-  const { data, error } = await client
-    .from(SUPABASE_TABLES.categories)
-    .select('*')
-    .order('created_at', { ascending: true });
+  try {
+    const { data, error } = await client
+      .from(SUPABASE_TABLES.categories)
+      .select('*')
+      .order('created_at', { ascending: true });
 
-  if (error) {
+    if (error) {
+      throw error;
+    }
+
+    const categories = (data ?? []).map(mapSupabaseCategory).filter(Boolean);
+    setCategoryCache(categories);
+    return categories;
+  } catch (error) {
+    if (isSupabaseTableMissingError(error)) {
+      console.warn('Tabel categories belum tersedia di Supabase. Menggunakan data bawaan.', error);
+      const cached = getCategoriesFromCache();
+      if (Array.isArray(cached) && cached.length) {
+        return cached;
+      }
+      const now = Date.now();
+      const fallback = DEFAULT_CATEGORIES.map(category => ({
+        ...category,
+        createdAt: now,
+        updatedAt: now
+      }));
+      setCategoryCache(fallback);
+      return fallback;
+    }
     throw error;
   }
-
-  const categories = (data ?? []).map(mapSupabaseCategory).filter(Boolean);
-  setCategoryCache(categories);
-  return categories;
 }
 
 async function deleteCategoryFromSupabase(id) {
@@ -874,18 +917,32 @@ function getProductsFromCache() {
 async function refreshProductsFromSupabase() {
   await ensureSupabase();
   const client = getSupabaseClient();
-  const { data, error } = await client
-    .from(SUPABASE_TABLES.products)
-    .select('*')
-    .order('created_at', { ascending: true });
+  try {
+    const { data, error } = await client
+      .from(SUPABASE_TABLES.products)
+      .select('*')
+      .order('created_at', { ascending: true });
 
-  if (error) {
+    if (error) {
+      throw error;
+    }
+
+    const products = (data ?? []).map(mapSupabaseProduct).filter(Boolean);
+    setProductCache(products);
+    return products;
+  } catch (error) {
+    if (isSupabaseTableMissingError(error)) {
+      console.warn('Tabel products belum tersedia di Supabase. Menggunakan data bawaan.', error);
+      const cached = getProductsFromCache();
+      if (Array.isArray(cached) && cached.length) {
+        return cached;
+      }
+      const fallback = DEFAULT_PRODUCTS.map(product => ({ ...product }));
+      setProductCache(fallback);
+      return fallback;
+    }
     throw error;
   }
-
-  const products = (data ?? []).map(mapSupabaseProduct).filter(Boolean);
-  setProductCache(products);
-  return products;
 }
 
 async function deleteProductFromSupabase(id) {
@@ -1013,23 +1070,33 @@ function getShippingVendorsFromCache() {
 async function refreshShippingVendorsFromSupabase() {
   await ensureSupabase();
   const client = getSupabaseClient();
-  const { data, error } = await client
-    .from(SUPABASE_TABLES.shippingVendors)
-    .select('*')
-    .order('name', { ascending: true });
+  try {
+    const { data, error } = await client
+      .from(SUPABASE_TABLES.shippingVendors)
+      .select('*')
+      .order('name', { ascending: true });
 
-  if (error) {
+    if (error) {
+      throw error;
+    }
+
+    let vendors = (data ?? []).map(mapSupabaseShippingVendor).filter(Boolean);
+    if (!vendors.length) {
+      vendors = DEFAULT_SHIPPING_VENDORS.map(vendor => ({ ...vendor }));
+    }
+
+    setShippingVendorCache(vendors);
+    saveShippingVendorSnapshot(vendors);
+    return vendors;
+  } catch (error) {
+    if (isSupabaseTableMissingError(error)) {
+      console.warn('Tabel shipping_vendors belum tersedia di Supabase. Menggunakan data lokal.', error);
+      const fallback = getShippingVendorsFromCache();
+      saveShippingVendorSnapshot(fallback);
+      return fallback;
+    }
     throw error;
   }
-
-  let vendors = (data ?? []).map(mapSupabaseShippingVendor).filter(Boolean);
-  if (!vendors.length) {
-    vendors = DEFAULT_SHIPPING_VENDORS.map(vendor => ({ ...vendor }));
-  }
-
-  setShippingVendorCache(vendors);
-  saveShippingVendorSnapshot(vendors);
-  return vendors;
 }
 
 async function deleteShippingVendorFromSupabase(id) {
@@ -1183,80 +1250,140 @@ async function ensureSeeded() {
     seedingPromise = (async () => {
       const client = getSupabaseClient();
 
-      const { count: categoryCount, error: categoryError } = await client
-        .from(SUPABASE_TABLES.categories)
-        .select('id', { count: 'exact', head: true });
+      const ensureCategoriesSeeded = async () => {
+        try {
+          const { count, error } = await client
+            .from(SUPABASE_TABLES.categories)
+            .select('id', { count: 'exact', head: true });
 
-      if (categoryError) {
-        throw categoryError;
-      }
+          if (error) {
+            throw error;
+          }
 
-      if (!categoryCount) {
-        const now = new Date().toISOString();
-        await client.from(SUPABASE_TABLES.categories).insert(
-          DEFAULT_CATEGORIES.map(category => {
-            const mapped = mapCategoryToRecord({
-              ...category,
-              createdAt: now,
-              updatedAt: now
-            });
-            mapped.created_at = now;
-            mapped.updated_at = now;
-            return mapped;
-          })
-        );
-      }
+          if (!count) {
+            const now = new Date().toISOString();
+            const { error: insertError } = await client
+              .from(SUPABASE_TABLES.categories)
+              .insert(
+                DEFAULT_CATEGORIES.map(category => {
+                  const mapped = mapCategoryToRecord({
+                    ...category,
+                    createdAt: now,
+                    updatedAt: now
+                  });
+                  mapped.created_at = now;
+                  mapped.updated_at = now;
+                  return mapped;
+                })
+              );
 
-      const { count: productCount, error: productError } = await client
-        .from(SUPABASE_TABLES.products)
-        .select('id', { count: 'exact', head: true });
-
-      if (productError) {
-        throw productError;
-      }
-
-      if (!productCount) {
-        const now = new Date().toISOString();
-        await client.from(SUPABASE_TABLES.products).insert(
-          DEFAULT_PRODUCTS.map(product => {
-            const mapped = mapProductToRecord({
-              ...product,
-              createdAt: now,
-              updatedAt: now
-            });
-            mapped.created_at = now;
-            mapped.updated_at = now;
-            return mapped;
-          })
-        );
-      }
-
-      const { count: shippingCount, error: shippingError } = await client
-        .from(SUPABASE_TABLES.shippingVendors)
-        .select('id', { count: 'exact', head: true });
-
-      if (shippingError) {
-        throw shippingError;
-      }
-
-      if (!shippingCount) {
-        const now = new Date().toISOString();
-        await client.from(SUPABASE_TABLES.shippingVendors).insert(
-          DEFAULT_SHIPPING_VENDORS.map(vendor => {
-            const mapped = mapShippingVendorToRecord({
-              ...vendor,
-              createdAt: now,
-              updatedAt: now
-            });
-            if (!mapped) {
-              return null;
+            if (insertError) {
+              throw insertError;
             }
-            mapped.created_at = now;
-            mapped.updated_at = now;
-            return mapped;
-          }).filter(Boolean)
-        );
-      }
+          }
+
+          return true;
+        } catch (error) {
+          if (isSupabaseTableMissingError(error)) {
+            console.warn('Tabel categories belum tersedia di Supabase. Melewati proses seeding.', error);
+            return false;
+          }
+          throw error;
+        }
+      };
+
+      const ensureProductsSeeded = async () => {
+        try {
+          const { count, error } = await client
+            .from(SUPABASE_TABLES.products)
+            .select('id', { count: 'exact', head: true });
+
+          if (error) {
+            throw error;
+          }
+
+          if (!count) {
+            const now = new Date().toISOString();
+            const { error: insertError } = await client
+              .from(SUPABASE_TABLES.products)
+              .insert(
+                DEFAULT_PRODUCTS.map(product => {
+                  const mapped = mapProductToRecord({
+                    ...product,
+                    createdAt: now,
+                    updatedAt: now
+                  });
+                  mapped.created_at = now;
+                  mapped.updated_at = now;
+                  return mapped;
+                })
+              );
+
+            if (insertError) {
+              throw insertError;
+            }
+          }
+
+          return true;
+        } catch (error) {
+          if (isSupabaseTableMissingError(error)) {
+            console.warn('Tabel products belum tersedia di Supabase. Melewati proses seeding.', error);
+            return false;
+          }
+          throw error;
+        }
+      };
+
+      const ensureShippingVendorsSeeded = async () => {
+        try {
+          const { count, error } = await client
+            .from(SUPABASE_TABLES.shippingVendors)
+            .select('id', { count: 'exact', head: true });
+
+          if (error) {
+            throw error;
+          }
+
+          if (!count) {
+            const now = new Date().toISOString();
+            const { error: insertError } = await client
+              .from(SUPABASE_TABLES.shippingVendors)
+              .insert(
+                DEFAULT_SHIPPING_VENDORS.map(vendor => {
+                  const mapped = mapShippingVendorToRecord({
+                    ...vendor,
+                    createdAt: now,
+                    updatedAt: now
+                  });
+                  if (!mapped) {
+                    return null;
+                  }
+                  mapped.created_at = now;
+                  mapped.updated_at = now;
+                  return mapped;
+                }).filter(Boolean)
+              );
+
+            if (insertError) {
+              throw insertError;
+            }
+          }
+
+          return true;
+        } catch (error) {
+          if (isSupabaseTableMissingError(error)) {
+            console.warn('Tabel shipping_vendors belum tersedia di Supabase. Melewati proses seeding.', error);
+            return false;
+          }
+          throw error;
+        }
+      };
+
+      await Promise.all([
+        ensureCategoriesSeeded(),
+        ensureProductsSeeded(),
+        ensureShippingVendorsSeeded()
+      ]);
 
       await refreshCategoriesFromSupabase();
       await refreshProductsFromSupabase();
