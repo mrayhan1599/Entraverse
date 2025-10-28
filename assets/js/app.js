@@ -85,6 +85,8 @@ const DEFAULT_PRODUCTS = [
         purchasePrice: '389',
         purchaseCurrency: 'USD',
         exchangeRate: '15500',
+        shippingMethod: 'air',
+        arrivalCost: '0',
         purchasePriceIdr: '6039500',
         offlinePrice: '9555000',
         entraversePrice: '9700000',
@@ -103,6 +105,8 @@ const DEFAULT_PRODUCTS = [
         purchasePrice: '429',
         purchaseCurrency: 'USD',
         exchangeRate: '15500',
+        shippingMethod: 'air',
+        arrivalCost: '0',
         purchasePriceIdr: '6650000',
         offlinePrice: '9799000',
         entraversePrice: '9899000',
@@ -140,6 +144,8 @@ const DEFAULT_PRODUCTS = [
         purchasePrice: '459',
         purchaseCurrency: 'USD',
         exchangeRate: '15500',
+        shippingMethod: 'air',
+        arrivalCost: '0',
         purchasePriceIdr: '7114500',
         offlinePrice: '10350000',
         entraversePrice: '10499000',
@@ -158,6 +164,8 @@ const DEFAULT_PRODUCTS = [
         purchasePrice: '499',
         purchaseCurrency: 'USD',
         exchangeRate: '15500',
+        shippingMethod: 'air',
+        arrivalCost: '0',
         purchasePriceIdr: '7734500',
         offlinePrice: '10899000',
         entraversePrice: '10999000',
@@ -979,6 +987,11 @@ function setShippingVendorCache(vendors) {
     ? vendors.map(vendor => normalizeShippingVendor(vendor)).filter(Boolean)
     : [];
   setRemoteCache(STORAGE_KEYS.shippingVendors, normalized);
+  document.dispatchEvent(
+    new CustomEvent('shippingVendors:changed', {
+      detail: { shippingVendors: getShippingVendorsFromCache() }
+    })
+  );
 }
 
 function getShippingVendorsFromCache() {
@@ -4482,6 +4495,7 @@ async function handleAddProductForm() {
         if (cbm !== null) {
           const formattedVolume = formatCbmValue(cbm);
           packageVolumeInput.value = formattedVolume;
+          updateAllArrivalCosts();
           return;
         }
       }
@@ -4490,6 +4504,8 @@ async function handleAddProductForm() {
     if (!preferExisting) {
       packageVolumeInput.value = '';
     }
+
+    updateAllArrivalCosts();
   };
 
   [packageLengthInput, packageWidthInput, packageHeightInput]
@@ -4497,6 +4513,10 @@ async function handleAddProductForm() {
     .forEach(input => {
       input.addEventListener('input', () => updatePackageVolume());
     });
+
+  weightInput?.addEventListener('input', () => {
+    updateAllArrivalCosts();
+  });
 
   try {
     await ensureSeeded();
@@ -4513,6 +4533,7 @@ async function handleAddProductForm() {
   const getPricingRows = () => Array.from(pricingBody?.querySelectorAll('.pricing-row') ?? []);
 
   const RUPIAH_PRICING_FIELDS = new Set([
+    'arrivalCost',
     'purchasePriceIdr',
     'offlinePrice',
     'entraversePrice',
@@ -4521,12 +4542,147 @@ async function handleAddProductForm() {
   ]);
 
   const AUTO_COMPUTED_PRICING_FIELDS = new Set([
+    'arrivalCost',
     'purchasePriceIdr',
     'offlinePrice',
     'entraversePrice',
     'tokopediaPrice',
     'shopeePrice'
   ]);
+
+  const SHIPPING_METHOD_OPTIONS = Object.freeze([
+    { value: 'air', label: 'Udara' },
+    { value: 'sea', label: 'Laut' }
+  ]);
+
+  function normalizeShippingMethod(method) {
+    if (!method) {
+      return '';
+    }
+
+    const normalized = method.toString().trim().toLowerCase();
+    if (!normalized) {
+      return '';
+    }
+
+    if (normalized === 'udara') {
+      return 'air';
+    }
+
+    if (normalized === 'laut') {
+      return 'sea';
+    }
+
+    return normalized;
+  }
+
+  function getInventoryWeightKg() {
+    if (!weightInput) {
+      return null;
+    }
+
+    const numeric = parseNumericValue(weightInput.value ?? '');
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return null;
+    }
+
+    if (numeric > 100) {
+      return numeric / 1000;
+    }
+
+    return numeric;
+  }
+
+  function getInventoryVolumeCbm() {
+    if (!packageVolumeInput) {
+      return null;
+    }
+
+    const numeric = parseNumericValue(packageVolumeInput.value ?? '');
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return null;
+    }
+
+    return numeric;
+  }
+
+  function findDefaultShippingVendor() {
+    const vendors = getShippingVendorsFromCache();
+    if (!Array.isArray(vendors) || !vendors.length) {
+      return null;
+    }
+
+    const withRates = vendors.find(vendor => {
+      const airRate = parseNumericValue(vendor?.airRate);
+      const seaRate = parseNumericValue(vendor?.seaRate);
+      return (Number.isFinite(airRate) && airRate > 0) || (Number.isFinite(seaRate) && seaRate > 0);
+    });
+
+    return withRates ?? vendors[0] ?? null;
+  }
+
+  function getShippingRateForMethod(method) {
+    const normalizedMethod = normalizeShippingMethod(method);
+    if (!normalizedMethod) {
+      return null;
+    }
+
+    const vendor = findDefaultShippingVendor();
+    if (!vendor) {
+      return null;
+    }
+
+    if (normalizedMethod === 'air') {
+      const rate = parseNumericValue(vendor.airRate);
+      return Number.isFinite(rate) && rate > 0 ? rate : null;
+    }
+
+    if (normalizedMethod === 'sea') {
+      const rate = parseNumericValue(vendor.seaRate);
+      return Number.isFinite(rate) && rate > 0 ? rate : null;
+    }
+
+    return null;
+  }
+
+  function calculateArrivalCostValue(method) {
+    const normalizedMethod = normalizeShippingMethod(method);
+    if (!normalizedMethod) {
+      return null;
+    }
+
+    if (normalizedMethod === 'air') {
+      const rate = getShippingRateForMethod('air');
+      if (!Number.isFinite(rate)) {
+        return null;
+      }
+
+      const weightKg = getInventoryWeightKg();
+      if (!Number.isFinite(weightKg) || weightKg <= 0) {
+        return null;
+      }
+
+      const total = rate * weightKg;
+      return Number.isFinite(total) ? Math.max(0, Math.round(total)) : null;
+    }
+
+    if (normalizedMethod === 'sea') {
+      const rate = getShippingRateForMethod('sea');
+      if (!Number.isFinite(rate)) {
+        return null;
+      }
+
+      const volume = getInventoryVolumeCbm();
+      if (!Number.isFinite(volume) || volume <= 0) {
+        return null;
+      }
+
+      const total = rate * volume;
+      return Number.isFinite(total) ? Math.max(0, Math.round(total)) : null;
+    }
+
+    return null;
+  }
 
   const WARRANTY_RATE = 0.03;
   const WARRANTY_PROFIT_RATE = 1;
@@ -4752,6 +4908,7 @@ async function handleAddProductForm() {
       return;
     }
 
+    const arrivalInput = row.querySelector('[data-field="arrivalCost"]');
     const idrInput = row.querySelector('[data-field="purchasePriceIdr"]');
     const offlineInput = row.querySelector('[data-field="offlinePrice"]');
     const entraverseInput = row.querySelector('[data-field="entraversePrice"]');
@@ -4832,6 +4989,38 @@ async function handleAddProductForm() {
     input.value = `Rp ${formatRupiahDigits(sanitized)}`;
     return sanitized;
   };
+
+  function updateArrivalCostForRow(row, { triggerRecalc = true } = {}) {
+    if (!row) {
+      return;
+    }
+
+    const arrivalInput = row.querySelector('[data-field="arrivalCost"]');
+    if (!arrivalInput) {
+      if (triggerRecalc) {
+        recalculatePurchasePriceIdr(row);
+      }
+      return;
+    }
+
+    const methodSelect = row.querySelector('select[data-field="shippingMethod"]');
+    const method = methodSelect?.value ?? '';
+    const arrivalValue = calculateArrivalCostValue(method);
+
+    if (Number.isFinite(arrivalValue)) {
+      setRupiahInputValue(arrivalInput, arrivalValue);
+    } else {
+      setRupiahInputValue(arrivalInput, '');
+    }
+
+    if (triggerRecalc) {
+      recalculatePurchasePriceIdr(row);
+    }
+  }
+
+  function updateAllArrivalCosts(options = {}) {
+    getPricingRows().forEach(row => updateArrivalCostForRow(row, options));
+  }
 
   const countDigitsBeforePosition = (value, position) => {
     if (!value) {
@@ -5017,7 +5206,12 @@ async function handleAddProductForm() {
       return;
     }
 
-    const total = Math.round(price * rate);
+    const arrivalNumeric = parseNumericValue(
+      arrivalInput?.dataset.numericValue ?? arrivalInput?.value ?? ''
+    );
+    const arrivalCost = Number.isFinite(arrivalNumeric) ? Math.max(0, arrivalNumeric) : 0;
+
+    const total = Math.round(price * rate + arrivalCost);
     if (!Number.isFinite(total)) {
       setRupiahInputValue(idrInput, '');
       updateComputedPricingForRow(row);
@@ -5116,6 +5310,10 @@ async function handleAddProductForm() {
       populateCurrencySelectOptions(select, currentValue);
       syncCurrencyForRow(row, { currency: select.value });
     });
+  });
+
+  document.addEventListener('shippingVendors:changed', () => {
+    updateAllArrivalCosts();
   });
 
   const clearPreview = (container, preview, input) => {
@@ -5321,6 +5519,8 @@ async function handleAddProductForm() {
         purchasePrice: getValue('[data-field="purchasePrice"]'),
         purchaseCurrency: getValue('[data-field="purchaseCurrency"]'),
         exchangeRate: getValue('[data-field="exchangeRate"]', { useDataset: true }),
+        shippingMethod: getValue('[data-field="shippingMethod"]'),
+        arrivalCost: getValue('[data-field="arrivalCost"]', { asRupiah: true }),
         purchasePriceIdr: getValue('[data-field="purchasePriceIdr"]', { asRupiah: true }),
         offlinePrice: getValue('[data-field="offlinePrice"]', { asRupiah: true }),
         entraversePrice: getValue('[data-field="entraversePrice"]', { asRupiah: true }),
@@ -5446,6 +5646,8 @@ async function handleAddProductForm() {
     [
       'purchasePrice',
       'exchangeRate',
+      'shippingMethod',
+      'arrivalCost',
       'purchasePriceIdr',
       'offlinePrice',
       'entraversePrice',
@@ -5456,6 +5658,11 @@ async function handleAddProductForm() {
     ].forEach(field => {
       applyFieldValue(field, initialData[field]);
     });
+
+    const shippingSelect = row.querySelector('select[data-field="shippingMethod"]');
+    if (shippingSelect && !shippingSelect.value && SHIPPING_METHOD_OPTIONS[0]) {
+      shippingSelect.value = SHIPPING_METHOD_OPTIONS[0].value;
+    }
 
     const fallbackRate = initialData.exchangeRate;
     syncCurrencyForRow(row, {
@@ -5473,6 +5680,7 @@ async function handleAddProductForm() {
     let purchasePriceInput = null;
     let currencySelect = null;
     let exchangeRateInput = null;
+    let shippingMethodSelect = null;
 
     if (variantDefs.length) {
       variantDefs.forEach((variant, index) => {
@@ -5516,6 +5724,25 @@ async function handleAddProductForm() {
         cell.appendChild(select);
         row.appendChild(cell);
         currencySelect = select;
+        return select;
+      }
+
+      if (field === 'shippingMethod') {
+        const select = document.createElement('select');
+        select.dataset.field = field;
+        select.setAttribute('aria-label', 'Pilih metode pengiriman');
+        SHIPPING_METHOD_OPTIONS.forEach(option => {
+          const opt = document.createElement('option');
+          opt.value = option.value;
+          opt.textContent = option.label;
+          select.appendChild(opt);
+        });
+        if (!select.value && SHIPPING_METHOD_OPTIONS[0]) {
+          select.value = SHIPPING_METHOD_OPTIONS[0].value;
+        }
+        cell.appendChild(select);
+        row.appendChild(cell);
+        shippingMethodSelect = select;
         return select;
       }
 
@@ -5576,6 +5803,8 @@ async function handleAddProductForm() {
     buildInputCell('purchasePrice', '0');
     buildInputCell('purchaseCurrency', 'Pilih mata uang');
     buildInputCell('exchangeRate', '0');
+    buildInputCell('shippingMethod', 'Pilih metode pengiriman');
+    buildInputCell('arrivalCost', 'Rp 0');
     buildInputCell('purchasePriceIdr', 'Rp 0');
     buildInputCell('offlinePrice', 'Rp 0');
     buildInputCell('entraversePrice', 'Rp 0');
@@ -5597,6 +5826,12 @@ async function handleAddProductForm() {
     if (currencySelect) {
       currencySelect.addEventListener('change', () => {
         syncCurrencyForRow(row, { currency: currencySelect.value });
+      });
+    }
+
+    if (shippingMethodSelect) {
+      shippingMethodSelect.addEventListener('change', () => {
+        updateArrivalCostForRow(row);
       });
     }
 
@@ -5650,7 +5885,8 @@ async function handleAddProductForm() {
       });
     }
 
-    updateComputedPricingForRow(row);
+    updateArrivalCostForRow(row, { triggerRecalc: false });
+    recalculatePurchasePriceIdr(row);
     return row;
   }
 
@@ -5683,6 +5919,8 @@ async function handleAddProductForm() {
       'Harga Beli',
       'Kurs',
       'Nilai Tukar Kurs',
+      'Pengiriman',
+      'Biaya Kedatangan',
       'Harga Beli (Rp.)',
       'Harga Jual Offline',
       'Harga Jual Entraverse.id',
@@ -6090,6 +6328,8 @@ async function handleAddProductForm() {
         purchasePrice: (row.purchasePrice ?? '').toString().trim(),
         purchaseCurrency: (row.purchaseCurrency ?? '').toString().trim(),
         exchangeRate: (row.exchangeRate ?? '').toString().trim(),
+        shippingMethod: (row.shippingMethod ?? '').toString().trim(),
+        arrivalCost: (row.arrivalCost ?? '').toString().trim(),
         purchasePriceIdr: (row.purchasePriceIdr ?? '').toString().trim(),
         offlinePrice: (row.offlinePrice ?? '').toString().trim(),
         entraversePrice: (row.entraversePrice ?? '').toString().trim(),
@@ -6118,10 +6358,13 @@ async function handleAddProductForm() {
     });
 
     const filteredPricing = normalizedPricing.filter(row => {
+      const arrivalNumeric = parseNumericValue(row.arrivalCost);
+      const arrivalDetail = Number.isFinite(arrivalNumeric) && arrivalNumeric > 0 ? row.arrivalCost : '';
       const detailValues = [
         row.purchasePrice,
         row.purchaseCurrency,
         row.exchangeRate,
+        arrivalDetail,
         row.purchasePriceIdr,
         row.offlinePrice,
         row.entraversePrice,
