@@ -77,9 +77,7 @@ body[data-page="dashboard"],
 body[data-page="categories"],
 body[data-page="add-product"],
 body[data-page="suppliers"],
-body[data-page="shipping"],
-body[data-page="other-vendors"],
-body[data-page="sampai-express"] {
+body[data-page="other-vendors"] {
   overflow: hidden;
 }
 
