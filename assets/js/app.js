@@ -4,7 +4,8 @@ const STORAGE_KEYS = {
   products: 'entraverse_products',
   categories: 'entraverse_categories',
   exchangeRates: 'entraverse_exchange_rates',
-  shippingVendors: 'entraverse_shipping_vendors'
+  shippingVendors: 'entraverse_shipping_vendors',
+  integrations: 'entraverse_integrations'
 };
 
 const GUEST_USER = Object.freeze({
@@ -279,6 +280,50 @@ const DEFAULT_EXCHANGE_RATES = [
 ];
 
 const DEFAULT_SHIPPING_VENDORS = Object.freeze([]);
+
+const DEFAULT_API_INTEGRATIONS = Object.freeze([
+  {
+    id: 'integration-mekari-jurnal',
+    name: 'Mekari Jurnal',
+    category: 'Keuangan & Akuntansi',
+    status: 'connected',
+    connectedAccount: 'Finance Ops',
+    syncFrequency: 'Setiap 15 menit',
+    lastSync: '2024-09-12T09:45:00+07:00',
+    capabilities: 'Sinkronisasi penjualan, invoice, dan jurnal ke Mekari Jurnal secara otomatis.'
+  },
+  {
+    id: 'integration-accurate-online',
+    name: 'Accurate Online',
+    category: 'Keuangan & Akuntansi',
+    status: 'pending',
+    connectedAccount: '',
+    syncFrequency: 'Setiap 1 jam',
+    lastSync: null,
+    capabilities: 'Siapkan token API untuk mengirim data stok dan penjualan ke Accurate Online.',
+    requiresSetup: true
+  },
+  {
+    id: 'integration-quickbooks',
+    name: 'QuickBooks Online',
+    category: 'Finance & Tax',
+    status: 'available',
+    connectedAccount: '',
+    syncFrequency: 'Manual / Sesuai permintaan',
+    lastSync: null,
+    capabilities: 'Ekspor transaksi impor dan ekspor ke QuickBooks secara instan.'
+  },
+  {
+    id: 'integration-google-data-studio',
+    name: 'Looker Studio',
+    category: 'Business Intelligence',
+    status: 'connected',
+    connectedAccount: 'Management Dashboard',
+    syncFrequency: 'Setiap 30 menit',
+    lastSync: '2024-09-12T08:15:00+07:00',
+    capabilities: 'Streaming performa penjualan ke dashboard BI untuk pemantauan real-time.'
+  }
+]);
 
 const LOCAL_STORAGE_KEYS = Object.freeze({
   shippingVendorsSnapshot: 'entraverse_shipping_vendors_snapshot',
@@ -3051,7 +3096,7 @@ async function ensureAuthenticatedPage() {
   const page = document.body.dataset.page;
   const guest = getGuestUser();
 
-  if (!['dashboard', 'add-product', 'categories', 'shipping'].includes(page)) {
+  if (!['dashboard', 'add-product', 'categories', 'shipping', 'integrations'].includes(page)) {
     return { user: guest, status: 'guest' };
   }
 
@@ -6433,6 +6478,313 @@ async function handleAddProductForm() {
   });
 }
 
+const INTEGRATION_STATUS_SET = new Set(['connected', 'pending', 'available']);
+
+function sanitizeIntegration(integration) {
+  if (!integration || typeof integration !== 'object') {
+    return null;
+  }
+
+  const raw = { ...integration };
+  const sanitized = {};
+  sanitized.id = (raw.id ?? '').toString().trim() || createUuid();
+  sanitized.name = (raw.name ?? '').toString().trim();
+  if (!sanitized.name) {
+    return null;
+  }
+
+  sanitized.category = (raw.category ?? 'Lainnya').toString().trim() || 'Lainnya';
+
+  const status = (raw.status ?? 'available').toString().trim().toLowerCase();
+  sanitized.status = INTEGRATION_STATUS_SET.has(status) ? status : 'available';
+
+  sanitized.connectedAccount = (raw.connectedAccount ?? '').toString().trim();
+  sanitized.syncFrequency = (raw.syncFrequency ?? 'Manual').toString().trim() || 'Manual';
+  sanitized.capabilities = (raw.capabilities ?? '').toString().trim();
+
+  const syncTime = raw.lastSync ? new Date(raw.lastSync) : null;
+  sanitized.lastSync = syncTime && !Number.isNaN(syncTime.getTime()) ? syncTime.toISOString() : null;
+
+  sanitized.requiresSetup = Boolean(raw.requiresSetup) && sanitized.status === 'pending';
+  sanitized.createdAt = typeof raw.createdAt === 'number' ? raw.createdAt : Date.now();
+  sanitized.updatedAt = typeof raw.updatedAt === 'number' ? raw.updatedAt : sanitized.createdAt;
+
+  return sanitized;
+}
+
+function ensureIntegrationsSeeded() {
+  try {
+    if (localStorage.getItem(STORAGE_KEYS.integrations)) {
+      return;
+    }
+
+    const seeded = DEFAULT_API_INTEGRATIONS
+      .map(item => sanitizeIntegration({ ...item }))
+      .filter(Boolean);
+
+    localStorage.setItem(STORAGE_KEYS.integrations, JSON.stringify(seeded));
+  } catch (error) {
+    console.error('Gagal melakukan seeding data integrasi.', error);
+  }
+}
+
+function getStoredIntegrations() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.integrations);
+    if (!raw) {
+      return DEFAULT_API_INTEGRATIONS
+        .map(item => sanitizeIntegration({ ...item }))
+        .filter(Boolean);
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.map(item => sanitizeIntegration(item)).filter(Boolean);
+  } catch (error) {
+    console.error('Gagal membaca data integrasi dari localStorage.', error);
+    return DEFAULT_API_INTEGRATIONS
+      .map(item => sanitizeIntegration({ ...item }))
+      .filter(Boolean);
+  }
+}
+
+function setStoredIntegrations(integrations) {
+  const sanitized = (Array.isArray(integrations) ? integrations : [])
+    .map(item => sanitizeIntegration(item))
+    .filter(Boolean);
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.integrations, JSON.stringify(sanitized));
+  } catch (error) {
+    console.error('Gagal menyimpan data integrasi ke localStorage.', error);
+  }
+
+  return sanitized;
+}
+
+function formatIntegrationSyncTime(value) {
+  if (!value) {
+    return 'Belum pernah';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Belum pernah';
+  }
+
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function getIntegrationStatusMeta(status) {
+  switch (status) {
+    case 'connected':
+      return { label: 'Tersambung', className: 'status-chip status-chip--connected' };
+    case 'pending':
+      return { label: 'Menunggu Setup', className: 'status-chip status-chip--pending' };
+    default:
+      return { label: 'Belum Terhubung', className: 'status-chip status-chip--available' };
+  }
+}
+
+function updateIntegrationMetrics(integrations = []) {
+  const connected = integrations.filter(item => item.status === 'connected').length;
+  const pending = integrations.filter(item => item.status === 'pending').length;
+  const available = Math.max(0, integrations.length - connected - pending);
+
+  const setText = (selector, value) => {
+    const element = document.querySelector(selector);
+    if (element) {
+      element.textContent = value;
+    }
+  };
+
+  setText('[data-integrations-connected]', connected);
+  setText('[data-integrations-pending]', pending);
+  setText('[data-integrations-available]', available);
+}
+
+function renderIntegrations(filter = '') {
+  const tbody = document.getElementById('integrations-table-body');
+  if (!tbody) {
+    return;
+  }
+
+  const integrations = getStoredIntegrations();
+  updateIntegrationMetrics(integrations);
+
+  const query = (filter ?? '').toString().trim().toLowerCase();
+  const filtered = query
+    ? integrations.filter(integration => {
+        const fields = [
+          integration.name,
+          integration.category,
+          integration.connectedAccount,
+          integration.syncFrequency,
+          integration.capabilities
+        ]
+          .filter(Boolean)
+          .map(value => value.toString().toLowerCase());
+
+        return fields.some(text => text.includes(query));
+      })
+    : integrations;
+
+  if (!filtered.length) {
+    const message = query
+      ? `Tidak ditemukan integrasi untuk "${escapeHtml(filter)}".`
+      : 'Belum ada integrasi terdaftar.';
+    tbody.innerHTML = `<tr class="empty-state"><td colspan="6">${message}</td></tr>`;
+  } else {
+    tbody.innerHTML = filtered
+      .map(integration => {
+        const statusMeta = getIntegrationStatusMeta(integration.status);
+        const account = integration.connectedAccount
+          ? `<span class="integration-account">${escapeHtml(integration.connectedAccount)}</span>`
+          : '<span class="integration-account is-empty">Belum terhubung</span>';
+        const lastSync = formatIntegrationSyncTime(integration.lastSync);
+        const requiresSetup = integration.status === 'pending' && integration.requiresSetup;
+        const setupNote = requiresSetup
+          ? '<span class="integration-note">Butuh konfigurasi token callback</span>'
+          : '';
+
+        let actionLabel = 'Hubungkan';
+        let actionClass = 'btn primary-btn small';
+        let actionState = 'connect';
+
+        if (integration.status === 'connected') {
+          actionLabel = 'Putuskan';
+          actionClass = 'btn ghost-btn small';
+          actionState = 'disconnect';
+        } else if (integration.status === 'pending') {
+          actionLabel = 'Selesaikan Setup';
+          actionClass = 'btn primary-btn small';
+          actionState = 'complete';
+        }
+
+        return `
+          <tr data-integration-id="${escapeHtml(integration.id)}">
+            <td>
+              <div class="integration-name">
+                <span class="integration-icon" aria-hidden="true">🔌</span>
+                <div>
+                  <strong>${escapeHtml(integration.name)}</strong>
+                  <p class="integration-capabilities">${escapeHtml(integration.capabilities)}</p>
+                  ${setupNote}
+                </div>
+              </div>
+            </td>
+            <td>${escapeHtml(integration.category)}</td>
+            <td><span class="${statusMeta.className}">${statusMeta.label}</span></td>
+            <td>${account}</td>
+            <td>
+              <div class="integration-sync">
+                <span class="integration-sync__frequency">${escapeHtml(integration.syncFrequency)}</span>
+                <span class="integration-sync__meta">Terakhir: ${escapeHtml(lastSync)}</span>
+              </div>
+            </td>
+            <td class="integration-actions">
+              <button class="${actionClass}" type="button" data-integration-action="toggle" data-action-state="${actionState}">${actionLabel}</button>
+            </td>
+          </tr>
+        `;
+      })
+      .join('');
+  }
+
+  const countEl = document.getElementById('integration-count');
+  if (countEl) {
+    const suffix = filtered.length === 1 ? 'integrasi' : 'integrasi';
+    countEl.textContent = `${filtered.length} ${suffix}`;
+  }
+}
+
+function toggleIntegrationConnection(integrationId) {
+  if (!integrationId) {
+    return;
+  }
+
+  const integrations = getStoredIntegrations();
+  const index = integrations.findIndex(item => item.id === integrationId);
+  if (index === -1) {
+    return;
+  }
+
+  const integration = { ...integrations[index] };
+  const previousStatus = integration.status;
+
+  if (previousStatus === 'connected') {
+    integration.status = 'available';
+    integration.connectedAccount = '';
+    integration.lastSync = null;
+    integration.requiresSetup = false;
+    integration.updatedAt = Date.now();
+    toast.show(`${integration.name} telah diputuskan dari Entraverse.`);
+  } else {
+    integration.status = 'connected';
+    if (!integration.connectedAccount) {
+      integration.connectedAccount = 'Entraverse API';
+    }
+    integration.lastSync = new Date().toISOString();
+    integration.requiresSetup = false;
+    integration.updatedAt = Date.now();
+    const message = previousStatus === 'pending'
+      ? `${integration.name} siap digunakan setelah setup selesai.`
+      : `${integration.name} berhasil terhubung.`;
+    toast.show(message);
+  }
+
+  integrations[index] = integration;
+  setStoredIntegrations(integrations);
+
+  const filter = document.getElementById('search-input')?.value ?? '';
+  renderIntegrations(filter);
+}
+
+function handleIntegrationActions() {
+  const tableBody = document.getElementById('integrations-table-body');
+  if (!tableBody) {
+    return;
+  }
+
+  tableBody.addEventListener('click', event => {
+    const button = event.target.closest('[data-integration-action]');
+    if (!button) {
+      return;
+    }
+
+    const row = button.closest('tr');
+    const integrationId = row?.dataset.integrationId;
+    if (!integrationId) {
+      return;
+    }
+
+    toggleIntegrationConnection(integrationId);
+  });
+}
+
+async function initIntegrations() {
+  ensureIntegrationsSeeded();
+  renderIntegrations();
+  handleSearch(value => renderIntegrations(value));
+  handleIntegrationActions();
+
+  const addButton = document.getElementById('add-integration-btn');
+  if (addButton) {
+    addButton.addEventListener('click', () => {
+      toast.show('Hubungi tim Entraverse untuk menambahkan integrasi baru.');
+    });
+  }
+}
+
 async function initDashboard() {
   let supabaseReady = true;
 
@@ -6540,7 +6892,7 @@ function initPage() {
       handleRegister();
     }
 
-    if (['dashboard', 'add-product', 'categories', 'shipping'].includes(page)) {
+    if (['dashboard', 'add-product', 'categories', 'shipping', 'integrations'].includes(page)) {
       setupSidebarToggle();
       setupSidebarCollapse();
       const { user, status } = await ensureAuthenticatedPage();
@@ -6564,6 +6916,10 @@ function initPage() {
 
     if (page === 'shipping') {
       await initShippingPage();
+    }
+
+    if (page === 'integrations') {
+      await initIntegrations();
     }
 
   });

@@ -22,6 +22,7 @@
   --color-focus: rgba(59, 130, 246, 0.4);
   --color-success: #10b981;
   --color-danger: #ef4444;
+  --color-warning: #f59e0b;
   --color-accent-soft: rgba(37, 99, 235, 0.16);
   --sidebar-width: 280px;
   --radius-lg: 16px;
@@ -55,6 +56,7 @@ body[data-theme="dark"] {
   --color-sidebar-link-active: rgba(255, 255, 255, 0.96);
   --color-focus: rgba(96, 165, 250, 0.42);
   --color-danger: #f87171;
+  --color-warning: #fbbf24;
   --color-accent-soft: rgba(96, 165, 250, 0.26);
   --shadow-sm: 0 16px 30px rgba(2, 6, 23, 0.55);
   --shadow-md: 0 28px 50px rgba(2, 6, 23, 0.65);
@@ -78,7 +80,8 @@ body[data-page="categories"],
 body[data-page="add-product"],
 body[data-page="suppliers"],
 body[data-page="shipping"],
-body[data-page="other-vendors"] {
+body[data-page="other-vendors"],
+body[data-page="integrations"] {
   overflow: hidden;
 }
 
@@ -1223,6 +1226,192 @@ a.action-icon {
   background: rgba(37, 99, 235, 0.16);
   border-color: rgba(37, 99, 235, 0.32);
   color: var(--color-primary);
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: var(--color-icon-bg);
+  border: 1px solid var(--color-icon-border);
+  color: var(--color-text);
+}
+
+.status-chip--connected {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.32);
+  color: var(--color-success);
+}
+
+.status-chip--pending {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.32);
+  color: var(--color-warning);
+}
+
+.status-chip--available {
+  background: rgba(148, 163, 184, 0.18);
+  border-color: rgba(148, 163, 184, 0.32);
+  color: var(--color-muted);
+}
+
+.integration-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--color-warning);
+}
+
+.integrations-table td:first-child {
+  width: 320px;
+}
+
+.integrations-table td:nth-child(4) {
+  min-width: 180px;
+}
+
+.integrations-table td:nth-child(5) {
+  min-width: 200px;
+}
+
+.integration-name {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.integration-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--color-icon-bg);
+  border: 1px solid var(--color-icon-border);
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+}
+
+.integration-name strong {
+  display: block;
+  font-size: 15px;
+}
+
+.integration-capabilities {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.integration-account {
+  font-weight: 500;
+}
+
+.integration-account.is-empty {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.integration-sync {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.integration-sync__frequency {
+  font-weight: 500;
+}
+
+.integration-sync__meta {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.integration-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.integration-metrics {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.integration-metric {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--color-surface-alt);
+}
+
+.integration-metric__label {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.integration-metric__value {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.integration-metric__meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.integration-highlights {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.integration-highlight {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--color-surface-alt);
+}
+
+.integration-highlight__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--color-icon-bg);
+  border: 1px solid var(--color-icon-border);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+}
+
+.integration-highlight h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.integration-highlight p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
 }
 
 
