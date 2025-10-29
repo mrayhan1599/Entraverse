@@ -290,7 +290,10 @@ const DEFAULT_API_INTEGRATIONS = Object.freeze([
     connectedAccount: 'Finance Ops',
     syncFrequency: 'Setiap 15 menit',
     lastSync: '2024-09-12T09:45:00+07:00',
-    capabilities: 'Sinkronisasi penjualan, invoice, dan jurnal ke Mekari Jurnal secara otomatis.'
+    capabilities: 'Sinkronisasi penjualan, invoice, dan jurnal ke Mekari Jurnal secara otomatis.',
+    apiBaseUrl: 'https://api.jurnal.id',
+    authorizationPath: '/oauth/authorize',
+    accessToken: 'JURNAL-PROD-TKN-9F2X45'
   },
   {
     id: 'integration-accurate-online',
@@ -301,7 +304,10 @@ const DEFAULT_API_INTEGRATIONS = Object.freeze([
     syncFrequency: 'Setiap 1 jam',
     lastSync: null,
     capabilities: 'Siapkan token API untuk mengirim data stok dan penjualan ke Accurate Online.',
-    requiresSetup: true
+    requiresSetup: true,
+    apiBaseUrl: 'https://accurate.id/api',
+    authorizationPath: '/oauth/authorize',
+    accessToken: ''
   },
   {
     id: 'integration-quickbooks',
@@ -311,7 +317,10 @@ const DEFAULT_API_INTEGRATIONS = Object.freeze([
     connectedAccount: '',
     syncFrequency: 'Manual / Sesuai permintaan',
     lastSync: null,
-    capabilities: 'Ekspor transaksi impor dan ekspor ke QuickBooks secara instan.'
+    capabilities: 'Ekspor transaksi impor dan ekspor ke QuickBooks secara instan.',
+    apiBaseUrl: 'https://quickbooks.api.intuit.com',
+    authorizationPath: '/v3/company/oauth2/authorize',
+    accessToken: ''
   },
   {
     id: 'integration-google-data-studio',
@@ -321,7 +330,10 @@ const DEFAULT_API_INTEGRATIONS = Object.freeze([
     connectedAccount: 'Management Dashboard',
     syncFrequency: 'Setiap 30 menit',
     lastSync: '2024-09-12T08:15:00+07:00',
-    capabilities: 'Streaming performa penjualan ke dashboard BI untuk pemantauan real-time.'
+    capabilities: 'Streaming performa penjualan ke dashboard BI untuk pemantauan real-time.',
+    apiBaseUrl: 'https://lookerstudio.google.com',
+    authorizationPath: '/auth/embed',
+    accessToken: 'LOOKER-DASH-TKN-1A2B3C'
   }
 ]);
 
@@ -6501,11 +6513,14 @@ function sanitizeIntegration(integration) {
   sanitized.connectedAccount = (raw.connectedAccount ?? '').toString().trim();
   sanitized.syncFrequency = (raw.syncFrequency ?? 'Manual').toString().trim() || 'Manual';
   sanitized.capabilities = (raw.capabilities ?? '').toString().trim();
+  sanitized.apiBaseUrl = (raw.apiBaseUrl ?? '').toString().trim();
+  sanitized.authorizationPath = (raw.authorizationPath ?? '').toString().trim();
+  sanitized.accessToken = (raw.accessToken ?? '').toString().trim();
 
   const syncTime = raw.lastSync ? new Date(raw.lastSync) : null;
   sanitized.lastSync = syncTime && !Number.isNaN(syncTime.getTime()) ? syncTime.toISOString() : null;
 
-  sanitized.requiresSetup = Boolean(raw.requiresSetup) && sanitized.status === 'pending';
+  sanitized.requiresSetup = sanitized.status === 'pending' && Boolean(raw.requiresSetup);
   sanitized.createdAt = typeof raw.createdAt === 'number' ? raw.createdAt : Date.now();
   sanitized.updatedAt = typeof raw.updatedAt === 'number' ? raw.updatedAt : sanitized.createdAt;
 
@@ -6584,6 +6599,28 @@ function formatIntegrationSyncTime(value) {
   }).format(date);
 }
 
+function maskAccessToken(token) {
+  if (!token) {
+    return '';
+  }
+
+  const text = token.toString();
+  if (!text.trim()) {
+    return '';
+  }
+
+  const normalized = text.trim();
+  if (normalized.length <= 6) {
+    return '••••';
+  }
+
+  const prefix = normalized.slice(0, 4);
+  const suffix = normalized.slice(-2);
+  const hiddenLength = Math.max(2, normalized.length - prefix.length - suffix.length);
+  const hidden = '•'.repeat(hiddenLength);
+  return `${prefix}${hidden}${suffix}`;
+}
+
 function getIntegrationStatusMeta(status) {
   switch (status) {
     case 'connected':
@@ -6638,11 +6675,11 @@ function renderIntegrations(filter = '') {
       })
     : integrations;
 
-  if (!filtered.length) {
-    const message = query
-      ? `Tidak ditemukan integrasi untuk "${escapeHtml(filter)}".`
-      : 'Belum ada integrasi terdaftar.';
-    tbody.innerHTML = `<tr class="empty-state"><td colspan="6">${message}</td></tr>`;
+    if (!filtered.length) {
+      const message = query
+        ? `Tidak ditemukan integrasi untuk "${escapeHtml(filter)}".`
+        : 'Belum ada integrasi terdaftar.';
+      tbody.innerHTML = `<tr class="empty-state"><td colspan="7">${message}</td></tr>`;
   } else {
     tbody.innerHTML = filtered
       .map(integration => {
@@ -6655,6 +6692,17 @@ function renderIntegrations(filter = '') {
         const setupNote = requiresSetup
           ? '<span class="integration-note">Butuh konfigurasi token callback</span>'
           : '';
+
+        const baseUrlDisplay = integration.apiBaseUrl
+          ? `<code>${escapeHtml(integration.apiBaseUrl)}</code>`
+          : '<span class="is-empty">Belum diatur</span>';
+        const authPathDisplay = integration.authorizationPath
+          ? `<code>${escapeHtml(integration.authorizationPath)}</code>`
+          : '<span class="is-empty">Belum diatur</span>';
+        const maskedToken = maskAccessToken(integration.accessToken);
+        const tokenDisplay = maskedToken
+          ? `<span class="token-value" title="${escapeHtml(integration.accessToken)}">${escapeHtml(maskedToken)}</span>`
+          : '<span class="is-empty">Belum diatur</span>';
 
         let actionLabel = 'Hubungkan';
         let actionClass = 'btn primary-btn small';
@@ -6691,8 +6739,30 @@ function renderIntegrations(filter = '') {
                 <span class="integration-sync__meta">Terakhir: ${escapeHtml(lastSync)}</span>
               </div>
             </td>
+            <td class="integration-config">
+              <dl>
+                <div>
+                  <dt>Base URL</dt>
+                  <dd>${baseUrlDisplay}</dd>
+                </div>
+                <div>
+                  <dt>Auth Path</dt>
+                  <dd>${authPathDisplay}</dd>
+                </div>
+                <div>
+                  <dt>Access Token</dt>
+                  <dd>${tokenDisplay}</dd>
+                </div>
+              </dl>
+            </td>
             <td class="integration-actions">
-              <button class="${actionClass}" type="button" data-integration-action="toggle" data-action-state="${actionState}">${actionLabel}</button>
+              <div class="integration-actions__primary">
+                <button class="${actionClass}" type="button" data-integration-action="toggle" data-action-state="${actionState}">${actionLabel}</button>
+              </div>
+              <div class="integration-actions__secondary">
+                <button class="btn ghost-btn small" type="button" data-integration-action="edit">Edit</button>
+                <button class="btn danger-btn small" type="button" data-integration-action="delete">Hapus</button>
+              </div>
             </td>
           </tr>
         `;
@@ -6749,7 +6819,7 @@ function toggleIntegrationConnection(integrationId) {
   renderIntegrations(filter);
 }
 
-function handleIntegrationActions() {
+function handleIntegrationActions(options = {}) {
   const tableBody = document.getElementById('integrations-table-body');
   if (!tableBody) {
     return;
@@ -6761,13 +6831,28 @@ function handleIntegrationActions() {
       return;
     }
 
+    event.preventDefault();
+
+    const action = button.dataset.integrationAction;
     const row = button.closest('tr');
     const integrationId = row?.dataset.integrationId;
     if (!integrationId) {
       return;
     }
 
-    toggleIntegrationConnection(integrationId);
+    if (action === 'toggle') {
+      toggleIntegrationConnection(integrationId);
+      return;
+    }
+
+    if (action === 'edit' && typeof options.onEdit === 'function') {
+      options.onEdit(integrationId);
+      return;
+    }
+
+    if (action === 'delete' && typeof options.onDelete === 'function') {
+      options.onDelete(integrationId);
+    }
   });
 }
 
@@ -6775,14 +6860,263 @@ async function initIntegrations() {
   ensureIntegrationsSeeded();
   renderIntegrations();
   handleSearch(value => renderIntegrations(value));
-  handleIntegrationActions();
 
+  const modal = document.getElementById('integration-modal');
+  const form = document.getElementById('integration-form');
+  const modalTitle = document.getElementById('integration-modal-title');
+  const submitBtn = form?.querySelector('button[type="submit"]');
+  const closeButtons = modal ? Array.from(modal.querySelectorAll('[data-close-modal]')) : [];
   const addButton = document.getElementById('add-integration-btn');
-  if (addButton) {
-    addButton.addEventListener('click', () => {
-      toast.show('Hubungi tim Entraverse untuk menambahkan integrasi baru.');
+  const nameInput = form?.querySelector('#integration-name');
+
+  const getFilterValue = () => document.getElementById('search-input')?.value ?? '';
+  const refreshTable = () => {
+    const filter = getFilterValue();
+    renderIntegrations(filter);
+  };
+
+  const toInputValue = value => (value === null || value === undefined ? '' : value);
+
+  const setFieldValue = (selector, value) => {
+    if (!form) return;
+    const field = form.querySelector(selector);
+    if (!field) {
+      return;
+    }
+
+    if (field.type === 'checkbox') {
+      field.checked = Boolean(value);
+    } else {
+      field.value = toInputValue(value);
+    }
+  };
+
+  const populateFormFields = integration => {
+    if (!form) return;
+    form.reset();
+    if (integration) {
+      form.dataset.editingId = integration.id ?? '';
+      setFieldValue('#integration-name', integration.name ?? '');
+      setFieldValue('#integration-category', integration.category ?? '');
+      setFieldValue('#integration-status', integration.status ?? 'available');
+      setFieldValue('#integration-connected-account', integration.connectedAccount ?? '');
+      setFieldValue('#integration-sync-frequency', integration.syncFrequency ?? '');
+      setFieldValue('#integration-api-base-url', integration.apiBaseUrl ?? '');
+      setFieldValue('#integration-authorization-path', integration.authorizationPath ?? '');
+      setFieldValue('#integration-access-token', integration.accessToken ?? '');
+      setFieldValue('#integration-capabilities', integration.capabilities ?? '');
+      setFieldValue('#integration-requires-setup', Boolean(integration.requiresSetup));
+    } else {
+      delete form.dataset.editingId;
+      setFieldValue('#integration-status', 'available');
+      setFieldValue('#integration-requires-setup', false);
+    }
+  };
+
+  const resetSubmitState = () => {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('is-loading');
+    }
+  };
+
+  const focusNameField = () => {
+    if (!nameInput) return;
+    requestAnimationFrame(() => {
+      nameInput.focus({ preventScroll: true });
+      nameInput.select?.();
+    });
+  };
+
+  const closeModal = () => {
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.classList.remove('modal-open');
+    populateFormFields(null);
+    resetSubmitState();
+  };
+
+  const openCreateModal = () => {
+    if (!requireCatalogManager('Silakan login untuk menambah integrasi API.')) {
+      return;
+    }
+    if (modalTitle) {
+      modalTitle.textContent = 'Tambah Integrasi API';
+    }
+    if (submitBtn) {
+      submitBtn.textContent = 'Simpan';
+    }
+    populateFormFields(null);
+    if (modal) {
+      modal.hidden = false;
+      document.body.classList.add('modal-open');
+      focusNameField();
+    }
+  };
+
+  const openEditModal = integration => {
+    if (!requireCatalogManager('Silakan login untuk mengelola integrasi API.')) {
+      return;
+    }
+    if (!integration) {
+      toast.show('Integrasi tidak ditemukan.');
+      return;
+    }
+    if (modalTitle) {
+      modalTitle.textContent = 'Edit Integrasi API';
+    }
+    if (submitBtn) {
+      submitBtn.textContent = 'Perbarui';
+    }
+    populateFormFields(integration);
+    if (modal) {
+      modal.hidden = false;
+      document.body.classList.add('modal-open');
+      focusNameField();
+    }
+  };
+
+  const findIntegrationById = id => {
+    if (!id) return null;
+    return getStoredIntegrations().find(integration => integration.id === id) || null;
+  };
+
+  const handleDeleteIntegration = integrationId => {
+    if (!requireCatalogManager('Silakan login untuk menghapus integrasi API.')) {
+      return;
+    }
+
+    const integration = findIntegrationById(integrationId);
+    if (!integration) {
+      toast.show('Integrasi tidak ditemukan.');
+      return;
+    }
+
+    const confirmed = window.confirm(`Hapus integrasi "${integration.name}"?`);
+    if (!confirmed) {
+      return;
+    }
+
+    const remaining = getStoredIntegrations().filter(item => item.id !== integrationId);
+    setStoredIntegrations(remaining);
+    refreshTable();
+    toast.show(`${integration.name} telah dihapus.`);
+  };
+
+  addButton?.addEventListener('click', openCreateModal);
+  closeButtons.forEach(button => button.addEventListener('click', closeModal));
+
+  if (modal) {
+    modal.addEventListener('click', event => {
+      if (event.target === modal) {
+        closeModal();
+      }
     });
   }
+
+  if (form) {
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+
+      if (!requireCatalogManager('Silakan login untuk mengelola integrasi API.')) {
+        return;
+      }
+
+      if (typeof form.reportValidity === 'function' && !form.reportValidity()) {
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('is-loading');
+      }
+
+      const formData = new FormData(form);
+      const editingId = form.dataset.editingId;
+      const isEditing = Boolean(editingId);
+
+      const getValue = name => {
+        const value = formData.get(name);
+        if (value === null || typeof value === 'undefined') {
+          return '';
+        }
+        return value.toString().trim();
+      };
+
+      const status = getValue('status') || 'available';
+      const payload = {
+        id: editingId || createUuid(),
+        name: getValue('name'),
+        category: getValue('category'),
+        status,
+        connectedAccount: getValue('connectedAccount'),
+        syncFrequency: getValue('syncFrequency'),
+        capabilities: getValue('capabilities'),
+        apiBaseUrl: getValue('apiBaseUrl'),
+        authorizationPath: getValue('authorizationPath'),
+        accessToken: getValue('accessToken'),
+        requiresSetup: formData.get('requiresSetup') === 'on'
+      };
+
+      if (payload.status === 'connected' && !payload.connectedAccount) {
+        payload.connectedAccount = 'Entraverse API';
+      }
+
+      let integrations = getStoredIntegrations();
+
+      if (!payload.name) {
+        toast.show('Nama integrasi wajib diisi.');
+        resetSubmitState();
+        return;
+      }
+
+      if (isEditing) {
+        const index = integrations.findIndex(item => item.id === editingId);
+        if (index === -1) {
+          toast.show('Integrasi tidak ditemukan.');
+          resetSubmitState();
+          return;
+        }
+
+        const existing = integrations[index];
+        const updated = {
+          ...existing,
+          ...payload,
+          updatedAt: Date.now()
+        };
+
+        if (payload.status === 'connected') {
+          updated.lastSync = existing.lastSync || new Date().toISOString();
+        } else if (payload.status === 'available') {
+          updated.lastSync = null;
+        }
+
+        integrations[index] = updated;
+      } else {
+        const now = Date.now();
+        const newIntegration = {
+          ...payload,
+          createdAt: now,
+          updatedAt: now,
+          lastSync: payload.status === 'connected' ? new Date().toISOString() : null
+        };
+        integrations = [...integrations, newIntegration];
+      }
+
+      setStoredIntegrations(integrations);
+      refreshTable();
+      toast.show(isEditing ? 'Integrasi berhasil diperbarui.' : 'Integrasi baru ditambahkan.');
+      closeModal();
+    });
+  }
+
+  handleIntegrationActions({
+    onEdit: integrationId => {
+      const integration = findIntegrationById(integrationId);
+      openEditModal(integration);
+    },
+    onDelete: handleDeleteIntegration
+  });
 }
 
 async function initDashboard() {

@@ -163,6 +163,20 @@ a:hover {
   gap: 16px;
 }
 
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  min-width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
 label {
   font-weight: 500;
   color: var(--color-text);
@@ -284,6 +298,17 @@ textarea {
 
 .ghost-btn:hover {
   background: var(--color-icon-hover);
+}
+
+.danger-btn {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+}
+
+.danger-btn:hover {
+  background: rgba(239, 68, 68, 0.18);
+  color: #b91c1c;
 }
 
 .icon-btn {
@@ -1337,9 +1362,76 @@ a.action-icon {
   color: var(--color-muted);
 }
 
+.integration-config {
+  min-width: 220px;
+}
+
+.integration-config dl {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.integration-config dl > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.integration-config dt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.integration-config dd {
+  margin: 0;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', monospace;
+  font-size: 13px;
+  color: var(--color-text);
+  word-break: break-all;
+}
+
+.integration-config code {
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  display: inline-block;
+}
+
+.integration-config .token-value {
+  letter-spacing: 0.08em;
+}
+
+.integration-config .is-empty {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
 .integration-actions {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.integration-actions__primary,
+.integration-actions__secondary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.integration-actions__secondary {
+  justify-content: flex-end;
+}
+
+.integration-actions .btn.small {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .integration-metrics {
