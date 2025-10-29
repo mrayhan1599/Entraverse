@@ -136,12 +136,13 @@
                 <th>Status</th>
                 <th>Terhubung Sebagai</th>
                 <th>Sinkronisasi</th>
+                <th>Konfigurasi API</th>
                 <th>Aksi</th>
               </tr>
             </thead>
             <tbody id="integrations-table-body">
               <tr class="empty-state">
-                <td colspan="6">Belum ada integrasi terdaftar.</td>
+                <td colspan="7">Belum ada integrasi terdaftar.</td>
               </tr>
             </tbody>
           </table>
@@ -187,6 +188,70 @@
         </div>
       </section>
     </main>
+    <div class="modal-backdrop" id="integration-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="integration-modal-title">
+        <form id="integration-form" class="modal-form">
+          <div class="modal-header">
+            <h2 id="integration-modal-title">Tambah Integrasi API</h2>
+            <button class="icon-btn small" type="button" data-close-modal aria-label="Tutup formulir">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="integration-name">Nama Integrasi</label>
+              <input type="text" id="integration-name" name="name" placeholder="Contoh: Mekari Jurnal" required>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="integration-category">Kategori</label>
+                <input type="text" id="integration-category" name="category" placeholder="Contoh: Keuangan &amp; Akuntansi" required>
+              </div>
+              <div class="form-group">
+                <label for="integration-status">Status</label>
+                <select id="integration-status" name="status" required>
+                  <option value="connected">Tersambung</option>
+                  <option value="pending">Menunggu Setup</option>
+                  <option value="available">Belum Terhubung</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="integration-connected-account">Terhubung Sebagai</label>
+              <input type="text" id="integration-connected-account" name="connectedAccount" placeholder="Contoh: Finance Ops">
+            </div>
+            <div class="form-group">
+              <label for="integration-sync-frequency">Frekuensi Sinkronisasi</label>
+              <input type="text" id="integration-sync-frequency" name="syncFrequency" placeholder="Contoh: Setiap 15 menit">
+            </div>
+            <div class="form-group">
+              <label for="integration-api-base-url">URL API</label>
+              <input type="url" id="integration-api-base-url" name="apiBaseUrl" placeholder="https://api.contoh.com">
+            </div>
+            <div class="form-group">
+              <label for="integration-authorization-path">Authorization Path</label>
+              <input type="text" id="integration-authorization-path" name="authorizationPath" placeholder="/oauth/authorize">
+            </div>
+            <div class="form-group">
+              <label for="integration-access-token">Access Token</label>
+              <input type="text" id="integration-access-token" name="accessToken" placeholder="Masukkan token akses">
+            </div>
+            <div class="form-group">
+              <label for="integration-capabilities">Deskripsi Integrasi</label>
+              <textarea id="integration-capabilities" name="capabilities" rows="3" placeholder="Ringkas fungsi integrasi"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label" for="integration-requires-setup">
+                <input type="checkbox" id="integration-requires-setup" name="requiresSetup">
+                <span>Butuh konfigurasi lanjutan setelah terhubung</span>
+              </label>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn ghost-btn" type="button" data-close-modal>Batal</button>
+            <button class="btn primary-btn" type="submit">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
   <script>
     window.entraverseConfig = window.entraverseConfig || {};
