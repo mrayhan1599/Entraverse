@@ -91,6 +91,7 @@ const DEFAULT_PRODUCTS = [
         tokopediaPrice: '9750000',
         shopeePrice: '9650000',
         stock: '25',
+        dailyAverageSales: '8',
         weight: '2000'
       },
       {
@@ -109,6 +110,7 @@ const DEFAULT_PRODUCTS = [
         tokopediaPrice: '10000000',
         shopeePrice: '9950000',
         stock: '18',
+        dailyAverageSales: '6',
         weight: '2050'
       }
     ],
@@ -146,6 +148,7 @@ const DEFAULT_PRODUCTS = [
         tokopediaPrice: '10699000',
         shopeePrice: '10550000',
         stock: '12',
+        dailyAverageSales: '5',
         weight: '2100'
       },
       {
@@ -164,6 +167,7 @@ const DEFAULT_PRODUCTS = [
         tokopediaPrice: '11150000',
         shopeePrice: '11050000',
         stock: '9',
+        dailyAverageSales: '4',
         weight: '2100'
       }
     ],
@@ -5442,6 +5446,7 @@ async function handleAddProductForm() {
         tokopediaPrice: getValue('[data-field="tokopediaPrice"]', { asRupiah: true }),
         shopeePrice: getValue('[data-field="shopeePrice"]', { asRupiah: true }),
         stock: getValue('[data-field="stock"]'),
+        dailyAverageSales: getValue('[data-field="dailyAverageSales"]'),
         weight: getValue('[data-field="weight"]')
       };
 
@@ -5586,6 +5591,7 @@ async function handleAddProductForm() {
       'tokopediaPrice',
       'shopeePrice',
       'stock',
+      'dailyAverageSales',
       'weight'
     ].forEach(field => {
       applyFieldValue(field, initialData[field]);
@@ -5682,6 +5688,12 @@ async function handleAddProductForm() {
         input.pattern = '[0-9]*';
       }
 
+      if (field === 'dailyAverageSales') {
+        input.inputMode = 'decimal';
+        input.min = '0';
+        input.step = '0.01';
+      }
+
       if (AUTO_COMPUTED_PRICING_FIELDS.has(field)) {
         input.readOnly = true;
         input.tabIndex = -1;
@@ -5748,6 +5760,7 @@ async function handleAddProductForm() {
     buildInputCell('tokopediaPrice', 'Rp 0');
     buildInputCell('shopeePrice', 'Rp 0');
     buildInputCell('stock', 'Stok');
+    buildInputCell('dailyAverageSales', '0', 'number');
     buildInputCell('weight', 'Gram');
 
     const actionsCell = document.createElement('td');
@@ -5870,6 +5883,7 @@ async function handleAddProductForm() {
       'Harga Jual Tokopedia',
       'Harga Jual Shopee',
       'Stok',
+      'Rata-rata Penjualan per Hari',
       'Berat Barang',
       ''
     ];
@@ -6111,7 +6125,6 @@ async function handleAddProductForm() {
     }
     const inventoryFields = {
       initialStockPrediction: form.querySelector('#initial-stock-prediction'),
-      dailyAverageSales: form.querySelector('#daily-average-sales'),
       leadTime: form.querySelector('#lead-time'),
       reorderPoint: form.querySelector('#reorder-point'),
       weightGrams: weightInput,
@@ -6178,8 +6191,17 @@ async function handleAddProductForm() {
     }
 
     if (pricingBody) {
+      const fallbackDailyAverage = (product.inventory?.dailyAverageSales ?? '').toString().trim();
       const pricingData = Array.isArray(product.variantPricing) && product.variantPricing.length
-        ? product.variantPricing
+        ? product.variantPricing.map(row => {
+            if (!row) return row;
+            if (!fallbackDailyAverage) return row;
+            const existingValue = (row.dailyAverageSales ?? '').toString().trim();
+            if (existingValue) {
+              return row;
+            }
+            return { ...row, dailyAverageSales: fallbackDailyAverage };
+          })
         : [{}];
       refreshPricingTableStructure({ externalData: pricingData });
     }
@@ -6221,7 +6243,6 @@ async function handleAddProductForm() {
     })();
     const inventoryData = {
       initialStockPrediction: (formData.get('initialStockPrediction') ?? '').toString().trim(),
-      dailyAverageSales: (formData.get('dailyAverageSales') ?? '').toString().trim(),
       leadTime: (formData.get('leadTime') ?? '').toString().trim(),
       reorderPoint: (formData.get('reorderPoint') ?? '').toString().trim(),
       weightGrams: (formData.get('weightGrams') ?? '').toString().trim(),
@@ -6281,6 +6302,7 @@ async function handleAddProductForm() {
         tokopediaPrice: (row.tokopediaPrice ?? '').toString().trim(),
         shopeePrice: (row.shopeePrice ?? '').toString().trim(),
         stock: (row.stock ?? '').toString().trim(),
+        dailyAverageSales: (row.dailyAverageSales ?? '').toString().trim(),
         weight: (row.weight ?? '').toString().trim()
       };
 
@@ -6315,6 +6337,7 @@ async function handleAddProductForm() {
         row.tokopediaPrice,
         row.shopeePrice,
         row.stock,
+        row.dailyAverageSales,
         row.weight
       ].map(value => (value ?? '').toString().trim());
       const hasDetails = detailValues.some(Boolean);
