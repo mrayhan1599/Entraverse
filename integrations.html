@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Entraverse Admin - Vendor Pengiriman</title>
+  <title>Entraverse Admin - Integrasi Aplikasi API</title>
   <link rel="stylesheet" href="assets/css/styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body data-page="shipping">
+<body data-page="integrations">
   <div class="app-shell">
     <aside class="sidebar" data-sidebar>
       <div class="sidebar-header">
@@ -48,11 +48,11 @@
         </div>
         <div class="nav-section">
           <p class="nav-title">Vendor</p>
-          <a class="nav-link active" href="shipping-vendors.html">
+          <a class="nav-link" href="shipping-vendors.html">
             <span class="nav-icon" aria-hidden="true">🚚</span>
             Vendor Pengiriman
           </a>
-          <a class="nav-link" href="integrations.html">
+          <a class="nav-link active" href="integrations.html">
             <span class="nav-icon" aria-hidden="true">🔌</span>
             Integrasi Aplikasi API
           </a>
@@ -83,7 +83,7 @@
           </button>
           <form class="search-bar" role="search">
             <span class="search-icon" aria-hidden="true">🔍</span>
-            <input type="search" id="search-input" placeholder="Cari vendor pengiriman" aria-label="Pencarian vendor pengiriman">
+            <input type="search" id="search-input" placeholder="Cari integrasi API" aria-label="Pencarian integrasi aplikasi">
           </form>
         </div>
         <div class="topbar-actions">
@@ -111,120 +111,82 @@
       <section class="content-header">
         <div class="title-stack">
           <div class="title-bar">
-            <h1>Vendor Pengiriman</h1>
-            <div class="title-actions" role="toolbar" aria-label="Aksi vendor pengiriman">
-              <button id="add-shipping-vendor-btn" class="btn primary-btn small" type="button">+ Tambah Vendor</button>
+            <h1>Integrasi Aplikasi API</h1>
+            <div class="title-actions" role="toolbar" aria-label="Aksi integrasi aplikasi">
+              <button id="add-integration-btn" class="btn primary-btn small" type="button">+ Tambah Integrasi</button>
             </div>
           </div>
-          <p>Kelola seluruh kemitraan logistik untuk mendukung pemenuhan pesanan dan distribusi produk.</p>
+          <p>Hubungkan sistem Entraverse Supplier dengan aplikasi keuangan, akuntansi, dan operasi agar data bisnis selalu sinkron.</p>
         </div>
       </section>
       <section class="card">
         <header class="card-header">
           <div>
-            <h2>Daftar Vendor Pengiriman</h2>
-            <p class="card-subtitle">Detail mencakup layanan, cakupan area, serta PIC yang dapat dihubungi untuk setiap vendor.</p>
+            <h2>Daftar Integrasi API</h2>
+            <p class="card-subtitle">Kelola koneksi ke platform pihak ketiga untuk mempercepat otomasi laporan dan operasional.</p>
           </div>
-          <span id="shipping-count" class="count-pill">0 vendor</span>
+          <span id="integration-count" class="count-pill">0 integrasi</span>
         </header>
         <div class="table-wrapper">
-          <table class="category-table">
+          <table class="category-table integrations-table">
             <thead>
               <tr>
-                <th>Vendor</th>
-                <th>Jenis Layanan</th>
-                <th>Cakupan</th>
-                <th>Kontak</th>
+                <th>Aplikasi</th>
+                <th>Kategori</th>
+                <th>Status</th>
+                <th>Terhubung Sebagai</th>
+                <th>Sinkronisasi</th>
                 <th>Aksi</th>
               </tr>
             </thead>
-            <tbody id="shipping-table-body">
+            <tbody id="integrations-table-body">
               <tr class="empty-state">
-                <td colspan="5">Tidak ada vendor pengiriman ditemukan.</td>
+                <td colspan="6">Belum ada integrasi terdaftar.</td>
               </tr>
             </tbody>
           </table>
         </div>
       </section>
+      <section class="card">
+        <header class="card-header">
+          <h2>Ringkasan Integrasi</h2>
+        </header>
+        <div class="integration-metrics">
+          <div class="integration-metric">
+            <span class="integration-metric__label">Integrasi Aktif</span>
+            <strong class="integration-metric__value" data-integrations-connected>0</strong>
+            <p class="integration-metric__meta">Terkoneksi dan berjalan otomatis</p>
+          </div>
+          <div class="integration-metric">
+            <span class="integration-metric__label">Menunggu Setup</span>
+            <strong class="integration-metric__value" data-integrations-pending>0</strong>
+            <p class="integration-metric__meta">Butuh konfigurasi tambahan</p>
+          </div>
+          <div class="integration-metric">
+            <span class="integration-metric__label">Siap Dihubungkan</span>
+            <strong class="integration-metric__value" data-integrations-available>0</strong>
+            <p class="integration-metric__meta">Tersedia untuk aktivasi API</p>
+          </div>
+        </div>
+        <div class="integration-highlights">
+          <article class="integration-highlight">
+            <div class="integration-highlight__icon" aria-hidden="true">💡</div>
+            <h3>Keuangan &amp; Akuntansi</h3>
+            <p>Sinkronkan transaksi penjualan, pembelian, dan jurnal umum langsung ke software pembukuan.</p>
+          </article>
+          <article class="integration-highlight">
+            <div class="integration-highlight__icon" aria-hidden="true">📊</div>
+            <h3>Business Intelligence</h3>
+            <p>Tampilkan performa penjualan lintas kanal di dashboard real-time untuk pengambilan keputusan yang lebih cepat.</p>
+          </article>
+          <article class="integration-highlight">
+            <div class="integration-highlight__icon" aria-hidden="true">🤝</div>
+            <h3>Ekosistem Supplier</h3>
+            <p>Bagikan stok dan status pemenuhan ke partner logistik atau marketplace tanpa perlu input manual.</p>
+          </article>
+        </div>
+      </section>
     </main>
-    <div class="modal-backdrop" id="shipping-vendor-modal" hidden>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="shipping-vendor-modal-title">
-        <form id="shipping-vendor-form" class="modal-form">
-          <div class="modal-header">
-            <h2 id="shipping-vendor-modal-title">Tambah Vendor Pengiriman</h2>
-            <button class="icon-btn small" type="button" data-close-modal aria-label="Tutup formulir">✕</button>
-          </div>
-          <div class="modal-body">
-            <div class="form-group">
-              <label for="shipping-vendor-name">Nama Vendor</label>
-              <input type="text" id="shipping-vendor-name" name="name" placeholder="Contoh: Logistik Nusantara" required>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="shipping-vendor-services">Jenis Layanan</label>
-                <input type="text" id="shipping-vendor-services" name="services" placeholder="Contoh: Udara, Laut, Darat">
-              </div>
-              <div class="form-group">
-                <label for="shipping-vendor-coverage">Cakupan</label>
-                <input type="text" id="shipping-vendor-coverage" name="coverage" placeholder="Contoh: Nasional">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="shipping-vendor-pic">PIC</label>
-                <input type="text" id="shipping-vendor-pic" name="pic" placeholder="Nama penanggung jawab">
-              </div>
-              <div class="form-group">
-                <label for="shipping-vendor-email">Email</label>
-                <input type="email" id="shipping-vendor-email" name="email" placeholder="contoh@vendor.co.id">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="shipping-vendor-phone">Nomor Telepon</label>
-                <input type="tel" id="shipping-vendor-phone" name="phone" placeholder="Contoh: +62 812 3456 7890">
-              </div>
-              <div class="form-group">
-                <label for="shipping-vendor-detail-url">URL Detail</label>
-                <input type="url" id="shipping-vendor-detail-url" name="detailUrl" placeholder="https://contoh.com/tarif">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="shipping-vendor-air-rate">Tarif Udara</label>
-                <input
-                  type="text"
-                  id="shipping-vendor-air-rate"
-                  name="airRate"
-                  inputmode="numeric"
-                  autocomplete="off"
-                  placeholder="Rp 0"
-                >
-              </div>
-              <div class="form-group">
-                <label for="shipping-vendor-sea-rate">Tarif Laut</label>
-                <input
-                  type="text"
-                  id="shipping-vendor-sea-rate"
-                  name="seaRate"
-                  inputmode="numeric"
-                  autocomplete="off"
-                  placeholder="Rp 0"
-                >
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="shipping-vendor-note">Catatan</label>
-              <textarea id="shipping-vendor-note" name="note" rows="3" placeholder="Catatan tambahan terkait kerja sama"></textarea>
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button class="btn ghost-btn" type="button" data-close-modal>Batal</button>
-            <button class="btn primary-btn" type="submit">Simpan</button>
-          </div>
-        </form>
-      </div>
-    </div>
   </div>
   <script>
     window.entraverseConfig = window.entraverseConfig || {};
