@@ -5,7 +5,8 @@ const STORAGE_KEYS = {
   categories: 'entraverse_categories',
   exchangeRates: 'entraverse_exchange_rates',
   shippingVendors: 'entraverse_shipping_vendors',
-  integrations: 'entraverse_integrations'
+  integrations: 'entraverse_integrations',
+  salesReports: 'entraverse_sales_reports'
 };
 
 const GUEST_USER = Object.freeze({
@@ -336,6 +337,103 @@ const DEFAULT_API_INTEGRATIONS = Object.freeze([
     accessToken: 'LOOKER-DASH-TKN-1A2B3C'
   }
 ]);
+
+const DEFAULT_SALES_REPORTS = Object.freeze([
+  {
+    id: 'sales-2024-09-quest-128',
+    productName: 'Meta Quest 3S 128 GB Virtual Reality Headset',
+    sku: 'SKU-MQ3S-128-GRN-1TH-128',
+    channel: 'Tokopedia',
+    period: {
+      key: '2024-09',
+      label: 'September 2024',
+      start: '2024-09-01',
+      end: '2024-09-30'
+    },
+    unitsSold: 245,
+    grossSales: 2375000000,
+    discounts: 75000000,
+    netSales: 2300000000,
+    cogs: 1685000000,
+    grossProfit: 615000000,
+    margin: 0.267,
+    syncStatus: 'on-track',
+    syncFrequency: 'Setiap 15 menit',
+    lastSyncAt: '2024-10-02T10:15:00+07:00',
+    integration: 'Mekari Jurnal'
+  },
+  {
+    id: 'sales-2024-09-quest-256',
+    productName: 'Meta Quest 3S 256 GB Virtual Reality Headset',
+    sku: 'SKU-MQ3S-256-GRP-1TH',
+    channel: 'Shopee',
+    period: {
+      key: '2024-09',
+      label: 'September 2024',
+      start: '2024-09-01',
+      end: '2024-09-30'
+    },
+    unitsSold: 198,
+    grossSales: 2058000000,
+    discounts: 62000000,
+    netSales: 1996000000,
+    cogs: 1489000000,
+    grossProfit: 507000000,
+    margin: 0.254,
+    syncStatus: 'scheduled',
+    syncFrequency: 'Setiap 30 menit',
+    lastSyncAt: '2024-10-02T10:12:00+07:00',
+    integration: 'Mekari Jurnal'
+  },
+  {
+    id: 'sales-2024-08-ps5',
+    productName: 'Sony PlayStation 5 Slim 1TB',
+    sku: 'SKU-PS5SLIM-1TB',
+    channel: 'Entraverse ID',
+    period: {
+      key: '2024-08',
+      label: 'Agustus 2024',
+      start: '2024-08-01',
+      end: '2024-08-31'
+    },
+    unitsSold: 172,
+    grossSales: 2564000000,
+    discounts: 98400000,
+    netSales: 2465600000,
+    cogs: 1824000000,
+    grossProfit: 641600000,
+    margin: 0.260,
+    syncStatus: 'on-track',
+    syncFrequency: 'Setiap 1 jam',
+    lastSyncAt: '2024-10-01T18:45:00+07:00',
+    integration: 'Mekari Jurnal'
+  },
+  {
+    id: 'sales-2024-q3-airpods',
+    productName: 'Apple AirPods Pro (2nd Gen) USB-C',
+    sku: 'SKU-AIRPODS-PRO-2-USBC',
+    channel: 'Tokopedia',
+    period: {
+      key: '2024-q3',
+      label: 'Triwulan 3 2024',
+      start: '2024-07-01',
+      end: '2024-09-30'
+    },
+    unitsSold: 486,
+    grossSales: 5218000000,
+    discounts: 186200000,
+    netSales: 5031800000,
+    cogs: 3824000000,
+    grossProfit: 1207800000,
+    margin: 0.240,
+    syncStatus: 'manual',
+    syncFrequency: 'Manual - Perlu persetujuan',
+    lastSyncAt: '2024-09-30T21:05:00+07:00',
+    integration: 'Mekari Jurnal'
+  }
+]);
+
+const SALES_REPORT_SYNC_STATUS = new Set(['on-track', 'manual', 'scheduled']);
 
 const LOCAL_STORAGE_KEYS = Object.freeze({
   shippingVendorsSnapshot: 'entraverse_shipping_vendors_snapshot',
@@ -2844,6 +2942,22 @@ function formatCurrency(value) {
   }).format(value);
 }
 
+function formatNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+  return new Intl.NumberFormat('id-ID').format(numeric);
+}
+
+function formatPercentage(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '0%';
+  }
+  return `${(numeric * 100).toFixed(1)}%`;
+}
+
 function normalizeVariants(variants) {
   if (!Array.isArray(variants)) {
     return [];
@@ -3160,7 +3274,7 @@ async function ensureAuthenticatedPage() {
   const page = document.body.dataset.page;
   const guest = getGuestUser();
 
-  if (!['dashboard', 'add-product', 'categories', 'shipping', 'integrations'].includes(page)) {
+  if (!['dashboard', 'add-product', 'categories', 'shipping', 'integrations', 'reports'].includes(page)) {
     return { user: guest, status: 'guest' };
   }
 
@@ -6784,6 +6898,268 @@ function formatIntegrationSyncTime(value) {
   }).format(date);
 }
 
+function sanitizeSalesReport(report) {
+  if (!report || typeof report !== 'object') {
+    return null;
+  }
+
+  const raw = { ...report };
+  const sanitized = {};
+
+  sanitized.id = (raw.id ?? '').toString().trim() || createUuid();
+  sanitized.productName = (raw.productName ?? '').toString().trim();
+  if (!sanitized.productName) {
+    return null;
+  }
+
+  sanitized.sku = (raw.sku ?? '').toString().trim();
+  sanitized.channel = (raw.channel ?? '').toString().trim() || 'Lainnya';
+
+  const period = typeof raw.period === 'object' && raw.period !== null ? raw.period : {};
+  const periodKey = (period.key ?? '').toString().trim();
+  const periodLabel = (period.label ?? periodKey ?? '').toString().trim();
+  sanitized.period = {
+    key: periodKey || 'custom',
+    label: periodLabel || 'Periode tidak diketahui',
+    start: period.start ?? null,
+    end: period.end ?? null
+  };
+
+  const units = Number(raw.unitsSold);
+  sanitized.unitsSold = Number.isFinite(units) && units >= 0 ? units : 0;
+
+  const gross = Number(raw.grossSales);
+  sanitized.grossSales = Number.isFinite(gross) ? gross : 0;
+
+  const discounts = Number(raw.discounts);
+  sanitized.discounts = Number.isFinite(discounts) ? discounts : 0;
+
+  const netSales = Number(raw.netSales);
+  sanitized.netSales = Number.isFinite(netSales) ? netSales : Math.max(0, sanitized.grossSales - sanitized.discounts);
+
+  const cogs = Number(raw.cogs);
+  sanitized.cogs = Number.isFinite(cogs) ? cogs : 0;
+
+  const grossProfit = Number(raw.grossProfit);
+  sanitized.grossProfit = Number.isFinite(grossProfit)
+    ? grossProfit
+    : Math.max(0, sanitized.netSales - sanitized.cogs);
+
+  const margin = Number(raw.margin);
+  sanitized.margin = Number.isFinite(margin) && margin >= 0
+    ? margin
+    : sanitized.netSales > 0
+      ? sanitized.grossProfit / sanitized.netSales
+      : 0;
+
+  const syncStatus = (raw.syncStatus ?? '').toString().trim().toLowerCase();
+  sanitized.syncStatus = SALES_REPORT_SYNC_STATUS.has(syncStatus) ? syncStatus : 'scheduled';
+  sanitized.syncFrequency = (raw.syncFrequency ?? '').toString().trim() || 'Manual';
+  sanitized.integration = (raw.integration ?? '').toString().trim() || 'Mekari Jurnal';
+
+  const syncDate = raw.lastSyncAt ? new Date(raw.lastSyncAt) : null;
+  sanitized.lastSyncAt = syncDate && !Number.isNaN(syncDate.getTime()) ? syncDate.toISOString() : null;
+
+  return sanitized;
+}
+
+function ensureSalesReportsSeeded() {
+  try {
+    if (localStorage.getItem(STORAGE_KEYS.salesReports)) {
+      return;
+    }
+
+    const seeded = DEFAULT_SALES_REPORTS.map(item => sanitizeSalesReport(item)).filter(Boolean);
+    localStorage.setItem(STORAGE_KEYS.salesReports, JSON.stringify(seeded));
+  } catch (error) {
+    console.error('Gagal menyiapkan data laporan penjualan.', error);
+  }
+}
+
+function getStoredSalesReports() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.salesReports);
+    if (!raw) {
+      const fallback = DEFAULT_SALES_REPORTS.map(item => sanitizeSalesReport(item)).filter(Boolean);
+      localStorage.setItem(STORAGE_KEYS.salesReports, JSON.stringify(fallback));
+      return fallback;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.map(item => sanitizeSalesReport(item)).filter(Boolean);
+  } catch (error) {
+    console.error('Gagal membaca data laporan penjualan dari localStorage.', error);
+    const fallback = DEFAULT_SALES_REPORTS.map(item => sanitizeSalesReport(item)).filter(Boolean);
+    try {
+      localStorage.setItem(STORAGE_KEYS.salesReports, JSON.stringify(fallback));
+    } catch (storageError) {
+      console.error('Gagal menyimpan ulang data laporan penjualan.', storageError);
+    }
+    return fallback;
+  }
+}
+
+function setStoredSalesReports(reports) {
+  const sanitized = Array.isArray(reports)
+    ? reports.map(item => sanitizeSalesReport(item)).filter(Boolean)
+    : [];
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.salesReports, JSON.stringify(sanitized));
+  } catch (error) {
+    console.error('Gagal menyimpan data laporan penjualan.', error);
+  }
+
+  return sanitized;
+}
+
+function getReportStatusMeta(status) {
+  switch (status) {
+    case 'on-track':
+      return { label: 'On Track', className: 'report-status-pill is-on-track' };
+    case 'manual':
+      return { label: 'Butuh Tindakan Manual', className: 'report-status-pill is-manual' };
+    case 'scheduled':
+    default:
+      return { label: 'Terjadwal', className: 'report-status-pill is-scheduled' };
+  }
+}
+
+function updateSalesReportMetrics(filtered = [], allReports = []) {
+  const totalGross = filtered.reduce((sum, report) => sum + (Number(report.grossSales) || 0), 0);
+  const totalNet = filtered.reduce((sum, report) => sum + (Number(report.netSales) || 0), 0);
+  const totalProfit = filtered.reduce((sum, report) => sum + (Number(report.grossProfit) || 0), 0);
+  const totalUnits = filtered.reduce((sum, report) => sum + (Number(report.unitsSold) || 0), 0);
+  const averageMargin = filtered.length
+    ? filtered.reduce((sum, report) => sum + (Number(report.margin) || 0), 0) / filtered.length
+    : 0;
+
+  const setText = (id, value) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.textContent = value;
+    }
+  };
+
+  setText('report-total-gross', formatCurrency(totalGross));
+  setText('report-total-net', formatCurrency(totalNet));
+  setText('report-total-profit', formatCurrency(totalProfit));
+  setText('report-total-units', formatNumber(totalUnits));
+  setText('report-average-margin', formatPercentage(averageMargin));
+
+  const indicator = document.querySelector('.report-sync-indicator');
+  if (indicator) {
+    const hasHealthySync = allReports.some(report => report.syncStatus === 'on-track' || report.syncStatus === 'scheduled');
+    indicator.classList.toggle('is-online', hasHealthySync);
+  }
+
+  const lastSyncElement = document.getElementById('report-last-sync');
+  if (lastSyncElement) {
+    const latest = allReports.reduce((latestReport, report) => {
+      if (!report?.lastSyncAt) {
+        return latestReport;
+      }
+      const date = new Date(report.lastSyncAt);
+      if (Number.isNaN(date.getTime())) {
+        return latestReport;
+      }
+      if (!latestReport || date > latestReport.date) {
+        return { date, value: report.lastSyncAt };
+      }
+      return latestReport;
+    }, null);
+
+    lastSyncElement.textContent = latest ? formatIntegrationSyncTime(latest.value) : 'Belum pernah';
+  }
+}
+
+function renderSalesReports({ search = '', channel = 'all', period = 'all', syncStatus = 'all' } = {}) {
+  const tbody = document.getElementById('sales-report-table-body');
+  if (!tbody) {
+    return;
+  }
+
+  ensureSalesReportsSeeded();
+  const reports = getStoredSalesReports();
+  const normalizedSearch = search.toString().trim().toLowerCase();
+
+  const filtered = reports.filter(report => {
+    const matchesSearch = !normalizedSearch
+      || [
+        report.productName,
+        report.sku,
+        report.channel,
+        report.period?.label,
+        report.integration
+      ]
+        .filter(Boolean)
+        .map(value => value.toString().toLowerCase())
+        .some(value => value.includes(normalizedSearch));
+
+    const matchesChannel = channel === 'all' || report.channel === channel;
+    const matchesPeriod = period === 'all' || report.period?.key === period;
+    const matchesStatus = syncStatus === 'all' || report.syncStatus === syncStatus;
+
+    return matchesSearch && matchesChannel && matchesPeriod && matchesStatus;
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr class="empty-state"><td colspan="12">Tidak ada data penjualan sesuai filter.</td></tr>';
+  } else {
+    tbody.innerHTML = filtered
+      .map(report => {
+        const statusMeta = getReportStatusMeta(report.syncStatus);
+        const lastSync = formatIntegrationSyncTime(report.lastSyncAt);
+        const periodLabel = report.period?.label ?? '';
+
+        return `
+          <tr>
+            <td>
+              <div class="product-cell">
+                <strong>${escapeHtml(report.productName)}</strong>
+                <span class="product-meta">${escapeHtml(report.integration)}</span>
+              </div>
+            </td>
+            <td>${escapeHtml(report.sku || '-')}</td>
+            <td>${escapeHtml(report.channel)}</td>
+            <td>${escapeHtml(periodLabel)}</td>
+            <td>${escapeHtml(formatNumber(report.unitsSold))}</td>
+            <td>${escapeHtml(formatCurrency(report.grossSales))}</td>
+            <td>${escapeHtml(formatCurrency(report.discounts))}</td>
+            <td>${escapeHtml(formatCurrency(report.netSales))}</td>
+            <td>${escapeHtml(formatCurrency(report.grossProfit))}</td>
+            <td>${escapeHtml(formatPercentage(report.margin))}</td>
+            <td>
+              <span class="${statusMeta.className}" title="${escapeHtml(report.syncFrequency)}">${escapeHtml(statusMeta.label)}</span>
+            </td>
+            <td>${escapeHtml(lastSync)}</td>
+          </tr>
+        `;
+      })
+      .join('');
+  }
+
+  const countElement = document.getElementById('report-count');
+  if (countElement) {
+    countElement.textContent = `${formatNumber(filtered.length)} baris`;
+  }
+
+  const metaElement = document.getElementById('report-table-meta');
+  if (metaElement) {
+    if (filtered.length === reports.length) {
+      metaElement.textContent = `Menampilkan ${formatNumber(filtered.length)} data penjualan`;
+    } else {
+      metaElement.textContent = `Menampilkan ${formatNumber(filtered.length)} dari ${formatNumber(reports.length)} data penjualan`;
+    }
+  }
+
+  updateSalesReportMetrics(filtered, reports);
+}
+
 function maskAccessToken(token) {
   if (!token) {
     return '';
@@ -7071,6 +7447,65 @@ function handleIntegrationActions(options = {}) {
       options.onDelete(integrationId);
     }
   });
+}
+
+async function initReportsPage() {
+  ensureSalesReportsSeeded();
+
+  let currentSearch = '';
+
+  const applyFilters = () => {
+    const channel = document.getElementById('report-channel-filter')?.value ?? 'all';
+    const period = document.getElementById('report-period-filter')?.value ?? 'all';
+    const sync = document.getElementById('report-sync-filter')?.value ?? 'all';
+    renderSalesReports({
+      search: currentSearch,
+      channel,
+      period,
+      syncStatus: sync
+    });
+  };
+
+  handleSearch(value => {
+    currentSearch = value;
+    applyFilters();
+  });
+
+  const filtersForm = document.getElementById('sales-report-filters');
+  if (filtersForm) {
+    filtersForm.addEventListener('change', applyFilters);
+  }
+
+  const syncButton = document.querySelector('[data-report-sync-now]');
+  if (syncButton) {
+    const defaultLabel = (syncButton.dataset.labelDefault || syncButton.textContent || '').trim() || 'Sinkronkan Sekarang';
+    const loadingLabel = (syncButton.dataset.labelLoading || 'Menyinkronkan...').trim();
+
+    const setButtonLabel = label => {
+      syncButton.textContent = label;
+    };
+
+    setButtonLabel(defaultLabel);
+
+    syncButton.addEventListener('click', () => {
+      if (syncButton.disabled) {
+        return;
+      }
+
+      syncButton.disabled = true;
+      syncButton.classList.add('is-loading');
+      setButtonLabel(loadingLabel);
+
+      setTimeout(() => {
+        syncButton.disabled = false;
+        syncButton.classList.remove('is-loading');
+        setButtonLabel(defaultLabel);
+        toast.show('Sinkronisasi laporan dijadwalkan. Buka Integrasi untuk memantau status API.');
+      }, 900);
+    });
+  }
+
+  applyFilters();
 }
 
 async function initIntegrations() {
@@ -7498,7 +7933,7 @@ function initPage() {
       handleRegister();
     }
 
-    if (['dashboard', 'add-product', 'categories', 'shipping', 'integrations'].includes(page)) {
+    if (['dashboard', 'add-product', 'categories', 'shipping', 'integrations', 'reports'].includes(page)) {
       setupSidebarToggle();
       setupSidebarCollapse();
       const { user, status } = await ensureAuthenticatedPage();
@@ -7526,6 +7961,10 @@ function initPage() {
 
     if (page === 'integrations') {
       await initIntegrations();
+    }
+
+    if (page === 'reports') {
+      await initReportsPage();
     }
 
   });
