@@ -1621,7 +1621,7 @@ a.action-icon {
 }
 
 .report-metric__value {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 700;
 }
 
@@ -1631,8 +1631,13 @@ a.action-icon {
   margin: 0;
 }
 
-.report-table {
+.report-table { 
   min-width: 980px;
+}
+
+.report-table th:first-child,
+.report-table td:first-child {
+  min-width: 240px;
 }
 
 .report-table th:nth-child(5),
