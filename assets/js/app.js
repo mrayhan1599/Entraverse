@@ -2942,12 +2942,38 @@ function formatCurrency(value) {
   }).format(value);
 }
 
+function formatCurrencyCompact(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return formatCurrency(0);
+  }
+
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    notation: 'compact',
+    maximumFractionDigits: 1
+  }).format(numeric);
+}
+
 function formatNumber(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
     return '0';
   }
   return new Intl.NumberFormat('id-ID').format(numeric);
+}
+
+function formatNumberCompact(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+
+  return new Intl.NumberFormat('id-ID', {
+    notation: 'compact',
+    maximumFractionDigits: 1
+  }).format(numeric);
 }
 
 function formatPercentage(value) {
@@ -7045,10 +7071,10 @@ function updateSalesReportMetrics(filtered = [], allReports = []) {
     }
   };
 
-  setText('report-total-gross', formatCurrency(totalGross));
-  setText('report-total-net', formatCurrency(totalNet));
-  setText('report-total-profit', formatCurrency(totalProfit));
-  setText('report-total-units', formatNumber(totalUnits));
+  setText('report-total-gross', formatCurrencyCompact(totalGross));
+  setText('report-total-net', formatCurrencyCompact(totalNet));
+  setText('report-total-profit', formatCurrencyCompact(totalProfit));
+  setText('report-total-units', formatNumberCompact(totalUnits));
   setText('report-average-margin', formatPercentage(averageMargin));
 
   const indicator = document.querySelector('.report-sync-indicator');
