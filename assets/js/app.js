@@ -485,7 +485,8 @@ const SUPABASE_TABLES = Object.freeze({
   products: 'products',
   categories: 'categories',
   exchangeRates: 'exchange_rates',
-  shippingVendors: 'shipping_vendors'
+  shippingVendors: 'shipping_vendors',
+  integrations: 'api_integrations'
 });
 
 let supabaseClient = null;
@@ -524,7 +525,8 @@ const remoteCache = {
   [STORAGE_KEYS.products]: [],
   [STORAGE_KEYS.categories]: [],
   [STORAGE_KEYS.exchangeRates]: [],
-  [STORAGE_KEYS.shippingVendors]: []
+  [STORAGE_KEYS.shippingVendors]: [],
+  [STORAGE_KEYS.integrations]: []
 };
 
 let seedingPromise = null;
@@ -1363,6 +1365,43 @@ async function ensureSeeded() {
         }
       }
 
+      let integrationsAvailable = true;
+      try {
+        const { count, error } = await client
+          .from(SUPABASE_TABLES.integrations)
+          .select('id', { count: 'exact', head: true });
+
+        if (error) {
+          throw error;
+        }
+
+        if (!count) {
+          const now = new Date().toISOString();
+          await client.from(SUPABASE_TABLES.integrations).insert(
+            DEFAULT_API_INTEGRATIONS.map(integration => {
+              const mapped = mapIntegrationToRecord({
+                ...integration,
+                createdAt: now,
+                updatedAt: now
+              });
+              if (!mapped) {
+                return null;
+              }
+              mapped.created_at = mapped.created_at ?? now;
+              mapped.updated_at = mapped.updated_at ?? now;
+              return mapped;
+            }).filter(Boolean)
+          );
+        }
+      } catch (error) {
+        if (isTableMissingError(error)) {
+          integrationsAvailable = false;
+          console.warn('Tabel integrasi API tidak ditemukan. Melewati seeding integrasi.');
+        } else {
+          throw error;
+        }
+      }
+
       if (categoriesAvailable) {
         try {
           await refreshCategoriesFromSupabase();
@@ -1409,6 +1448,19 @@ async function ensureSeeded() {
           if (isTableMissingError(error)) {
             shippingVendorsAvailable = false;
             console.warn('Tabel vendor pengiriman tidak ditemukan saat refresh.');
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      if (integrationsAvailable) {
+        try {
+          await refreshIntegrationsFromSupabase();
+        } catch (error) {
+          if (isTableMissingError(error)) {
+            integrationsAvailable = false;
+            console.warn('Tabel integrasi API tidak ditemukan saat refresh.');
           } else {
             throw error;
           }
@@ -6527,6 +6579,32 @@ function sanitizeIntegration(integration) {
   return sanitized;
 }
 
+function setIntegrationCache(integrations) {
+  const sanitized = Array.isArray(integrations)
+    ? integrations.map(item => sanitizeIntegration(item)).filter(Boolean)
+    : [];
+
+  setRemoteCache(STORAGE_KEYS.integrations, sanitized);
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.integrations, JSON.stringify(sanitized));
+  } catch (error) {
+    console.error('Gagal menyimpan data integrasi ke localStorage.', error);
+  }
+
+  document.dispatchEvent(
+    new CustomEvent('integrations:changed', {
+      detail: { integrations: sanitized }
+    })
+  );
+
+  return sanitized;
+}
+
+function getIntegrationsFromCache() {
+  return getRemoteCache(STORAGE_KEYS.integrations, []);
+}
+
 function ensureIntegrationsSeeded() {
   try {
     if (localStorage.getItem(STORAGE_KEYS.integrations)) {
@@ -6537,19 +6615,26 @@ function ensureIntegrationsSeeded() {
       .map(item => sanitizeIntegration({ ...item }))
       .filter(Boolean);
 
-    localStorage.setItem(STORAGE_KEYS.integrations, JSON.stringify(seeded));
+    setIntegrationCache(seeded);
   } catch (error) {
     console.error('Gagal melakukan seeding data integrasi.', error);
   }
 }
 
 function getStoredIntegrations() {
+  const cached = getIntegrationsFromCache();
+  if (Array.isArray(cached) && cached.length) {
+    return cached.map(item => sanitizeIntegration(item)).filter(Boolean);
+  }
+
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.integrations);
     if (!raw) {
-      return DEFAULT_API_INTEGRATIONS
+      const fallback = DEFAULT_API_INTEGRATIONS
         .map(item => sanitizeIntegration({ ...item }))
         .filter(Boolean);
+      setIntegrationCache(fallback);
+      return fallback;
     }
 
     const parsed = JSON.parse(raw);
@@ -6557,27 +6642,127 @@ function getStoredIntegrations() {
       return [];
     }
 
-    return parsed.map(item => sanitizeIntegration(item)).filter(Boolean);
+    const sanitized = parsed.map(item => sanitizeIntegration(item)).filter(Boolean);
+    setIntegrationCache(sanitized);
+    return sanitized;
   } catch (error) {
     console.error('Gagal membaca data integrasi dari localStorage.', error);
-    return DEFAULT_API_INTEGRATIONS
+    const fallback = DEFAULT_API_INTEGRATIONS
       .map(item => sanitizeIntegration({ ...item }))
       .filter(Boolean);
+    setIntegrationCache(fallback);
+    return fallback;
   }
 }
 
 function setStoredIntegrations(integrations) {
-  const sanitized = (Array.isArray(integrations) ? integrations : [])
-    .map(item => sanitizeIntegration(item))
-    .filter(Boolean);
+  return setIntegrationCache(integrations);
+}
 
-  try {
-    localStorage.setItem(STORAGE_KEYS.integrations, JSON.stringify(sanitized));
-  } catch (error) {
-    console.error('Gagal menyimpan data integrasi ke localStorage.', error);
+function mapSupabaseIntegration(record) {
+  if (!record) {
+    return null;
   }
 
-  return sanitized;
+  return sanitizeIntegration({
+    id: record.id,
+    name: record.name,
+    category: record.category,
+    status: record.status,
+    connectedAccount: record.connected_account,
+    syncFrequency: record.sync_frequency,
+    capabilities: record.capabilities,
+    apiBaseUrl: record.api_base_url,
+    authorizationPath: record.authorization_path,
+    accessToken: record.access_token,
+    lastSync: record.last_sync,
+    requiresSetup: record.requires_setup,
+    createdAt: record.created_at ? new Date(record.created_at).getTime() : Date.now(),
+    updatedAt: record.updated_at ? new Date(record.updated_at).getTime() : Date.now()
+  });
+}
+
+function mapIntegrationToRecord(integration) {
+  const sanitized = sanitizeIntegration(integration);
+  if (!sanitized) {
+    return null;
+  }
+
+  return {
+    id: sanitized.id,
+    name: sanitized.name,
+    category: sanitized.category || null,
+    status: sanitized.status,
+    connected_account: sanitized.connectedAccount || null,
+    sync_frequency: sanitized.syncFrequency || null,
+    capabilities: sanitized.capabilities || null,
+    api_base_url: sanitized.apiBaseUrl || null,
+    authorization_path: sanitized.authorizationPath || null,
+    access_token: sanitized.accessToken || null,
+    last_sync: toIsoTimestamp(sanitized.lastSync),
+    requires_setup: Boolean(sanitized.requiresSetup),
+    created_at: toIsoTimestamp(sanitized.createdAt) ?? new Date().toISOString(),
+    updated_at: toIsoTimestamp(sanitized.updatedAt) ?? new Date().toISOString()
+  };
+}
+
+async function refreshIntegrationsFromSupabase() {
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const { data, error } = await client
+    .from(SUPABASE_TABLES.integrations)
+    .select('*')
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const integrations = (data ?? []).map(mapSupabaseIntegration).filter(Boolean);
+  return setIntegrationCache(integrations);
+}
+
+async function upsertIntegrationToSupabase(integration) {
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const payload = mapIntegrationToRecord(integration);
+  if (!payload) {
+    throw new Error('Data integrasi tidak valid.');
+  }
+
+  const nowIso = new Date().toISOString();
+  payload.id = payload.id || createUuid();
+  payload.created_at = payload.created_at ?? nowIso;
+  payload.updated_at = nowIso;
+
+  const { data, error } = await client
+    .from(SUPABASE_TABLES.integrations)
+    .upsert(payload, { onConflict: 'id' })
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapSupabaseIntegration(data ?? payload);
+}
+
+async function deleteIntegrationFromSupabase(id) {
+  if (!id) {
+    throw new Error('ID integrasi wajib diisi.');
+  }
+
+  await ensureSupabase();
+  const client = getSupabaseClient();
+  const { error } = await client
+    .from(SUPABASE_TABLES.integrations)
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    throw error;
+  }
 }
 
 function formatIntegrationSyncTime(value) {
@@ -6777,15 +6962,19 @@ function renderIntegrations(filter = '') {
   }
 }
 
-function toggleIntegrationConnection(integrationId) {
+async function toggleIntegrationConnection(integrationId) {
   if (!integrationId) {
     return;
+  }
+
+  if (!requireCatalogManager('Silakan login untuk mengelola integrasi API.')) {
+    throw new Error('Tidak memiliki izin.');
   }
 
   const integrations = getStoredIntegrations();
   const index = integrations.findIndex(item => item.id === integrationId);
   if (index === -1) {
-    return;
+    throw new Error('Integrasi tidak ditemukan.');
   }
 
   const integration = { ...integrations[index] };
@@ -6797,7 +6986,6 @@ function toggleIntegrationConnection(integrationId) {
     integration.lastSync = null;
     integration.requiresSetup = false;
     integration.updatedAt = Date.now();
-    toast.show(`${integration.name} telah diputuskan dari Entraverse.`);
   } else {
     integration.status = 'connected';
     if (!integration.connectedAccount) {
@@ -6806,17 +6994,36 @@ function toggleIntegrationConnection(integrationId) {
     integration.lastSync = new Date().toISOString();
     integration.requiresSetup = false;
     integration.updatedAt = Date.now();
-    const message = previousStatus === 'pending'
-      ? `${integration.name} siap digunakan setelah setup selesai.`
-      : `${integration.name} berhasil terhubung.`;
-    toast.show(message);
   }
 
-  integrations[index] = integration;
-  setStoredIntegrations(integrations);
+  const updatedList = [...integrations];
+  updatedList[index] = integration;
+
+  let supabaseSynced = false;
+  if (isSupabaseConfigured()) {
+    try {
+      await upsertIntegrationToSupabase(integration);
+      await refreshIntegrationsFromSupabase();
+      supabaseSynced = true;
+    } catch (error) {
+      console.error('Gagal memperbarui status integrasi di Supabase.', error);
+      toast.show('Supabase tidak dapat diakses. Perubahan hanya tersimpan lokal.');
+    }
+  }
+
+  if (!supabaseSynced) {
+    setStoredIntegrations(updatedList);
+  }
 
   const filter = document.getElementById('search-input')?.value ?? '';
   renderIntegrations(filter);
+
+  const message = previousStatus === 'connected'
+    ? `${integration.name} telah diputuskan dari Entraverse.`
+    : previousStatus === 'pending'
+    ? `${integration.name} siap digunakan setelah setup selesai.`
+    : `${integration.name} berhasil terhubung.`;
+  toast.show(message + (supabaseSynced ? '' : ' (lokal)'));
 }
 
 function handleIntegrationActions(options = {}) {
@@ -6825,7 +7032,7 @@ function handleIntegrationActions(options = {}) {
     return;
   }
 
-  tableBody.addEventListener('click', event => {
+  tableBody.addEventListener('click', async event => {
     const button = event.target.closest('[data-integration-action]');
     if (!button) {
       return;
@@ -6841,7 +7048,17 @@ function handleIntegrationActions(options = {}) {
     }
 
     if (action === 'toggle') {
-      toggleIntegrationConnection(integrationId);
+      button.disabled = true;
+      button.classList.add('is-loading');
+      try {
+        await toggleIntegrationConnection(integrationId);
+      } catch (error) {
+        console.error('Gagal mengubah status integrasi.', error);
+        toast.show('Gagal mengubah status integrasi.');
+      } finally {
+        button.disabled = false;
+        button.classList.remove('is-loading');
+      }
       return;
     }
 
@@ -6858,6 +7075,27 @@ function handleIntegrationActions(options = {}) {
 
 async function initIntegrations() {
   ensureIntegrationsSeeded();
+
+  let supabaseReady = true;
+  try {
+    await ensureSeeded();
+  } catch (error) {
+    supabaseReady = false;
+    console.error('Gagal menyiapkan data integrasi.', error);
+    toast.show('Gagal memuat data integrasi. Pastikan Supabase tersambung.');
+  }
+
+  if (supabaseReady) {
+    try {
+      await refreshIntegrationsFromSupabase();
+    } catch (error) {
+      console.error('Gagal memperbarui data integrasi.', error);
+      toast.show('Data integrasi mungkin tidak terbaru.');
+    }
+  } else {
+    setStoredIntegrations(getStoredIntegrations());
+  }
+
   renderIntegrations();
   handleSearch(value => renderIntegrations(value));
 
@@ -6874,6 +7112,8 @@ async function initIntegrations() {
     const filter = getFilterValue();
     renderIntegrations(filter);
   };
+
+  document.addEventListener('integrations:changed', refreshTable);
 
   const toInputValue = value => (value === null || value === undefined ? '' : value);
 
@@ -6981,7 +7221,7 @@ async function initIntegrations() {
     return getStoredIntegrations().find(integration => integration.id === id) || null;
   };
 
-  const handleDeleteIntegration = integrationId => {
+  const handleDeleteIntegration = async integrationId => {
     if (!requireCatalogManager('Silakan login untuk menghapus integrasi API.')) {
       return;
     }
@@ -6997,10 +7237,25 @@ async function initIntegrations() {
       return;
     }
 
-    const remaining = getStoredIntegrations().filter(item => item.id !== integrationId);
-    setStoredIntegrations(remaining);
+    let supabaseSynced = false;
+    if (isSupabaseConfigured()) {
+      try {
+        await deleteIntegrationFromSupabase(integrationId);
+        await refreshIntegrationsFromSupabase();
+        supabaseSynced = true;
+      } catch (error) {
+        console.error('Gagal menghapus integrasi di Supabase.', error);
+        toast.show('Supabase tidak dapat diakses. Perubahan hanya tersimpan lokal.');
+      }
+    }
+
+    if (!supabaseSynced) {
+      const remaining = getStoredIntegrations().filter(item => item.id !== integrationId);
+      setStoredIntegrations(remaining);
+    }
+
     refreshTable();
-    toast.show(`${integration.name} telah dihapus.`);
+    toast.show(`${integration.name} telah dihapus.${supabaseSynced ? '' : ' (lokal)'}`);
   };
 
   addButton?.addEventListener('click', openCreateModal);
@@ -7015,7 +7270,7 @@ async function initIntegrations() {
   }
 
   if (form) {
-    form.addEventListener('submit', event => {
+    form.addEventListener('submit', async event => {
       event.preventDefault();
 
       if (!requireCatalogManager('Silakan login untuk mengelola integrasi API.')) {
@@ -7058,17 +7313,18 @@ async function initIntegrations() {
         requiresSetup: formData.get('requiresSetup') === 'on'
       };
 
-      if (payload.status === 'connected' && !payload.connectedAccount) {
-        payload.connectedAccount = 'Entraverse API';
-      }
-
-      let integrations = getStoredIntegrations();
-
       if (!payload.name) {
         toast.show('Nama integrasi wajib diisi.');
         resetSubmitState();
         return;
       }
+
+      if (payload.status === 'connected' && !payload.connectedAccount) {
+        payload.connectedAccount = 'Entraverse API';
+      }
+
+      const integrations = getStoredIntegrations();
+      let nextIntegrations = [...integrations];
 
       if (isEditing) {
         const index = integrations.findIndex(item => item.id === editingId);
@@ -7091,7 +7347,7 @@ async function initIntegrations() {
           updated.lastSync = null;
         }
 
-        integrations[index] = updated;
+        nextIntegrations[index] = updated;
       } else {
         const now = Date.now();
         const newIntegration = {
@@ -7100,13 +7356,29 @@ async function initIntegrations() {
           updatedAt: now,
           lastSync: payload.status === 'connected' ? new Date().toISOString() : null
         };
-        integrations = [...integrations, newIntegration];
+        nextIntegrations = [...integrations, newIntegration];
       }
 
-      setStoredIntegrations(integrations);
+      let supabaseSynced = false;
+      if (isSupabaseConfigured()) {
+        try {
+          await upsertIntegrationToSupabase(nextIntegrations.find(item => item.id === payload.id));
+          await refreshIntegrationsFromSupabase();
+          supabaseSynced = true;
+        } catch (error) {
+          console.error('Gagal menyimpan integrasi ke Supabase.', error);
+          toast.show('Supabase tidak dapat diakses. Perubahan hanya tersimpan lokal.');
+        }
+      }
+
+      if (!supabaseSynced) {
+        setStoredIntegrations(nextIntegrations);
+      }
+
       refreshTable();
-      toast.show(isEditing ? 'Integrasi berhasil diperbarui.' : 'Integrasi baru ditambahkan.');
+      toast.show(isEditing ? 'Integrasi berhasil diperbarui.' : 'Integrasi baru ditambahkan.' + (supabaseSynced ? '' : ' (lokal)'));
       closeModal();
+      resetSubmitState();
     });
   }
 
