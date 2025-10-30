@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entraverse Admin - Laporan Penjualan</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body data-page="reports">
+  <div class="app-shell">
+    <aside class="sidebar" data-sidebar>
+      <div class="sidebar-header">
+        <div class="logo">E</div>
+        <div class="brand">
+          <span class="brand-title">Entraverse Supplier</span>
+          <span class="brand-subtitle">Admin</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <p class="nav-title">E-Commerce</p>
+          <a class="nav-link" href="dashboard.html">
+            <span class="nav-icon" aria-hidden="true">📦</span>
+            Produk
+          </a>
+          <a class="nav-link" href="categories.html">
+            <span class="nav-icon" aria-hidden="true">📂</span>
+            Kategori
+          </a>
+          <a class="nav-link active" href="reports.html">
+            <span class="nav-icon" aria-hidden="true">📊</span>
+            Laporan
+          </a>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Transaksi</p>
+          <a class="nav-link" href="#">
+            <span class="nav-icon" aria-hidden="true">💳</span>
+            Trade-In
+          </a>
+          <a class="nav-link" href="#">
+            <span class="nav-icon" aria-hidden="true">📃</span>
+            Invoice
+          </a>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Vendor</p>
+          <a class="nav-link" href="shipping-vendors.html">
+            <span class="nav-icon" aria-hidden="true">🚚</span>
+            Vendor Pengiriman
+          </a>
+          <a class="nav-link" href="integrations.html">
+            <span class="nav-icon" aria-hidden="true">🔌</span>
+            Integrasi Aplikasi API
+          </a>
+        </div>
+        <div class="sidebar-theme">
+          <div class="theme-switcher theme-switcher--sidebar" data-theme-control data-theme-cycle="system,light,dark">
+            <button class="theme-switcher__button" type="button" data-theme-trigger aria-label="Ganti mode tampilan">
+              <span class="theme-switcher__icon" aria-hidden="true" data-theme-icon></span>
+              <span class="theme-switcher__label" data-theme-label aria-live="polite">Auto (System)</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+    </aside>
+    <button class="sidebar-collapse-toggle" type="button" aria-label="Sembunyikan navigasi" aria-expanded="true" data-sidebar-collapse>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="m14.5 6-5 6 5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    </button>
+    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="menu-toggle" type="button" aria-label="Buka navigasi" aria-expanded="false" data-sidebar-toggle>
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <form class="search-bar" role="search">
+            <span class="search-icon" aria-hidden="true">🔍</span>
+            <input type="search" id="search-input" placeholder="Cari data penjualan" aria-label="Pencarian laporan penjualan">
+          </form>
+        </div>
+        <div class="topbar-actions">
+          <div class="auth-buttons" data-guest-actions hidden>
+            <a class="btn ghost-btn auth-button auth-button--login" href="login.html" aria-label="Login">
+              <span class="auth-button__icon" aria-hidden="true">🔑</span>
+              <span class="auth-button__label">Login</span>
+            </a>
+            <a class="btn primary-btn auth-button auth-button--register" href="register.html" aria-label="Register">
+              <span class="auth-button__icon" aria-hidden="true">📝</span>
+              <span class="auth-button__label">Register</span>
+            </a>
+          </div>
+          <div class="profile-menu" data-profile-menu hidden>
+            <button class="avatar-button" type="button" data-profile-toggle aria-haspopup="true" aria-expanded="false">
+              <span class="avatar" data-avatar-initials>AM</span>
+            </button>
+            <div class="profile-dropdown" data-profile-dropdown role="menu" hidden>
+              <p class="profile-greeting">Hai, <span data-profile-name>Pengguna</span></p>
+              <button type="button" class="btn ghost-btn full-width" data-logout>Keluar</button>
+            </div>
+          </div>
+        </div>
+      </header>
+      <section class="content-header">
+        <div class="title-stack">
+          <div class="title-bar">
+            <h1>Laporan Data Penjualan Produk</h1>
+            <div class="title-actions" role="toolbar" aria-label="Aksi laporan penjualan">
+              <button class="btn primary-btn small" type="button" data-report-sync-now data-label-default="Sinkronkan Sekarang" data-label-loading="Menjadwalkan sinkronisasi...">
+                Sinkronkan Sekarang
+              </button>
+            </div>
+          </div>
+          <p>Monitor performa penjualan lintas marketplace, bandingkan margin, dan siapkan data untuk integrasi ke Mekari Jurnal.</p>
+        </div>
+      </section>
+      <section class="card report-overview">
+        <header class="card-header">
+          <div>
+            <h2>Ringkasan Penjualan</h2>
+            <p class="card-subtitle">Data penjualan terhitung dari sinkronisasi terakhir dengan Mekari Jurnal.</p>
+          </div>
+          <div class="report-sync-status" role="status" aria-live="polite">
+            <span class="report-sync-indicator is-online" aria-hidden="true"></span>
+            <div class="report-sync-text">
+              <span class="report-sync-label">Terakhir sinkron</span>
+              <strong id="report-last-sync">-</strong>
+            </div>
+            <a class="btn ghost-btn small" href="integrations.html">Kelola Integrasi</a>
+          </div>
+        </header>
+        <form class="report-filters" id="sales-report-filters">
+          <div class="report-filter-group">
+            <label for="report-period-filter">Periode</label>
+            <select id="report-period-filter" name="period">
+              <option value="all">Semua periode</option>
+              <option value="2024-09">September 2024</option>
+              <option value="2024-08">Agustus 2024</option>
+              <option value="2024-q3">Triwulan 3 2024</option>
+            </select>
+          </div>
+          <div class="report-filter-group">
+            <label for="report-channel-filter">Channel</label>
+            <select id="report-channel-filter" name="channel">
+              <option value="all">Semua channel</option>
+              <option value="Entraverse ID">Entraverse ID</option>
+              <option value="Tokopedia">Tokopedia</option>
+              <option value="Shopee">Shopee</option>
+            </select>
+          </div>
+          <div class="report-filter-group">
+            <label for="report-sync-filter">Status Sinkronisasi</label>
+            <select id="report-sync-filter" name="sync">
+              <option value="all">Semua status</option>
+              <option value="on-track">On Track</option>
+              <option value="manual">Butuh Tindakan Manual</option>
+              <option value="scheduled">Terjadwal</option>
+            </select>
+          </div>
+        </form>
+        <div class="report-metrics">
+          <div class="report-metric">
+            <span class="report-metric__label">Penjualan Bruto</span>
+            <strong class="report-metric__value" id="report-total-gross">Rp0</strong>
+            <p class="report-metric__meta">Belum termasuk diskon &amp; retur</p>
+          </div>
+          <div class="report-metric">
+            <span class="report-metric__label">Penjualan Bersih</span>
+            <strong class="report-metric__value" id="report-total-net">Rp0</strong>
+            <p class="report-metric__meta">Setelah diskon &amp; biaya marketplace</p>
+          </div>
+          <div class="report-metric">
+            <span class="report-metric__label">Laba Kotor</span>
+            <strong class="report-metric__value" id="report-total-profit">Rp0</strong>
+            <p class="report-metric__meta">Dikurangi HPP yang tercatat</p>
+          </div>
+          <div class="report-metric">
+            <span class="report-metric__label">Rata-rata Margin</span>
+            <strong class="report-metric__value" id="report-average-margin">0%</strong>
+            <p class="report-metric__meta">Margin kotor rata-rata per produk</p>
+          </div>
+          <div class="report-metric">
+            <span class="report-metric__label">Unit Terjual</span>
+            <strong class="report-metric__value" id="report-total-units">0</strong>
+            <p class="report-metric__meta">Akumulasi periode terpilih</p>
+          </div>
+        </div>
+      </section>
+      <section class="card">
+        <header class="card-header">
+          <div>
+            <h2>Detail Penjualan per Produk</h2>
+            <p class="card-subtitle">Gunakan data ini untuk rekonsiliasi dan posting jurnal otomatis ke Mekari Jurnal.</p>
+          </div>
+          <span id="report-count" class="count-pill">0 baris</span>
+        </header>
+        <div class="table-wrapper">
+          <table class="category-table report-table">
+            <thead>
+              <tr>
+                <th>Produk</th>
+                <th>SKU</th>
+                <th>Channel</th>
+                <th>Periode</th>
+                <th>Unit</th>
+                <th>Penjualan Bruto</th>
+                <th>Diskon</th>
+                <th>Penjualan Bersih</th>
+                <th>Laba Kotor</th>
+                <th>Margin</th>
+                <th>Status Sinkronisasi</th>
+                <th>Terakhir Sinkron</th>
+              </tr>
+            </thead>
+            <tbody id="sales-report-table-body">
+              <tr class="empty-state">
+                <td colspan="12">Belum ada data penjualan.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <footer class="card-footer">
+          <span class="table-meta" id="report-table-meta">Menampilkan 0 data penjualan</span>
+        </footer>
+      </section>
+      <section class="card">
+        <header class="card-header">
+          <div>
+            <h2>Sinkronisasi ke Mekari Jurnal</h2>
+            <p class="card-subtitle">Siapkan token API Mekari Jurnal untuk otomatisasi posting penjualan dan jurnal.</p>
+          </div>
+        </header>
+        <div class="report-integration-guide">
+          <article class="report-integration-step">
+            <span class="report-integration-step__icon" aria-hidden="true">1</span>
+            <div>
+              <h3>Hubungkan Integrasi</h3>
+              <p>Buka menu <strong>Integrasi Aplikasi API</strong> dan tambahkan kredensial Mekari Jurnal untuk mengaktifkan sinkronisasi otomatis.</p>
+            </div>
+          </article>
+          <article class="report-integration-step">
+            <span class="report-integration-step__icon" aria-hidden="true">2</span>
+            <div>
+              <h3>Atur Skema Akun</h3>
+              <p>Mapping akun penjualan, HPP, dan piutang agar data yang dikirim ke Mekari Jurnal langsung siap dibukukan.</p>
+            </div>
+          </article>
+          <article class="report-integration-step">
+            <span class="report-integration-step__icon" aria-hidden="true">3</span>
+            <div>
+              <h3>Sinkron Otomatis</h3>
+              <p>Gunakan tombol <em>Sinkronkan Sekarang</em> atau jadwalkan sinkronisasi berkala untuk memastikan laporan selalu terbaru.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script>
+    window.entraverseConfig = window.entraverseConfig || {};
+    window.entraverseConfig.supabase = window.entraverseConfig.supabase || {
+      url: 'https://wnewbuwmdrnjfjsxoybs.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduZXdidXdtZHJuamZqc3hveWJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNjY3ODYsImV4cCI6MjA3Njc0Mjc4Nn0.8nTueW4ogLAXbbq0Q_Z6z-a8J5n9zIOhmlWIP7pimAg'
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
