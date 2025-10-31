@@ -433,6 +433,12 @@ const DEFAULT_SALES_REPORTS = Object.freeze([
   }
 ]);
 
+const MEKARI_INTEGRATION_NAME = 'Mekari Jurnal';
+let mekariIntegrationCache = null;
+let reportProfitLossOverride = null;
+let reportProfitLossAbortController = null;
+let reportRenderState = { filtered: [], reports: [] };
+
 const SALES_REPORT_SYNC_STATUS = new Set(['on-track', 'manual', 'scheduled']);
 
 const LOCAL_STORAGE_KEYS = Object.freeze({
@@ -6905,6 +6911,85 @@ async function deleteIntegrationFromSupabase(id) {
   }
 }
 
+function findIntegrationByName(name) {
+  if (!name) {
+    return null;
+  }
+
+  const normalized = name.toString().trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  const integrations = getStoredIntegrations();
+  return (
+    integrations.find(integration => (integration.name ?? '').toString().trim().toLowerCase() === normalized) ?? null
+  );
+}
+
+function setMekariIntegrationCache(integration) {
+  mekariIntegrationCache = integration ? { ...integration } : null;
+  return mekariIntegrationCache;
+}
+
+async function resolveMekariIntegration({ refresh = false } = {}) {
+  ensureIntegrationsSeeded();
+
+  if (!refresh && mekariIntegrationCache) {
+    return mekariIntegrationCache;
+  }
+
+  if (!refresh) {
+    const existing = findIntegrationByName(MEKARI_INTEGRATION_NAME);
+    if (existing) {
+      return setMekariIntegrationCache(existing);
+    }
+  }
+
+  if (isSupabaseConfigured() && (refresh || !mekariIntegrationCache)) {
+    try {
+      await refreshIntegrationsFromSupabase();
+    } catch (error) {
+      console.warn('Gagal memperbarui data integrasi dari Supabase.', error);
+    }
+  }
+
+  const integration = findIntegrationByName(MEKARI_INTEGRATION_NAME);
+  return setMekariIntegrationCache(integration);
+}
+
+async function markMekariIntegrationSynced(integration, syncedAt) {
+  if (!integration) {
+    return null;
+  }
+
+  const timestamp = toIsoTimestamp(syncedAt) ?? new Date().toISOString();
+
+  const integrations = getStoredIntegrations();
+  const index = integrations.findIndex(item => item.id === integration.id);
+  let updatedIntegration = { ...integration, lastSync: timestamp };
+
+  if (index !== -1) {
+    const next = [...integrations];
+    next[index] = { ...next[index], lastSync: timestamp };
+    setStoredIntegrations(next);
+    updatedIntegration = next[index];
+  } else {
+    setMekariIntegrationCache(updatedIntegration);
+  }
+
+  if (isSupabaseConfigured()) {
+    try {
+      await upsertIntegrationToSupabase(updatedIntegration);
+    } catch (error) {
+      console.warn('Gagal memperbarui waktu sinkronisasi Mekari Jurnal di Supabase.', error);
+    }
+  }
+
+  setMekariIntegrationCache(updatedIntegration);
+  return updatedIntegration;
+}
+
 function formatIntegrationSyncTime(value) {
   if (!value) {
     return 'Belum pernah';
@@ -7043,6 +7128,307 @@ function setStoredSalesReports(reports) {
   return sanitized;
 }
 
+function toDateOnlyString(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function deriveRangeFromPeriodKey(periodKey) {
+  if (!periodKey) {
+    return null;
+  }
+
+  const quarterMatch = /^([0-9]{4})-q([1-4])$/i.exec(periodKey);
+  if (quarterMatch) {
+    const year = Number(quarterMatch[1]);
+    const quarter = Number(quarterMatch[2]);
+    if (Number.isFinite(year) && Number.isFinite(quarter)) {
+      const startMonth = (quarter - 1) * 3;
+      const start = new Date(Date.UTC(year, startMonth, 1));
+      const end = new Date(Date.UTC(year, startMonth + 3, 0));
+      return {
+        startDate: toDateOnlyString(start),
+        endDate: toDateOnlyString(end)
+      };
+    }
+  }
+
+  const monthMatch = /^([0-9]{4})-([0-9]{2})$/.exec(periodKey);
+  if (monthMatch) {
+    const year = Number(monthMatch[1]);
+    const monthIndex = Number(monthMatch[2]) - 1;
+    if (Number.isFinite(year) && Number.isFinite(monthIndex) && monthIndex >= 0 && monthIndex < 12) {
+      const start = new Date(Date.UTC(year, monthIndex, 1));
+      const end = new Date(Date.UTC(year, monthIndex + 1, 0));
+      return {
+        startDate: toDateOnlyString(start),
+        endDate: toDateOnlyString(end)
+      };
+    }
+  }
+
+  return null;
+}
+
+function getProfitLossRangeFromReports(periodKey) {
+  if (!periodKey) {
+    return null;
+  }
+
+  const reports = getStoredSalesReports();
+  const match = reports.find(report => report.period?.key === periodKey);
+  if (!match) {
+    return null;
+  }
+
+  const start = toDateOnlyString(match.period?.start);
+  const end = toDateOnlyString(match.period?.end);
+  if (!start || !end) {
+    return null;
+  }
+
+  return { startDate: start, endDate: end };
+}
+
+function getProfitLossDateRange(periodKey) {
+  if (!periodKey || periodKey === 'all') {
+    const today = new Date();
+    const end = toDateOnlyString(today);
+    const start = new Date(today);
+    start.setDate(start.getDate() - 29);
+    return {
+      startDate: toDateOnlyString(start),
+      endDate: end,
+      period: 'custom'
+    };
+  }
+
+  const fromReports = getProfitLossRangeFromReports(periodKey);
+  if (fromReports) {
+    return { ...fromReports, period: periodKey };
+  }
+
+  const derived = deriveRangeFromPeriodKey(periodKey);
+  if (derived) {
+    return { ...derived, period: periodKey };
+  }
+
+  return { startDate: null, endDate: null, period: periodKey };
+}
+
+function buildMekariProfitLossUrl(integration, params = {}) {
+  if (!integration) {
+    throw new Error('Integrasi Mekari Jurnal belum dikonfigurasi.');
+  }
+
+  const baseUrl = (integration.apiBaseUrl ?? '').toString().trim();
+  const authorizationPath = (integration.authorizationPath ?? '').toString().trim();
+  if (!baseUrl || !authorizationPath) {
+    throw new Error('URL API Mekari Jurnal belum lengkap.');
+  }
+
+  const normalizedBase = baseUrl.replace(/\/+$/, '');
+  const normalizedPath = authorizationPath.replace(/^\/+|\/+$/g, '');
+
+  let endpoint;
+  try {
+    endpoint = new URL(`${normalizedBase}/${normalizedPath}/api/v1/profit_and_loss`);
+  } catch (error) {
+    throw new Error('URL API Mekari Jurnal tidak valid.');
+  }
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '') {
+      endpoint.searchParams.set(key, value);
+    }
+  });
+
+  return endpoint.toString();
+}
+
+async function fetchMekariProfitLoss(integration, params = {}) {
+  const url = buildMekariProfitLossUrl(integration, params);
+  const token = (integration.accessToken ?? '').toString().trim();
+
+  if (reportProfitLossAbortController) {
+    reportProfitLossAbortController.abort();
+  }
+
+  reportProfitLossAbortController = new AbortController();
+
+  const headers = { Accept: 'application/json' };
+  if (token) {
+    headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+    headers.apiKey = token;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers,
+      signal: reportProfitLossAbortController.signal
+    });
+
+    if (!response.ok) {
+      let message = `Permintaan API Mekari gagal (${response.status})`;
+      try {
+        const errorBody = await response.json();
+        message = errorBody?.message ?? errorBody?.error ?? message;
+      } catch (error) {
+        // Abaikan kegagalan parsing error body.
+      }
+
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
+    }
+
+    const data = await response.json();
+    return { data, syncedAt: new Date().toISOString() };
+  } finally {
+    reportProfitLossAbortController = null;
+  }
+}
+
+function normalizeProfitLossMetrics(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const profitLoss =
+    payload.profit_and_loss ??
+    payload.data?.profit_and_loss ??
+    payload.results?.profit_and_loss ??
+    null;
+
+  if (!profitLoss || typeof profitLoss !== 'object') {
+    return null;
+  }
+
+  const toNumber = value => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+  };
+
+  const primaryIncome = toNumber(profitLoss.primary_income?.total ?? profitLoss.primary_income?.amount);
+  const otherIncome = toNumber(profitLoss.other_income?.total ?? profitLoss.other_income?.amount);
+  const totalIncome = primaryIncome + otherIncome;
+  const costOfGoods = toNumber(
+    profitLoss.cost_of_good_sold?.total ?? profitLoss.cost_of_good_sold?.amount
+  );
+  const grossProfit = toNumber(
+    profitLoss.gross_profit?.total ?? profitLoss.gross_profit?.amount ?? totalIncome - costOfGoods
+  );
+  const expenses = toNumber(profitLoss.expense?.total ?? profitLoss.expense?.amount);
+  const netIncome = toNumber(
+    profitLoss.net_income?.amount ?? profitLoss.net_income?.total ?? grossProfit - expenses
+  );
+
+  const margin = totalIncome !== 0 ? grossProfit / Math.abs(totalIncome) : 0;
+  const netSales = totalIncome - expenses;
+
+  return {
+    totalIncome,
+    netSales,
+    grossProfit,
+    margin,
+    netIncome,
+    expenses,
+    costOfGoods,
+    raw: profitLoss
+  };
+}
+
+async function requestProfitLossUpdate({
+  periodKey = 'all',
+  showToastOnSuccess = false,
+  showToastOnError = false,
+  forceRefreshIntegration = false
+} = {}) {
+  try {
+    const integration = await resolveMekariIntegration({ refresh: forceRefreshIntegration });
+    if (!integration) {
+      reportProfitLossOverride = null;
+      if (showToastOnError) {
+        toast.show('Integrasi Mekari Jurnal belum dikonfigurasi.');
+      }
+      updateSalesReportMetrics(reportRenderState.filtered, reportRenderState.reports, reportProfitLossOverride);
+      return { success: false, reason: 'missing-integration' };
+    }
+
+    if (!integration.apiBaseUrl || !integration.authorizationPath || !integration.accessToken) {
+      reportProfitLossOverride = null;
+      if (showToastOnError) {
+        toast.show('Lengkapi API URL, Authorization Path, dan Token Mekari Jurnal terlebih dahulu.');
+      }
+      updateSalesReportMetrics(reportRenderState.filtered, reportRenderState.reports, reportProfitLossOverride);
+      return { success: false, reason: 'incomplete-credentials' };
+    }
+
+    const range = getProfitLossDateRange(periodKey);
+    const params = {};
+    if (range.startDate) {
+      params.start_date = range.startDate;
+    }
+    if (range.endDate) {
+      params.end_date = range.endDate;
+    }
+    if (range.startDate || range.endDate) {
+      params.period = 'custom';
+    }
+
+    const { data, syncedAt } = await fetchMekariProfitLoss(integration, params);
+    const metrics = normalizeProfitLossMetrics(data);
+    if (!metrics) {
+      reportProfitLossOverride = null;
+      updateSalesReportMetrics(reportRenderState.filtered, reportRenderState.reports, reportProfitLossOverride);
+      if (showToastOnError) {
+        toast.show('Format data profit & loss Mekari tidak dikenali.');
+      }
+      return { success: false, reason: 'invalid-payload' };
+    }
+
+    reportProfitLossOverride = { ...metrics, syncedAt };
+    updateSalesReportMetrics(reportRenderState.filtered, reportRenderState.reports, reportProfitLossOverride);
+    await markMekariIntegrationSynced(integration, syncedAt);
+
+    if (showToastOnSuccess) {
+      toast.show('Data profit & loss Mekari berhasil diperbarui.');
+    }
+
+    return { success: true, metrics: reportProfitLossOverride };
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return { success: false, reason: 'aborted' };
+    }
+
+    console.error('Gagal mengambil data profit & loss Mekari.', error);
+    reportProfitLossOverride = null;
+    updateSalesReportMetrics(reportRenderState.filtered, reportRenderState.reports, reportProfitLossOverride);
+
+    if (showToastOnError) {
+      if (error?.status === 401) {
+        toast.show('Token Mekari Jurnal tidak valid atau telah kedaluwarsa.');
+      } else {
+        toast.show(error?.message ?? 'Gagal mengambil data profit & loss Mekari.');
+      }
+    }
+
+    return { success: false, reason: 'request-failed', error };
+  }
+}
+
 function getReportStatusMeta(status) {
   switch (status) {
     case 'on-track':
@@ -7055,14 +7441,22 @@ function getReportStatusMeta(status) {
   }
 }
 
-function updateSalesReportMetrics(filtered = [], allReports = []) {
-  const totalGross = filtered.reduce((sum, report) => sum + (Number(report.grossSales) || 0), 0);
-  const totalNet = filtered.reduce((sum, report) => sum + (Number(report.netSales) || 0), 0);
-  const totalProfit = filtered.reduce((sum, report) => sum + (Number(report.grossProfit) || 0), 0);
+function updateSalesReportMetrics(filtered = [], allReports = [], overrideMetrics = null) {
+  const totalGross = overrideMetrics
+    ? Number(overrideMetrics.totalIncome) || 0
+    : filtered.reduce((sum, report) => sum + (Number(report.grossSales) || 0), 0);
+  const totalNet = overrideMetrics
+    ? Number(overrideMetrics.netSales) || 0
+    : filtered.reduce((sum, report) => sum + (Number(report.netSales) || 0), 0);
+  const totalProfit = overrideMetrics
+    ? Number(overrideMetrics.grossProfit) || 0
+    : filtered.reduce((sum, report) => sum + (Number(report.grossProfit) || 0), 0);
   const totalUnits = filtered.reduce((sum, report) => sum + (Number(report.unitsSold) || 0), 0);
-  const averageMargin = filtered.length
-    ? filtered.reduce((sum, report) => sum + (Number(report.margin) || 0), 0) / filtered.length
-    : 0;
+  const averageMargin = overrideMetrics
+    ? Number(overrideMetrics.margin) || 0
+    : filtered.length
+      ? filtered.reduce((sum, report) => sum + (Number(report.margin) || 0), 0) / filtered.length
+      : 0;
 
   const setText = (id, value) => {
     const element = document.getElementById(id);
@@ -7079,27 +7473,34 @@ function updateSalesReportMetrics(filtered = [], allReports = []) {
 
   const indicator = document.querySelector('.report-sync-indicator');
   if (indicator) {
-    const hasHealthySync = allReports.some(report => report.syncStatus === 'on-track' || report.syncStatus === 'scheduled');
+    const hasHealthySync = overrideMetrics
+      ? true
+      : allReports.some(report => report.syncStatus === 'on-track' || report.syncStatus === 'scheduled');
     indicator.classList.toggle('is-online', hasHealthySync);
   }
 
   const lastSyncElement = document.getElementById('report-last-sync');
   if (lastSyncElement) {
-    const latest = allReports.reduce((latestReport, report) => {
-      if (!report?.lastSyncAt) {
+    const overrideSync = overrideMetrics?.syncedAt ?? null;
+    if (overrideSync) {
+      lastSyncElement.textContent = formatIntegrationSyncTime(overrideSync);
+    } else {
+      const latest = allReports.reduce((latestReport, report) => {
+        if (!report?.lastSyncAt) {
+          return latestReport;
+        }
+        const date = new Date(report.lastSyncAt);
+        if (Number.isNaN(date.getTime())) {
+          return latestReport;
+        }
+        if (!latestReport || date > latestReport.date) {
+          return { date, value: report.lastSyncAt };
+        }
         return latestReport;
-      }
-      const date = new Date(report.lastSyncAt);
-      if (Number.isNaN(date.getTime())) {
-        return latestReport;
-      }
-      if (!latestReport || date > latestReport.date) {
-        return { date, value: report.lastSyncAt };
-      }
-      return latestReport;
-    }, null);
+      }, null);
 
-    lastSyncElement.textContent = latest ? formatIntegrationSyncTime(latest.value) : 'Belum pernah';
+      lastSyncElement.textContent = latest ? formatIntegrationSyncTime(latest.value) : 'Belum pernah';
+    }
   }
 }
 
@@ -7183,7 +7584,10 @@ function renderSalesReports({ search = '', channel = 'all', period = 'all', sync
     }
   }
 
-  updateSalesReportMetrics(filtered, reports);
+  reportRenderState = { filtered, reports };
+  updateSalesReportMetrics(filtered, reports, reportProfitLossOverride);
+
+  return reportRenderState;
 }
 
 function maskAccessToken(token) {
@@ -7477,29 +7881,71 @@ function handleIntegrationActions(options = {}) {
 
 async function initReportsPage() {
   ensureSalesReportsSeeded();
+  ensureIntegrationsSeeded();
 
-  let currentSearch = '';
+  let supabaseReady = true;
+  try {
+    await ensureSeeded();
+  } catch (error) {
+    supabaseReady = false;
+    console.error('Gagal menyiapkan data laporan penjualan.', error);
+    toast.show('Gagal memuat data dari Supabase. Menggunakan data lokal.');
+  }
 
-  const applyFilters = () => {
+  if (supabaseReady) {
+    try {
+      await refreshIntegrationsFromSupabase();
+    } catch (error) {
+      console.error('Gagal memperbarui data integrasi Mekari.', error);
+      toast.show('Data integrasi Mekari Jurnal mungkin tidak terbaru.');
+    }
+  } else {
+    setStoredIntegrations(getStoredIntegrations());
+  }
+
+  await resolveMekariIntegration();
+
+  let currentPeriod = document.getElementById('report-period-filter')?.value ?? 'all';
+  let lastRequestedPeriod = null;
+
+  const applyFilters = ({ triggerProfitLoss = true } = {}) => {
+    const searchInput = document.getElementById('search-input');
     const channel = document.getElementById('report-channel-filter')?.value ?? 'all';
     const period = document.getElementById('report-period-filter')?.value ?? 'all';
     const sync = document.getElementById('report-sync-filter')?.value ?? 'all';
-    renderSalesReports({
-      search: currentSearch,
+
+    currentPeriod = period;
+
+    const state = renderSalesReports({
+      search: searchInput ? searchInput.value : '',
       channel,
       period,
       syncStatus: sync
     });
+
+    if (!state) {
+      return;
+    }
+
+    if (triggerProfitLoss) {
+      if (period !== lastRequestedPeriod || !reportProfitLossOverride) {
+        lastRequestedPeriod = period;
+        requestProfitLossUpdate({ periodKey: period });
+      } else {
+        updateSalesReportMetrics(state.filtered, state.reports, reportProfitLossOverride);
+      }
+    } else {
+      updateSalesReportMetrics(state.filtered, state.reports, reportProfitLossOverride);
+    }
   };
 
-  handleSearch(value => {
-    currentSearch = value;
-    applyFilters();
+  handleSearch(() => {
+    applyFilters({ triggerProfitLoss: false });
   });
 
   const filtersForm = document.getElementById('sales-report-filters');
   if (filtersForm) {
-    filtersForm.addEventListener('change', applyFilters);
+    filtersForm.addEventListener('change', () => applyFilters({ triggerProfitLoss: true }));
   }
 
   const syncButton = document.querySelector('[data-report-sync-now]');
@@ -7511,9 +7957,7 @@ async function initReportsPage() {
       syncButton.textContent = label;
     };
 
-    setButtonLabel(defaultLabel);
-
-    syncButton.addEventListener('click', () => {
+    const runManualSync = async () => {
       if (syncButton.disabled) {
         return;
       }
@@ -7522,12 +7966,28 @@ async function initReportsPage() {
       syncButton.classList.add('is-loading');
       setButtonLabel(loadingLabel);
 
-      setTimeout(() => {
+      try {
+        const result = await requestProfitLossUpdate({
+          periodKey: currentPeriod,
+          showToastOnSuccess: true,
+          showToastOnError: true,
+          forceRefreshIntegration: true
+        });
+        if (result?.success) {
+          lastRequestedPeriod = currentPeriod;
+        }
+      } finally {
         syncButton.disabled = false;
         syncButton.classList.remove('is-loading');
         setButtonLabel(defaultLabel);
-        toast.show('Sinkronisasi laporan dijadwalkan. Buka Integrasi untuk memantau status API.');
-      }, 900);
+      }
+    };
+
+    setButtonLabel(defaultLabel);
+    syncButton.addEventListener('click', () => {
+      runManualSync().catch(error => {
+        console.error('Gagal sinkronisasi laporan Mekari.', error);
+      });
     });
   }
 
