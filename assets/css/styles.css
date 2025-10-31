@@ -1524,7 +1524,8 @@ a.action-icon {
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: var(--color-surface-alt);
-  min-width: 280px;
+  width: min(100%, 360px);
+  flex-wrap: wrap;
 }
 
 .report-sync-indicator {
@@ -1552,6 +1553,8 @@ a.action-icon {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .report-sync-label {
@@ -2618,7 +2621,6 @@ body.modal-open {
   }
 
   .report-sync-status {
-    flex-wrap: wrap;
     justify-content: space-between;
     gap: 12px;
   }
@@ -2729,6 +2731,24 @@ body.modal-open {
 
   .auth-button__icon {
     font-size: 18px;
+  }
+
+  .report-overview .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .report-sync-status {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .report-sync-status .btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .variant-table,
