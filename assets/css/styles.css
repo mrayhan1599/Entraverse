@@ -1600,6 +1600,184 @@ a.action-icon {
   outline-offset: 2px;
 }
 
+.date-range-filter {
+  position: relative;
+}
+
+.date-range-filter__trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.date-range-filter__trigger:hover {
+  border-color: var(--color-primary);
+}
+
+.date-range-filter__trigger:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.date-range-filter__chevron {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.date-range-filter__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  width: min(320px, 100vw - 32px);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.date-range-filter__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.date-range-filter__section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+}
+
+.date-range-filter__quick-list {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.date-range-filter__quick-button {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+  text-align: left;
+}
+
+.date-range-filter__quick-button:hover {
+  border-color: var(--color-primary);
+}
+
+.date-range-filter__quick-button.is-active {
+  border-color: var(--color-primary);
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.date-range-filter__custom-inputs {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.date-range-filter__input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.date-range-filter__input input[type="date"] {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+.date-range-filter__input input[type="date"]:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.date-range-filter__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.date-range-filter__action {
+  flex: 1;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.date-range-filter__action:hover {
+  border-color: var(--color-primary);
+}
+
+.date-range-filter__action:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.date-range-filter__action--apply {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.date-range-filter__action--apply:hover {
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+}
+
+@media (max-width: 640px) {
+  .date-range-filter__popover {
+    width: min(100%, 360px);
+    right: 0;
+    left: auto;
+  }
+
+  .date-range-filter__quick-list,
+  .date-range-filter__custom-inputs {
+    grid-template-columns: 1fr;
+  }
+}
+
 .report-metrics {
   display: grid;
   gap: 16px;
