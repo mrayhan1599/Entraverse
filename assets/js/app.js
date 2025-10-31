@@ -441,6 +441,107 @@ let reportRenderState = { filtered: [], reports: [] };
 
 const SALES_REPORT_SYNC_STATUS = new Set(['on-track', 'manual', 'scheduled']);
 
+const REPORT_PERIOD_PRESETS = Object.freeze([
+  {
+    key: 'all',
+    label: 'Semua periode',
+    getRange: () => ({ start: null, end: null })
+  },
+  {
+    key: 'today',
+    label: 'Hari ini',
+    getRange: referenceDate => {
+      const date = referenceDate ? new Date(referenceDate) : new Date();
+      if (Number.isNaN(date.getTime())) {
+        return { start: null, end: null };
+      }
+      return {
+        start: toDateOnlyString(date),
+        end: toDateOnlyString(date)
+      };
+    }
+  },
+  {
+    key: 'yesterday',
+    label: 'Kemarin',
+    getRange: referenceDate => {
+      const date = referenceDate ? new Date(referenceDate) : new Date();
+      if (Number.isNaN(date.getTime())) {
+        return { start: null, end: null };
+      }
+      date.setDate(date.getDate() - 1);
+      return {
+        start: toDateOnlyString(date),
+        end: toDateOnlyString(date)
+      };
+    }
+  },
+  {
+    key: 'last-7-days',
+    label: '7 hari terakhir',
+    getRange: referenceDate => {
+      const end = referenceDate ? new Date(referenceDate) : new Date();
+      if (Number.isNaN(end.getTime())) {
+        return { start: null, end: null };
+      }
+      const start = new Date(end);
+      start.setDate(start.getDate() - 6);
+      return {
+        start: toDateOnlyString(start),
+        end: toDateOnlyString(end)
+      };
+    }
+  },
+  {
+    key: 'last-30-days',
+    label: '30 hari terakhir',
+    getRange: referenceDate => {
+      const end = referenceDate ? new Date(referenceDate) : new Date();
+      if (Number.isNaN(end.getTime())) {
+        return { start: null, end: null };
+      }
+      const start = new Date(end);
+      start.setDate(start.getDate() - 29);
+      return {
+        start: toDateOnlyString(start),
+        end: toDateOnlyString(end)
+      };
+    }
+  },
+  {
+    key: 'this-month',
+    label: 'Bulan ini',
+    getRange: referenceDate => {
+      const base = referenceDate ? new Date(referenceDate) : new Date();
+      if (Number.isNaN(base.getTime())) {
+        return { start: null, end: null };
+      }
+      const start = new Date(base.getFullYear(), base.getMonth(), 1);
+      const end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+      return {
+        start: toDateOnlyString(start),
+        end: toDateOnlyString(end)
+      };
+    }
+  },
+  {
+    key: 'last-month',
+    label: 'Bulan lalu',
+    getRange: referenceDate => {
+      const base = referenceDate ? new Date(referenceDate) : new Date();
+      if (Number.isNaN(base.getTime())) {
+        return { start: null, end: null };
+      }
+      const start = new Date(base.getFullYear(), base.getMonth() - 1, 1);
+      const end = new Date(base.getFullYear(), base.getMonth(), 0);
+      return {
+        start: toDateOnlyString(start),
+        end: toDateOnlyString(end)
+      };
+    }
+  }
+]);
+
 const LOCAL_STORAGE_KEYS = Object.freeze({
   shippingVendorsSnapshot: 'entraverse_shipping_vendors_snapshot',
   shippingVendorsLocal: 'entraverse_shipping_vendors_local'
@@ -7201,7 +7302,18 @@ function getProfitLossRangeFromReports(periodKey) {
   return { startDate: start, endDate: end };
 }
 
-function getProfitLossDateRange(periodKey) {
+function getProfitLossDateRange({ periodKey = 'all', startDate = null, endDate = null } = {}) {
+  const normalizedStart = normalizeDateFilterValue(startDate);
+  const normalizedEnd = normalizeDateFilterValue(endDate);
+
+  if (normalizedStart || normalizedEnd) {
+    return {
+      startDate: normalizedStart,
+      endDate: normalizedEnd,
+      period: periodKey || 'custom'
+    };
+  }
+
   if (!periodKey || periodKey === 'all') {
     const today = new Date();
     const end = toDateOnlyString(today);
@@ -7352,6 +7464,8 @@ function normalizeProfitLossMetrics(payload) {
 
 async function requestProfitLossUpdate({
   periodKey = 'all',
+  startDate = null,
+  endDate = null,
   showToastOnSuccess = false,
   showToastOnError = false,
   forceRefreshIntegration = false
@@ -7376,7 +7490,7 @@ async function requestProfitLossUpdate({
       return { success: false, reason: 'incomplete-credentials' };
     }
 
-    const range = getProfitLossDateRange(periodKey);
+    const range = getProfitLossDateRange({ periodKey, startDate, endDate });
     const params = {};
     if (range.startDate) {
       params.start_date = range.startDate;
@@ -7504,7 +7618,358 @@ function updateSalesReportMetrics(filtered = [], allReports = [], overrideMetric
   }
 }
 
-function renderSalesReports({ search = '', channel = 'all', period = 'all', syncStatus = 'all' } = {}) {
+function getReportPeriodPreset(key) {
+  if (!key) {
+    return REPORT_PERIOD_PRESETS[0] ?? null;
+  }
+
+  return REPORT_PERIOD_PRESETS.find(preset => preset.key === key) || null;
+}
+
+function normalizeDateFilterValue(value) {
+  const normalized = toDateOnlyString(value);
+  return normalized ?? null;
+}
+
+function parseDateOnlyValue(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function formatDateRangeDisplay(start, end) {
+  const format = value => {
+    const parsed = parseDateOnlyValue(value);
+    if (!parsed) {
+      return null;
+    }
+    return new Intl.DateTimeFormat('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }).format(parsed);
+  };
+
+  const formattedStart = format(start);
+  const formattedEnd = format(end);
+
+  if (formattedStart && formattedEnd) {
+    if (formattedStart === formattedEnd) {
+      return formattedStart;
+    }
+    return `${formattedStart} – ${formattedEnd}`;
+  }
+
+  if (formattedStart) {
+    return `Mulai ${formattedStart}`;
+  }
+
+  if (formattedEnd) {
+    return `Sampai ${formattedEnd}`;
+  }
+
+  return null;
+}
+
+function doesReportMatchPeriod(report, { key = 'all', startDate = null, endDate = null } = {}) {
+  const filterStart = parseDateOnlyValue(startDate);
+  const filterEnd = parseDateOnlyValue(endDate);
+  const hasRange = Boolean(filterStart || filterEnd);
+
+  if (!hasRange) {
+    if (!key || key === 'all') {
+      return true;
+    }
+    return (report?.period?.key ?? '') === key;
+  }
+
+  const reportStart = parseDateOnlyValue(report?.period?.start);
+  const reportEnd = parseDateOnlyValue(report?.period?.end ?? report?.period?.start);
+
+  if (!reportStart && !reportEnd) {
+    return false;
+  }
+
+  const effectiveStart = reportStart || reportEnd;
+  const effectiveEnd = reportEnd || reportStart;
+
+  if (filterStart && filterEnd) {
+    return effectiveEnd >= filterStart && effectiveStart <= filterEnd;
+  }
+
+  if (filterStart) {
+    return effectiveEnd >= filterStart;
+  }
+
+  if (filterEnd) {
+    return effectiveStart <= filterEnd;
+  }
+
+  return true;
+}
+
+function getPeriodSelectionSignature(selection) {
+  if (!selection) {
+    return 'all||';
+  }
+
+  const key = selection.key ?? 'all';
+  const start = selection.start ?? selection.startDate ?? '';
+  const end = selection.end ?? selection.endDate ?? '';
+  return `${key}|${start || ''}|${end || ''}`;
+}
+
+function setupReportDateFilter({ onChange } = {}) {
+  const container = document.querySelector('[data-report-date-filter]');
+  if (!container) {
+    return null;
+  }
+
+  const trigger = container.querySelector('[data-date-filter-trigger]');
+  const popover = container.querySelector('[data-date-filter-popover]');
+  const labelElement = container.querySelector('[data-date-filter-label]');
+  const quickButtons = Array.from(container.querySelectorAll('[data-date-filter-preset]'));
+  const startInput = container.querySelector('[data-date-filter-start]');
+  const endInput = container.querySelector('[data-date-filter-end]');
+  const applyButton = container.querySelector('[data-date-filter-apply]');
+  const resetButton = container.querySelector('[data-date-filter-reset]');
+  const hiddenKeyInput = container.querySelector('#report-period-filter');
+  const hiddenStartInput = container.querySelector('#report-period-start');
+  const hiddenEndInput = container.querySelector('#report-period-end');
+
+  const initialSelection = {
+    key: hiddenKeyInput?.value || 'all',
+    start: hiddenStartInput?.value || null,
+    end: hiddenEndInput?.value || null
+  };
+
+  let currentSelection = {
+    key: initialSelection.key,
+    start: normalizeDateFilterValue(initialSelection.start),
+    end: normalizeDateFilterValue(initialSelection.end)
+  };
+
+  const updateHiddenInputs = () => {
+    if (hiddenKeyInput) {
+      hiddenKeyInput.value = currentSelection.key ?? 'custom';
+    }
+    if (hiddenStartInput) {
+      hiddenStartInput.value = currentSelection.start ?? '';
+    }
+    if (hiddenEndInput) {
+      hiddenEndInput.value = currentSelection.end ?? '';
+    }
+  };
+
+  const updateQuickButtons = () => {
+    quickButtons.forEach(button => {
+      const presetKey = button.dataset.dateFilterPreset;
+      button.classList.toggle('is-active', Boolean(presetKey) && presetKey === currentSelection.key);
+    });
+  };
+
+  const updateInputs = () => {
+    if (startInput) {
+      startInput.value = currentSelection.start ?? '';
+    }
+    if (endInput) {
+      endInput.value = currentSelection.end ?? '';
+    }
+  };
+
+  const updateLabel = () => {
+    if (!labelElement) {
+      return;
+    }
+
+    const preset = getReportPeriodPreset(currentSelection.key);
+    const rangeText = formatDateRangeDisplay(currentSelection.start, currentSelection.end);
+
+    if (currentSelection.key === 'all' && !currentSelection.start && !currentSelection.end) {
+      labelElement.textContent = preset?.label ?? 'Semua periode';
+      return;
+    }
+
+    if (preset && rangeText) {
+      labelElement.textContent = `${preset.label} • ${rangeText}`;
+      return;
+    }
+
+    if (preset && !currentSelection.start && !currentSelection.end) {
+      labelElement.textContent = preset.label;
+      return;
+    }
+
+    labelElement.textContent = rangeText || 'Periode kustom';
+  };
+
+  const closePopover = () => {
+    if (!popover) {
+      return;
+    }
+    popover.hidden = true;
+    if (trigger) {
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+  };
+
+  const openPopover = () => {
+    if (!popover) {
+      return;
+    }
+    popover.hidden = false;
+    if (trigger) {
+      trigger.setAttribute('aria-expanded', 'true');
+    }
+  };
+
+  const applySelection = (nextSelection, { silent = false, close = true } = {}) => {
+    const key = nextSelection.key ?? 'custom';
+    let start = normalizeDateFilterValue(nextSelection.start ?? nextSelection.startDate);
+    let end = normalizeDateFilterValue(nextSelection.end ?? nextSelection.endDate);
+
+    if (key === 'all') {
+      start = null;
+      end = null;
+    } else if (!start && !end) {
+      const preset = getReportPeriodPreset(key);
+      if (preset && typeof preset.getRange === 'function') {
+        const presetRange = preset.getRange(new Date());
+        start = normalizeDateFilterValue(presetRange?.start);
+        end = normalizeDateFilterValue(presetRange?.end);
+      }
+    }
+
+    currentSelection = { key, start, end };
+    updateHiddenInputs();
+    updateQuickButtons();
+    updateInputs();
+    updateLabel();
+
+    if (close) {
+      closePopover();
+    }
+
+    if (!silent && typeof onChange === 'function') {
+      onChange({ ...currentSelection });
+    }
+  };
+
+  const getSelection = () => ({ ...currentSelection });
+
+  if (trigger) {
+    trigger.addEventListener('click', () => {
+      if (!popover) {
+        return;
+      }
+      if (popover.hidden) {
+        openPopover();
+      } else {
+        closePopover();
+      }
+    });
+  }
+
+  document.addEventListener('click', event => {
+    if (!container.contains(event.target)) {
+      closePopover();
+    }
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      closePopover();
+    }
+  });
+
+  quickButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const presetKey = button.dataset.dateFilterPreset;
+      const preset = presetKey ? getReportPeriodPreset(presetKey) : null;
+      if (!preset) {
+        return;
+      }
+      const range = typeof preset.getRange === 'function' ? preset.getRange(new Date()) : { start: null, end: null };
+      applySelection({ key: preset.key, start: range?.start ?? null, end: range?.end ?? null });
+    });
+  });
+
+  if (resetButton) {
+    resetButton.addEventListener('click', () => {
+      if (startInput) {
+        startInput.value = '';
+      }
+      if (endInput) {
+        endInput.value = '';
+      }
+      applySelection({ key: 'all', start: null, end: null });
+    });
+  }
+
+  if (applyButton) {
+    applyButton.addEventListener('click', () => {
+      const startValue = startInput?.value || '';
+      const endValue = endInput?.value || '';
+
+      if (!startValue || !endValue) {
+        toast.show('Pilih tanggal mulai dan selesai.');
+        return;
+      }
+
+      const startDate = parseDateOnlyValue(startValue);
+      const endDate = parseDateOnlyValue(endValue);
+
+      if (!startDate || !endDate) {
+        toast.show('Format tanggal tidak valid.');
+        return;
+      }
+
+      if (startDate > endDate) {
+        toast.show('Tanggal mulai tidak boleh melebihi tanggal selesai.');
+        return;
+      }
+
+      applySelection({ key: 'custom', start: startValue, end: endValue });
+    });
+  }
+
+  [startInput, endInput].forEach(input => {
+    if (!input) {
+      return;
+    }
+    input.addEventListener('input', () => {
+      quickButtons.forEach(button => button.classList.remove('is-active'));
+    });
+  });
+
+  applySelection(currentSelection, { silent: true, close: false });
+  updateHiddenInputs();
+  updateQuickButtons();
+  updateInputs();
+  updateLabel();
+
+  return {
+    getSelection,
+    setSelection: (selection, options) => applySelection(selection, options)
+  };
+}
+
+function renderSalesReports({
+  search = '',
+  channel = 'all',
+  period = 'all',
+  syncStatus = 'all',
+  startDate = null,
+  endDate = null
+} = {}) {
   const tbody = document.getElementById('sales-report-table-body');
   if (!tbody) {
     return;
@@ -7528,7 +7993,7 @@ function renderSalesReports({ search = '', channel = 'all', period = 'all', sync
         .some(value => value.includes(normalizedSearch));
 
     const matchesChannel = channel === 'all' || report.channel === channel;
-    const matchesPeriod = period === 'all' || report.period?.key === period;
+    const matchesPeriod = doesReportMatchPeriod(report, { key: period, startDate, endDate });
     const matchesStatus = syncStatus === 'all' || report.syncStatus === syncStatus;
 
     return matchesSearch && matchesChannel && matchesPeriod && matchesStatus;
@@ -7584,7 +8049,7 @@ function renderSalesReports({ search = '', channel = 'all', period = 'all', sync
     }
   }
 
-  reportRenderState = { filtered, reports };
+  reportRenderState = { filtered, reports, period: { key: period, startDate, endDate } };
   updateSalesReportMetrics(filtered, reports, reportProfitLossOverride);
 
   return reportRenderState;
@@ -7905,22 +8370,48 @@ async function initReportsPage() {
 
   await resolveMekariIntegration();
 
-  let currentPeriod = document.getElementById('report-period-filter')?.value ?? 'all';
-  let lastRequestedPeriod = null;
+  let dateFilter = null;
+
+  const getPeriodSelection = () => {
+    const fallback = {
+      key: document.getElementById('report-period-filter')?.value ?? 'all',
+      start: document.getElementById('report-period-start')?.value || null,
+      end: document.getElementById('report-period-end')?.value || null
+    };
+
+    if (dateFilter && typeof dateFilter.getSelection === 'function') {
+      const selection = dateFilter.getSelection();
+      return {
+        key: selection?.key ?? fallback.key,
+        start: normalizeDateFilterValue(selection?.start) ?? normalizeDateFilterValue(fallback.start),
+        end: normalizeDateFilterValue(selection?.end) ?? normalizeDateFilterValue(fallback.end)
+      };
+    }
+
+    return {
+      key: fallback.key,
+      start: normalizeDateFilterValue(fallback.start),
+      end: normalizeDateFilterValue(fallback.end)
+    };
+  };
+
+  let currentPeriodSelection = getPeriodSelection();
+  let lastRequestedPeriodSignature = null;
 
   const applyFilters = ({ triggerProfitLoss = true } = {}) => {
     const searchInput = document.getElementById('search-input');
     const channel = document.getElementById('report-channel-filter')?.value ?? 'all';
-    const period = document.getElementById('report-period-filter')?.value ?? 'all';
     const sync = document.getElementById('report-sync-filter')?.value ?? 'all';
 
-    currentPeriod = period;
+    currentPeriodSelection = getPeriodSelection();
 
     const state = renderSalesReports({
       search: searchInput ? searchInput.value : '',
       channel,
-      period,
-      syncStatus: sync
+      period: currentPeriodSelection.key,
+      syncStatus: sync,
+      startDate: currentPeriodSelection.start,
+      endDate: currentPeriodSelection.end
     });
 
     if (!state) {
@@ -7928,9 +8419,14 @@ async function initReportsPage() {
     }
 
     if (triggerProfitLoss) {
-      if (period !== lastRequestedPeriod || !reportProfitLossOverride) {
-        lastRequestedPeriod = period;
-        requestProfitLossUpdate({ periodKey: period });
+      const signature = getPeriodSelectionSignature(currentPeriodSelection);
+      if (signature !== lastRequestedPeriodSignature || !reportProfitLossOverride) {
+        lastRequestedPeriodSignature = signature;
+        requestProfitLossUpdate({
+          periodKey: currentPeriodSelection.key,
+          startDate: currentPeriodSelection.start,
+          endDate: currentPeriodSelection.end
+        });
       } else {
         updateSalesReportMetrics(state.filtered, state.reports, reportProfitLossOverride);
       }
@@ -7938,6 +8434,15 @@ async function initReportsPage() {
       updateSalesReportMetrics(state.filtered, state.reports, reportProfitLossOverride);
     }
   };
+
+  dateFilter = setupReportDateFilter({
+    onChange: () => {
+      currentPeriodSelection = getPeriodSelection();
+      applyFilters({ triggerProfitLoss: true });
+    }
+  });
+
+  currentPeriodSelection = getPeriodSelection();
 
   handleSearch(() => {
     applyFilters({ triggerProfitLoss: false });
@@ -7962,19 +8467,25 @@ async function initReportsPage() {
         return;
       }
 
+      const selection = getPeriodSelection();
+      const signature = getPeriodSelectionSignature(selection);
+
       syncButton.disabled = true;
       syncButton.classList.add('is-loading');
       setButtonLabel(loadingLabel);
 
       try {
         const result = await requestProfitLossUpdate({
-          periodKey: currentPeriod,
+          periodKey: selection.key,
+          startDate: selection.start,
+          endDate: selection.end,
           showToastOnSuccess: true,
           showToastOnError: true,
           forceRefreshIntegration: true
         });
         if (result?.success) {
-          lastRequestedPeriod = currentPeriod;
+          lastRequestedPeriodSignature = signature;
+          currentPeriodSelection = selection;
         }
       } finally {
         syncButton.disabled = false;
