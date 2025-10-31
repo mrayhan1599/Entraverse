@@ -1411,11 +1411,14 @@ a.action-icon {
   font-style: italic;
 }
 
+
 .integration-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
   gap: 8px;
-  align-items: stretch;
+  flex-wrap: wrap;
 }
 
 .integration-actions__primary,
@@ -1423,7 +1426,7 @@ a.action-icon {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  justify-content: flex-start;
+  align-items: center;
 }
 
 .integration-actions__secondary {
